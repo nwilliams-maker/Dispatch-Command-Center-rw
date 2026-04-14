@@ -662,20 +662,22 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             addr = t.get('destination', {}).get('address', {})
             stt = normalize_state(addr.get('state', ''))
             is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
-            tt_val = "" # Default to empty
+            tt_val = str(t.get('taskType', '')).strip() or str(t.get('taskDetails', '')).strip()
             
             # Loop through Onfleet Metadata to find custom fields
             for m in (t.get('metadata') or []):
                 m_name = str(m.get('name', '')).strip().lower()
                 m_val = str(m.get('value', '')).strip()
+                m_val_lower = m_val.lower()
                 
-                # Check for Escalations
-                if 'escalation' in m_name and m_val in ['1', '1.0', 'true', 'yes']:
+                if 'escalation' in m_name and m_val_lower in ['1', '1.0', 'true', 'yes']:
                     is_esc = True
-                    
-                # Check for Custom Task Type (matches 'Task Type' from Onfleet)
                 if m_name == 'task type':
                     tt_val = m_val
+                
+                # NEW: Catch Skykit if it's hiding in National Camp Name (or anywhere else)
+                if 'skykit' in m_val_lower or 'digital' in m_val_lower:
+                    tt_val += " skykit" # Forces it into the task_type string so the plug icon triggers!
             
             if stt in config['states']:
                 pool.append({
