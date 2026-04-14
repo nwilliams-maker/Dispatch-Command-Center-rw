@@ -1235,7 +1235,7 @@ def run_pod_tab(pod_name):
 
     # Create two equal-width columns for side-by-side layout
     # [4, 5.5] ratio makes the left card narrower and the right side wider
-    col_left, col_right = st.columns([4.8, 5.2])
+    col_left, col_right = st.columns([4.5, 5.5])
 
     with col_left:
         # ==========================================
