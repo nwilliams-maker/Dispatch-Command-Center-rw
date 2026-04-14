@@ -708,23 +708,28 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             
             anc = pool.pop(0)
             
-           # --- NEW: Strict Digital Separation ---
-            # Check if the starting anchor task is digital
+           # --- NEW: Strict Digital Separation & Dynamic Radius ---
             anc_tt = str(anc.get('task_type', '')).lower()
             anc_is_digital = 'digital' in anc_tt or 'service' in anc_tt or 'skykit' in anc_tt
+            
+            # THE FIX: If digital, limit radius to 25 miles; otherwise, 50 miles.
+            route_radius = 25 if anc_is_digital else 50
             
             candidates = []; rem = []
             for t in pool:
                 t_tt = str(t.get('task_type', '')).lower()
                 t_is_digital = 'digital' in t_tt or 'service' in t_tt or 'skykit' in t_tt
                 
-                # ONLY group if they are BOTH digital, or BOTH standard
+                # ONLY group if they match the digital/standard status of the anchor
                 if anc_is_digital == t_is_digital:
                     d = haversine(anc['lat'], anc['lon'], t['lat'], t['lon'])
-                    if d <= 50: candidates.append((d, t))
-                    else: rem.append(t)
+                    # Apply the dynamic radius here
+                    if d <= route_radius: 
+                        candidates.append((d, t))
+                    else: 
+                        rem.append(t)
                 else:
-                    # Types don't match; skip and save this task for another route
+                    # Types don't match; save for a different route
                     rem.append(t)
             
             candidates.sort(key=lambda x: x[0])
