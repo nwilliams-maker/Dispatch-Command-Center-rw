@@ -889,19 +889,17 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     sig_preview = (
         f"Hello {ic['Name']},\n\n"
         f"We have a new route available for you to review.\n\n"
-        f"📋 Work Order: {wo_val}\n"
+        f" Work Order: {wo_val}\n"
         f"📅 Due Date: {due.strftime('%A, %b %d, %Y')}\n"
-        f"💰 Estimated Compensation: ${final_pay:.2f}\n"
-        f"🛠️ Kiosk Installs: {total_installs}\n\n"
+        f" Estimated Compensation: ${final_pay:.2f}\n"
+        f" Kiosk Installs: {total_installs}\n\n"
         f"{install_warning}"
         f"--- Route Preview ---\n"
         f"{stops_text}\n"
         f"To view the complete route details—including total stops, estimated mileage, and time—please click the secure link below to access your Route Summary.\n\n"
         f"⚠️ ACTION REQUIRED:\n"
         f"You must confirm by selecting 'Accept' or 'Decline' directly through the portal link. Your response updates our dispatch board in real-time so we can finalize the schedule.\n\n"
-        f"✅ Auto-Assignment:\n"
-        f"Once you click 'Accept', all tasks will be automatically assigned to your OnFleet app!\n\n"
-        f"👉 Review & Respond Here:\n"
+        f"In order to accept/decline a route you must follow the LINK and simply submit your response via the weblink:\n"
         f"{PORTAL_BASE_URL}?route={link_id}&v2=true"
     )
     
