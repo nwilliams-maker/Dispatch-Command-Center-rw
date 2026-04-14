@@ -273,7 +273,7 @@ div[data-testid="stExpander"] {{
 div[data-testid="stExpander"] details summary p {{ 
     color: #000000 !important; 
     font-weight: 800 !important; 
-    font-size: 0.95rem !important;
+    font-size: 0.85rem !important;
 }}
 
 /* 🚀 FIX: STOP THE DARK HOVER & BLACK CLICK FILL */
@@ -1235,7 +1235,7 @@ def run_pod_tab(pod_name):
 
     # Create two equal-width columns for side-by-side layout
     # [4, 5.5] ratio makes the left card narrower and the right side wider
-    col_left, col_right = st.columns([4, 5.5])
+    col_left, col_right = st.columns([5, 5])
 
     with col_left:
         # ==========================================
@@ -1299,7 +1299,9 @@ def run_pod_tab(pod_name):
                 with exp_col:
                     # Hidden hook to square off the right side of the expander
                     st.markdown("<div class='expander-hook' style='display:none;'></div>", unsafe_allow_html=True)
-                    with st.expander(f"✉️ {ic_name}{ts_label} | {c['city']}, {c['state']}{esc_pill}"): 
+                    # Move date to end and wrap in span for normal weight
+                ts_suffix = f" <span style='font-weight:400;'>| {c.get('route_ts', '')}</span>" if c.get('route_ts') else ""
+                with st.expander(f"✉️ {ic_name} | {c['city']}, {c['state']}{esc_pill}{ts_suffix}", unsafe_allow_html=True):
                         render_dispatch(i+500, c, pod_name, is_sent=True)
                         
                 with btn_col:
@@ -1330,7 +1332,8 @@ def run_pod_tab(pod_name):
                 with exp_col:
                     wo_display = c.get('wo', ic_name)
                     st.markdown("<div class='expander-hook' style='display:none;'></div>", unsafe_allow_html=True)
-                    with st.expander(f"✅ {wo_display}{ts_label} | {c['city']}, {c['state']}"):
+                    ts_suffix = f" <span style='font-weight:400;'>| {c.get('route_ts', '')}</span>" if c.get('route_ts') else ""
+                with st.expander(f"✅ {wo_display} | {c['city']}, {c['state']}{ts_suffix}", unsafe_allow_html=True):
                         st.success("Route accepted. Tasks are assigning in Onfleet now.")
                         render_dispatch(i+2000, c, pod_name, is_sent=True)
                 with btn_col:
@@ -1375,7 +1378,8 @@ def run_pod_tab(pod_name):
                 with exp_col:
                     # Hidden hook to square off the right side of the expander
                     st.markdown("<div class='expander-hook' style='display:none;'></div>", unsafe_allow_html=True)
-                    with st.expander(f"❌ {ic_name}{ts_label} | {c['city']}, {c['state']}{esc_pill}"):
+                    ts_suffix = f" <span style='font-weight:400;'>| {c.get('route_ts', '')}</span>" if c.get('route_ts') else ""
+                with st.expander(f"❌ {ic_name} | {c['city']}, {c['state']}{esc_pill}{ts_suffix}", unsafe_allow_html=True):
                         st.error("Route declined. Select a new contractor below to generate a fresh link.")
                         render_dispatch(i+3000, c, pod_name, is_declined=True)
                         
