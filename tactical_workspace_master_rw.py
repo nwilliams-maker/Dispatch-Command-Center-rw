@@ -462,8 +462,8 @@ def scrub_and_revoke_cluster(cluster_hash, ic_name, pod_name, action_label="Revo
             if not valid_tasks:
                 clusters.remove(c)
                 st.toast("✅ Route cleared (All tasks were already assigned/completed).")
-                st.rerun() # Force the UI to refresh and wipe the card instantly!
-            
+                return
+                
             c['data'] = valid_tasks
             c['stops'] = len(set(x['full'] for x in valid_tasks))
             
