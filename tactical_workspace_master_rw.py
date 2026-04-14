@@ -857,10 +857,19 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         v_ics = v_ics[v_ics['d'] <= 100].sort_values('d').head(5)
 
     if v_ics.empty:
-        st.error("⚠️ No contractors found within 100 miles.")
+        st.error("⚠️ No contractors found within 100 miles. Manual recruiting or assignment required.")
         return
 
-    ic_opts = {f"{r['Name']} ({round(r['d'],1)} mi)": r for _, r in v_ics.iterrows()}
+    # --- NEW: Inject the 🔌 for Digital Certified Contractors ---
+    ic_opts = {}
+    for _, r in v_ics.iterrows():
+        # Safely extract the column value (defaults to blank if missing to prevent crashes)
+        cert_val = str(r.get('Digital Certified', '')).strip().upper()
+        # Checks for various ways 'YES' might be formatted in the sheet
+        cert_icon = " 🔌" if cert_val in ['YES', 'Y', 'TRUE', '1', '1.0'] else ""
+        
+        label = f"{r['Name']}{cert_icon} ({round(r['d'], 1)} mi)"
+        ic_opts[label] = r
     
     # --- 3. DYNAMIC PRICING SYNC LOGIC ---
     def sync_on_total():
