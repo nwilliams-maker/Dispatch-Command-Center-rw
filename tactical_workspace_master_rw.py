@@ -1326,18 +1326,23 @@ def run_pod_tab(pod_name):
             
             # Render any live accepted routes (caught instantly before tasks disappear)
             for i, c in enumerate(accepted):
+                # 1. Define all your variables at the very top of the loop!
                 ic_name = c.get('contractor_name', 'Unknown')
-                ts_label = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
+                wo_display = c.get('wo', ic_name) 
+                ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
                 
+                # 2. Calculate the hash
                 task_ids = [str(t['id']).strip() for t in c['data']]
                 cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
                 
-                # Gives the button enough room to stay on one line, and vertically centers them
+                # 3. Create columns and render
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                
                 with exp_col:
                     with st.expander(f"✅ {wo_display} | {c['city']}, {c['state']}{ts_suffix}"):
                         st.success("Route accepted. Tasks are assigning in Onfleet now.")
                         render_dispatch(i+2000, c, pod_name, is_sent=True)
+                        
                 with btn_col:
                     with st.popover("↩️ Revoke", use_container_width=True):
                         st.error(f"⚠️ **Revoke from {ic_name}?**\n\nThey have already accepted this route.")
