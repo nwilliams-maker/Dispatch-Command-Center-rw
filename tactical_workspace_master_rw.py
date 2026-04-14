@@ -1429,6 +1429,9 @@ with tabs[0]:
         st.session_state.trigger_pull = True
 
     st.markdown("---")
+    
+    # NEW: Placeholder to anchor the progress bar ABOVE the cards
+    loading_placeholder = st.empty()
 
     # --- 2. PILL CARDS LOOP ---
     cols = st.columns(len(POD_CONFIGS))
@@ -1515,10 +1518,11 @@ with tabs[0]:
 </div>
 """, unsafe_allow_html=True)
             
-    # --- 3. THE LOADING ZONE (Progress Bar BELOW cards) ---
+    # --- 3. THE LOADING ZONE (Progress Bar ABOVE cards via placeholder) ---
     if st.session_state.get("trigger_pull"):
         st.session_state.sent_db, st.session_state.ghost_db = fetch_sent_records_from_sheet()
-        p_bar = st.progress(0, text="🎬 Initializing Operational Data...")
+        # THE FIX: Tell the progress bar to render inside the placeholder we made up top
+        p_bar = loading_placeholder.progress(0, text="🎬 Initializing Operational Data...")
         for idx, p in enumerate(pod_keys):
             st.session_state.current_loading_pod = p 
             process_pod(p, master_bar=p_bar, pod_idx=idx, total_pods=len(pod_keys))
