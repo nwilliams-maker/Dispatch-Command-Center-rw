@@ -664,7 +664,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
             tt_val = str(t.get('taskType', '')).strip() or str(t.get('taskDetails', '')).strip()
             
-            # Loop through Onfleet Metadata to find custom fields
+            # 1. Loop through Onfleet Metadata
             for m in (t.get('metadata') or []):
                 m_name = str(m.get('name', '')).strip().lower()
                 m_val = str(m.get('value', '')).strip()
@@ -672,12 +672,18 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 
                 if 'escalation' in m_name and m_val_lower in ['1', '1.0', 'true', 'yes']:
                     is_esc = True
-                if m_name == 'task type':
+                
+                # Broaden the search for Task Type
+                if m_name in ['task type', 'tasktype', 'type']:
                     tt_val = m_val
                 
-                # NEW: Catch Skykit if it's hiding in National Camp Name (or anywhere else)
+                # Catch Skykit ANYWHERE in the metadata
                 if 'skykit' in m_val_lower or 'digital' in m_val_lower:
-                    tt_val += " skykit" # Forces it into the task_type string so the plug icon triggers!
+                    tt_val += " skykit " 
+            
+            # 2. Catch Skykit hiding in the raw Onfleet Notes
+            if 'skykit' in str(t.get('notes', '')).lower():
+                tt_val += " skykit "
             
             if stt in config['states']:
                 pool.append({
@@ -815,12 +821,16 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             stop_metrics[addr] = {'t_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 'inst': 0, 'remov': 0, 'digi': 0, 'oth': 0}
         stop_metrics[addr]['t_count'] += 1
         tt = str(c.get('task_type', '')).strip().lower()
-        if not tt or any(x in tt for x in ["new ad", "digital ad", "art change", "top"]): stop_metrics[addr]['n_ad'] += 1
-        elif any(x in tt for x in ["continuity", "photo", "swap"]): stop_metrics[addr]['c_ad'] += 1
-        elif any(x in tt for x in ["default", "pull down"]): stop_metrics[addr]['d_ad'] += 1
+        
+        # Priority 1: Check Digital/Skykit FIRST
+        if any(x in tt for x in ["service", "digital", "skykit"]): stop_metrics[addr]['digi'] += 1
         elif "install" in tt: stop_metrics[addr]['inst'] += 1
         elif "removal" in tt: stop_metrics[addr]['remov'] += 1
-        elif any(x in tt for x in ["service", "digital", "skykit"]): stop_metrics[addr]['digi'] += 1
+        elif any(x in tt for x in ["continuity", "photo", "swap"]): stop_metrics[addr]['c_ad'] += 1
+        elif any(x in tt for x in ["default", "pull down"]): stop_metrics[addr]['d_ad'] += 1
+        elif any(x in tt for x in ["new ad", "art change", "top"]): stop_metrics[addr]['n_ad'] += 1
+        # If task type is completely blank, fallback to New Ad
+        elif not tt: stop_metrics[addr]['n_ad'] += 1 
         else: stop_metrics[addr]['oth'] += 1
             
     loc_pills = {} 
