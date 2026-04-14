@@ -441,7 +441,7 @@ def background_sheet_move(cluster_hash, payload_json):
     except:
         pass
 
-def scrub_and_revoke_cluster(cluster_hash, ic_name, pod_name, action_label="Revoked"):
+def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=False):
     clusters = st.session_state.get(f"clusters_{pod_name}", [])
     for c in clusters:
         task_ids = [str(t['id']).strip() for t in c['data']]
@@ -450,30 +450,34 @@ def scrub_and_revoke_cluster(cluster_hash, ic_name, pod_name, action_label="Revo
         if old_hash == cluster_hash:
             valid_tasks = []
             
-            # --- LIVE ONFLEET SCRUB (NEW: ONLY REMOVE COMPLETED) ---
-            for t in c['data']:
-                try:
-                    res = requests.get(f"https://onfleet.com/api/v2/tasks/{t['id']}", headers=headers, timeout=5).json()
-                    if res.get('state') != 3:  
-                        valid_tasks.append(t)
-                except:
-                    valid_tasks.append(t) # Failsafe
+            # --- LIVE ONFLEET SCRUB (ONLY TRIGGERED FOR ACCEPTED ROUTES) ---
+            if check_onfleet:
+                for t in c['data']:
+                    try:
+                        res = requests.get(f"https://onfleet.com/api/v2/tasks/{t['id']}", headers=headers, timeout=5).json()
+                        if res.get('state') != 3:  
+                            valid_tasks.append(t)
+                    except:
+                        valid_tasks.append(t) # Failsafe
+            else:
+                # If Sent or Declined, skip the OnFleet API call and keep all tasks
+                valid_tasks = c['data']
             
             if not valid_tasks:
                 clusters.remove(c)
                 st.toast("✅ Route cleared (All tasks were already assigned/completed).")
                 return
-                
+            
             c['data'] = valid_tasks
             c['stops'] = len(set(x['full'] for x in valid_tasks))
             
             new_task_ids = [str(t['id']).strip() for t in c['data']]
             new_hash = hashlib.md5("".join(sorted(new_task_ids)).encode()).hexdigest()
             
-            # --- GHOST REMOVAL ---
             if f"is_ghost_{old_hash}" in st.session_state:
                 st.session_state.pop(f"is_ghost_{old_hash}", None)
 
+            # Set the memory flags so the card jumps to Dispatch
             st.session_state[f"reverted_{new_hash}"] = True
             st.session_state[f"route_state_{new_hash}"] = "ready"
             
@@ -481,15 +485,22 @@ def scrub_and_revoke_cluster(cluster_hash, ic_name, pod_name, action_label="Revo
             hist.append(f"{ic_name} ({datetime.now().strftime('%m/%d')} - {action_label})")
             st.session_state[f"history_{new_hash}"] = hist
             
-            for key in [f"history_{old_hash}", f"reverted_{old_hash}", f"route_state_{old_hash}", f"sync_{old_hash}"]:
-                st.session_state.pop(key, None)
+            # 🚨 CRITICAL FIX: Only delete old keys if the hash actually changed!
+            if old_hash != new_hash:
+                for key in [f"history_{old_hash}", f"reverted_{old_hash}", f"route_state_{old_hash}", f"sync_{old_hash}"]:
+                    st.session_state.pop(key, None)
+            else:
+                # If hash is the same, just delete the sync link so it resets
+                st.session_state.pop(f"sync_{old_hash}", None)
                 
             st.toast(f"✅ Route pulled back! ({len(valid_tasks)} tasks added to Dispatch)")
-            st.rerun()
+            return # Exit safely without forcing a double-rerun
 
 def instant_revoke_handler(cluster_hash, ic_name, payload_json, pod_name):
+    # This specifically handles the SENT tab
     threading.Thread(target=background_sheet_move, args=(cluster_hash, payload_json)).start()
-    scrub_and_revoke_cluster(cluster_hash, ic_name, pod_name, "Revoked")
+    # Sent tab doesn't need OnFleet scrub!
+    move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=False)
     
 # --- UTILITIES ---
 def haversine(lat1, lon1, lat2, lon2):
@@ -1295,8 +1306,8 @@ def run_pod_tab(pod_name):
                     with st.popover("↩️ Revoke", use_container_width=True):
                         st.error(f"⚠️ **Revoke from {ic_name}?**\n\nThey have already accepted this route.")
                         if st.button("🚨 Yes, Revoke", key=f"do_rev_{cluster_hash}", type="primary", use_container_width=True):
-                            scrub_and_revoke_cluster(cluster_hash, ic_name, pod_name, "Revoked")
-                    st.markdown('</div>', unsafe_allow_html=True)
+                            move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=True)
+                            st.rerun()
 
             # Render Ghost Routes (Tasks already cleared from OnFleet)
             for i, g in enumerate(pod_ghosts):
@@ -1342,7 +1353,8 @@ def run_pod_tab(pod_name):
                     st.markdown('</div>', unsafe_allow_html=True)
                     
                     if clicked:
-                        scrub_and_revoke_cluster(cluster_hash, ic_name, pod_name, "Declined")
+                        move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Declined", check_onfleet=False)
+                        st.rerun()
                         
 # --- START ---
 if "ic_df" not in st.session_state:
