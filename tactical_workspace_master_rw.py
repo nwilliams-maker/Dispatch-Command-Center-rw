@@ -697,15 +697,15 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             
             anc = pool.pop(0)
             
-            # --- NEW: Strict Digital Separation ---
+           # --- NEW: Strict Digital Separation ---
             # Check if the starting anchor task is digital
             anc_tt = str(anc.get('task_type', '')).lower()
-            anc_is_digital = 'digital' in anc_tt or 'service' in anc_tt
+            anc_is_digital = 'digital' in anc_tt or 'service' in anc_tt or 'skykit' in anc_tt
             
             candidates = []; rem = []
             for t in pool:
                 t_tt = str(t.get('task_type', '')).lower()
-                t_is_digital = 'digital' in t_tt or 'service' in t_tt
+                t_is_digital = 'digital' in t_tt or 'service' in t_tt or 'skykit' in t_tt
                 
                 # ONLY group if they are BOTH digital, or BOTH standard
                 if anc_is_digital == t_is_digital:
@@ -818,9 +818,9 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         elif any(x in tt for x in ["default", "pull down"]): stop_metrics[addr]['d_ad'] += 1
         elif "install" in tt: stop_metrics[addr]['inst'] += 1
         elif "removal" in tt: stop_metrics[addr]['remov'] += 1
-        elif "service" in tt: stop_metrics[addr]['digi'] += 1
+        elif any(x in tt for x in ["service", "digital", "skykit"]): stop_metrics[addr]['digi'] += 1
         else: stop_metrics[addr]['oth'] += 1
-
+            
     loc_pills = {} 
     for addr, metrics in stop_metrics.items():
         pill_parts = []
