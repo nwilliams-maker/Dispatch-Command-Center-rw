@@ -1331,20 +1331,16 @@ def run_pod_tab(pod_name):
                 # Gives the button enough room to stay on one line, and vertically centers them
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                 with exp_col:
-                    wo_display = c.get('wo', ic_name)
-                    st.markdown("<div class='expander-hook' style='display:none;'></div>", unsafe_allow_html=True)
-                ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
-                with st.expander(f"✅ {wo_display} | {c['city']}, {c['state']}{ts_suffix}"):
+                    with st.expander(f"✅ {wo_display} | {c['city']}, {c['state']}{ts_suffix}"):
                         st.success("Route accepted. Tasks are assigning in Onfleet now.")
                         render_dispatch(i+2000, c, pod_name, is_sent=True)
                 with btn_col:
-                    st.markdown('<div class="mini-btn">', unsafe_allow_html=True)
                     with st.popover("↩️ Revoke", use_container_width=True):
                         st.error(f"⚠️ **Revoke from {ic_name}?**\n\nThey have already accepted this route.")
                         if st.button("🚨 Yes, Revoke", key=f"do_rev_{cluster_hash}", type="primary", use_container_width=True):
                             move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=True)
                             st.rerun()
-
+                            
             # Render Ghost Routes (Tasks already cleared from OnFleet)
             for i, g in enumerate(pod_ghosts):
                 wo_display = g.get('wo', g['contractor_name'])
@@ -1377,18 +1373,12 @@ def run_pod_tab(pod_name):
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                 
                 with exp_col:
-                    # Hidden hook to square off the right side of the expander
-                    st.markdown("<div class='expander-hook' style='display:none;'></div>", unsafe_allow_html=True)
-                ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
-                with st.expander(f"❌ {ic_name} | {c['city']}, {c['state']}{esc_pill}{ts_suffix}"):
+                    with st.expander(f"❌ {ic_name} | {c['city']}, {c['state']}{esc_pill}{ts_suffix}"):
                         st.error("Route declined. Select a new contractor below to generate a fresh link.")
                         render_dispatch(i+3000, c, pod_name, is_declined=True)
                         
                 with btn_col:
-                    # Hidden hook to pull the button left and square off its left side
-                    st.markdown("<div class='flush-hook' style='display:none;'></div>", unsafe_allow_html=True)
-                    clicked = st.button("↩️ Re-Route", key=f"quick_reroute_{cluster_hash}")
-                    st.markdown('</div>', unsafe_allow_html=True)
+                    clicked = st.button("↩️ Re-Route", key=f"quick_reroute_{cluster_hash}", help="Pull this declined route back to Dispatch", use_container_width=True)
                     
                     if clicked:
                         move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Declined", check_onfleet=False)
