@@ -1324,18 +1324,15 @@ def run_pod_tab(pod_name):
         with t_acc:
             if not accepted and not pod_ghosts: st.info("Waiting for portal acceptances...")
             
-            # Render any live accepted routes (caught instantly before tasks disappear)
+            # --- 1. LIVE ACCEPTED ROUTES ---
             for i, c in enumerate(accepted):
-                # 1. Define all your variables at the very top of the loop!
                 ic_name = c.get('contractor_name', 'Unknown')
                 wo_display = c.get('wo', ic_name) 
                 ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
                 
-                # 2. Calculate the hash
                 task_ids = [str(t['id']).strip() for t in c['data']]
                 cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
                 
-                # 3. Create columns and render
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                 
                 with exp_col:
@@ -1349,19 +1346,21 @@ def run_pod_tab(pod_name):
                         if st.button("🚨 Yes, Revoke", key=f"do_rev_{cluster_hash}", type="primary", use_container_width=True):
                             move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=True)
                             st.rerun()
-                            
-            # Render Ghost Routes (Tasks already cleared from OnFleet)
+
+            # --- 2. GHOST ROUTES ---
             for i, g in enumerate(pod_ghosts):
-                wo_display = g.get('wo', g['contractor_name'])
-                with st.expander(f"✅ {wo_display} | {g['route_ts']} | {g['city']}, {g['state']}"):
+                wo_display = g.get('wo', g.get('contractor_name', 'Unknown'))
+                ts_suffix = f" | {g.get('route_ts', '')}"
+                
+                with st.expander(f"✅ {wo_display} | {g.get('city', 'Unknown')}, {g.get('state', 'Unknown')}{ts_suffix}"):
                     st.success("Route accepted and tasks successfully assigned in OnFleet.")
                     st.markdown(f"""
                         <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:12px; margin-top:5px;">
                             <p style="margin:0; font-size:12px; color:#64748b; font-weight:800; text-transform:uppercase;">Historical Route Data</p>
                             <div style="display:flex; justify-content:space-between; margin-top:8px;">
-                                <div><span style="font-size:11px; color:#475569;">Original Tasks:</span><br><b style="color:#000000; font-size:16px;">{g['tasks']}</b></div>
-                                <div><span style="font-size:11px; color:#475569;">Stops:</span><br><b style="color:#000000; font-size:16px;">{g['stops']}</b></div>
-                                <div><span style="font-size:11px; color:#475569;">Compensation:</span><br><b style="color:#22c55e; font-size:16px;">${g['pay']}</b></div>
+                                <div><span style="font-size:11px; color:#475569;">Original Tasks:</span><br><b style="color:#000000; font-size:16px;">{g.get('tasks', 0)}</b></div>
+                                <div><span style="font-size:11px; color:#475569;">Stops:</span><br><b style="color:#000000; font-size:16px;">{g.get('stops', 0)}</b></div>
+                                <div><span style="font-size:11px; color:#475569;">Compensation:</span><br><b style="color:#22c55e; font-size:16px;">${g.get('pay', 0)}</b></div>
                             </div>
                         </div>
                     """, unsafe_allow_html=True)
