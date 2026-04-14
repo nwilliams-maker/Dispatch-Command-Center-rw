@@ -828,7 +828,11 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if addr not in stop_metrics:
             stop_metrics[addr] = {'t_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 'inst': 0, 'remov': 0, 'digi': 0, 'oth': 0}
         stop_metrics[addr]['t_count'] += 1
-        tt = str(c.get('task_type', '')).strip().lower()
+        # Iterate through the tasks inside the cluster to calculate metrics per stop
+    for t in cluster['data']:
+        addr = t['full']
+        # 👇 CRITICAL FIX: Use 't' (the task), NOT 'c' (the cluster)
+        tt = str(t.get('task_type', '')).strip().lower()
         
         # Priority 1: Check Digital/Skykit FIRST
         if any(x in tt for x in ["service", "digital", "skykit"]): stop_metrics[addr]['digi'] += 1
