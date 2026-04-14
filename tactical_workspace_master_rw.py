@@ -461,8 +461,8 @@ def scrub_and_revoke_cluster(cluster_hash, ic_name, pod_name, action_label="Revo
             
             if not valid_tasks:
                 clusters.remove(c)
-                st.toast("✅ Route cleared (All tasks were already assigned).")
-                return
+                st.toast("✅ Route cleared (All tasks were already assigned/completed).")
+                st.rerun() # Force the UI to refresh and wipe the card instantly!
             
             c['data'] = valid_tasks
             c['stops'] = len(set(x['full'] for x in valid_tasks))
@@ -1152,9 +1152,15 @@ def run_pod_tab(pod_name):
                 </div>
             </div>
         """, unsafe_allow_html=True)
+        
+    # --- ACTION BUTTON ---
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("⚙️ Re-Optimize Routes", use_container_width=True, key=f"reopt_{pod_name}"):
+        st.session_state.pop(f"clusters_{pod_name}", None) # Wipes current clusters
+        process_pod(pod_name) # Re-runs Onfleet pull and clustering
+        st.rerun()
 
     # --- MAP RENDERING (STAYS RIGHT BELOW) ---
-    st.markdown("<br>", unsafe_allow_html=True)
     
     # We use the first cluster as the center point
     m = folium.Map(location=cls[0]['center'], zoom_start=6, tiles="cartodbpositron")
@@ -1255,21 +1261,17 @@ def run_pod_tab(pod_name):
                         render_dispatch(i+500, c, pod_name, is_sent=True)
                         
                 with btn_col:
-                    st.markdown("<div class='flush-hook' style='display:none;'></div>", unsafe_allow_html=True)
-                    
-                    # Prepare the data for the background move
-                    # This recreates the payload used when the route was originally sent
                     task_ids = [str(t['id']).strip() for t in c['data']]
                     cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
                     
-                    # This button triggers the function above PRE-run
+                    st.markdown('<div class="mini-btn">', unsafe_allow_html=True)
                     st.button(
                         "↩️ Revoke", 
                         key=f"instant_rev_{cluster_hash}", 
                         on_click=instant_revoke_handler,
-                        args=(cluster_hash, ic_name, c, pod_name), # Passing data to the handler
-                        use_container_width=True
+                        args=(cluster_hash, ic_name, c, pod_name)
                     )
+                    st.markdown('</div>', unsafe_allow_html=True)
         with t_acc:
             if not accepted and not pod_ghosts: st.info("Waiting for portal acceptances...")
             
@@ -1289,12 +1291,12 @@ def run_pod_tab(pod_name):
                         st.success("Route accepted. Tasks are assigning in Onfleet now.")
                         render_dispatch(i+2000, c, pod_name, is_sent=True)
                 with btn_col:
-                    st.markdown("<div class='flush-hook' style='display:none;'></div>", unsafe_allow_html=True)
+                    st.markdown('<div class="mini-btn">', unsafe_allow_html=True)
                     with st.popover("↩️ Revoke", use_container_width=True):
                         st.error(f"⚠️ **Revoke from {ic_name}?**\n\nThey have already accepted this route.")
                         if st.button("🚨 Yes, Revoke", key=f"do_rev_{cluster_hash}", type="primary", use_container_width=True):
                             scrub_and_revoke_cluster(cluster_hash, ic_name, pod_name, "Revoked")
-                            st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
 
             # Render Ghost Routes (Tasks already cleared from OnFleet)
             for i, g in enumerate(pod_ghosts):
@@ -1341,7 +1343,7 @@ def run_pod_tab(pod_name):
                     
                     if clicked:
                         scrub_and_revoke_cluster(cluster_hash, ic_name, pod_name, "Declined")
-                        st.rerun()
+                        
 # --- START ---
 if "ic_df" not in st.session_state:
     try:
