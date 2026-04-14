@@ -687,13 +687,23 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             # 2. Catch Skykit hiding in the raw Onfleet Notes
             if 'skykit' in str(t.get('notes', '')).lower():
                 tt_val += " skykit "
+                
+            # --- NEW: Extract Status AND Work Order from Database ---
+            t_status = 'ready'
+            t_wo = 'none'
+            sent_db = st.session_state.get('sent_db', {})
+            if t['id'] in sent_db:
+                t_status = sent_db[t['id']].get('status', 'ready').lower()
+                t_wo = sent_db[t['id']].get('wo', 'none')
             
             if stt in config['states']:
                 pool.append({
                     "id": t['id'], "city": addr.get('city', 'Unknown'), "state": stt,
                     "full": f"{addr.get('number','')} {addr.get('street','')}, {addr.get('city','')}, {stt}",
                     "lat": t['destination']['location'][1], "lon": t['destination']['location'][0],
-                    "escalated": is_esc, "task_type": tt_val
+                    "escalated": is_esc, "task_type": tt_val,
+                    "db_status": t_status, # Passes status to engine
+                    "wo": t_wo             # Passes WO to engine
                 })
         
         clusters = []
@@ -708,9 +718,13 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             
             anc = pool.pop(0)
             
-           # --- NEW: Strict Digital Separation & Dynamic Radius ---
+            # --- NEW: Strict Digital Separation & Dynamic Radius ---
             anc_tt = str(anc.get('task_type', '')).lower()
             anc_is_digital = 'digital' in anc_tt or 'service' in anc_tt or 'skykit' in anc_tt
+            
+            # Grab DB status for Isolation
+            anc_status = anc.get('db_status', 'ready')
+            anc_wo = anc.get('wo', 'none')
             
             # THE FIX: If digital, limit radius to 25 miles; otherwise, 50 miles.
             route_radius = 25 if anc_is_digital else 50
@@ -719,22 +733,36 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             for t in pool:
                 t_tt = str(t.get('task_type', '')).lower()
                 t_is_digital = 'digital' in t_tt or 'service' in t_tt or 'skykit' in t_tt
+                t_status = t.get('db_status', 'ready')
+                t_wo = t.get('wo', 'none')
                 
-                # ONLY group if they match the digital/standard status of the anchor
+                # Rule 1: Digital and Standard never mix
                 if anc_is_digital == t_is_digital:
-                    d = haversine(anc['lat'], anc['lon'], t['lat'], t['lon'])
-                    # Apply the dynamic radius here
-                    if d <= route_radius: 
-                        candidates.append((d, t))
-                    else: 
-                        rem.append(t)
+                    
+                    # Rule 2: Sent and Accepted are FROZEN
+                    if anc_status in ['sent', 'accepted']:
+                        # Bypasses distance! ONLY groups if the Work Order matches perfectly.
+                        if t_status == anc_status and t_wo == anc_wo:
+                            candidates.append((0, t)) 
+                        else:
+                            rem.append(t)
+                            
+                    # Rule 3: Ready and Declined are LIQUID (They can mix!)
+                    elif anc_status in ['ready', 'declined']:
+                        if t_status in ['ready', 'declined']:
+                            d = haversine(anc['lat'], anc['lon'], t['lat'], t['lon'])
+                            if d <= route_radius: 
+                                candidates.append((d, t))
+                            else: 
+                                rem.append(t)
+                        else:
+                            rem.append(t)
                 else:
-                    # Types don't match; save for a different route
                     rem.append(t)
             
             candidates.sort(key=lambda x: x[0])
             
-            # --- NEW: 20 STOP LIMIT LOGIC ---
+            # --- PRESERVED: 20 STOP LIMIT LOGIC ---
             group = [anc]
             unique_stops = {anc['full']}
             spillover = []
@@ -772,10 +800,15 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 return round(pay / len(unique_locs), 2), len(unique_locs)
             
             gate_avg, _ = check_viability(group)
-            status = "Ready"
+            
+            # Set the base status based on the database flag first
+            if anc_status in ['sent', 'accepted', 'declined']:
+                status = anc_status.capitalize()
+            else:
+                status = "Ready"
             
             # If the price is too high, we still attempt to "shave off" the last stop added
-            if gate_avg > 23.00:
+            if gate_avg > 23.00 and status not in ['Sent', 'Accepted']:
                 if len(group) > 1:
                     removed = group.pop()
                     new_avg, _ = check_viability(group)
@@ -783,7 +816,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                     else: group.append(removed); status = "Flagged"
                 else: status = "Flagged"
             
-            if not has_ic: status = "Flagged"
+            if not has_ic and status not in ['Sent', 'Accepted']: status = "Flagged"
             
             pool = rem
             clusters.append({
@@ -792,7 +825,8 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 "city": anc['city'], "state": anc['state'],
                 "status": status, "has_ic": has_ic,
                 "esc_count": sum(1 for x in group if x.get('escalated')),
-                "is_digital": anc_is_digital
+                "is_digital": anc_is_digital,
+                "wo": anc_wo
             })
             
         st.session_state[f"clusters_{pod_name}"] = clusters
