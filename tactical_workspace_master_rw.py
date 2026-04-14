@@ -1300,6 +1300,7 @@ def run_pod_tab(pod_name):
                     # Hidden hook to square off the right side of the expander
                     st.markdown("<div class='expander-hook' style='display:none;'></div>", unsafe_allow_html=True)
                     # Move date to end and wrap in span for normal weight
+                # Move date to end and wrap in span for normal weight
                 ts_suffix = f" <span style='font-weight:400;'>| {c.get('route_ts', '')}</span>" if c.get('route_ts') else ""
                 with st.expander(f"✉️ {ic_name} | {c['city']}, {c['state']}{esc_pill}{ts_suffix}", unsafe_allow_html=True):
                         render_dispatch(i+500, c, pod_name, is_sent=True)
@@ -1332,8 +1333,8 @@ def run_pod_tab(pod_name):
                 with exp_col:
                     wo_display = c.get('wo', ic_name)
                     st.markdown("<div class='expander-hook' style='display:none;'></div>", unsafe_allow_html=True)
-                    ts_suffix = f" <span style='font-weight:400;'>| {c.get('route_ts', '')}</span>" if c.get('route_ts') else ""
-                with st.expander(f"✅ {wo_display} | {c['city']}, {c['state']}{ts_suffix}", unsafe_allow_html=True):
+                    ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
+                with st.expander(f"✅ {wo_display} | {c['city']}, {c['state']}{ts_suffix}"):
                         st.success("Route accepted. Tasks are assigning in Onfleet now.")
                         render_dispatch(i+2000, c, pod_name, is_sent=True)
                 with btn_col:
@@ -1378,8 +1379,8 @@ def run_pod_tab(pod_name):
                 with exp_col:
                     # Hidden hook to square off the right side of the expander
                     st.markdown("<div class='expander-hook' style='display:none;'></div>", unsafe_allow_html=True)
-                    ts_suffix = f" <span style='font-weight:400;'>| {c.get('route_ts', '')}</span>" if c.get('route_ts') else ""
-                with st.expander(f"❌ {ic_name} | {c['city']}, {c['state']}{esc_pill}{ts_suffix}", unsafe_allow_html=True):
+                    ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
+                with st.expander(f"❌ {ic_name} | {c['city']}, {c['state']}{esc_pill}{ts_suffix}"):
                         st.error("Route declined. Select a new contractor below to generate a fresh link.")
                         render_dispatch(i+3000, c, pod_name, is_declined=True)
                         
