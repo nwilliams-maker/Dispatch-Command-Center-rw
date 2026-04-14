@@ -555,7 +555,8 @@ def fetch_sent_records_from_sheet():
                                     sent_dict[tid] = {
                                         "name": c_name, 
                                         "status": status_label,
-                                        "time": ts_display
+                                        "time": ts_display,
+                                        "wo": p.get('wo', c_name) # Falls back to name if missing
                                     }
                             
                             # 2. GHOST ROUTES (Only for Accepted routes that vanish from the pool)
@@ -586,8 +587,10 @@ def fetch_sent_records_from_sheet():
                                         "state": norm_state,
                                         "stops": p.get('lCnt', 0),
                                         "tasks": p.get('tCnt', len(tids)),
-                                        "pay": p.get('comp', 0)
+                                        "pay": p.get('comp', 0),
+                                        "wo": p.get('wo', c_name)
                                     })
+                                    
                         except: continue
             except: continue
         return sent_dict, ghost_routes
@@ -1088,6 +1091,7 @@ def run_pod_tab(pod_name):
         if sheet_match and not is_reverted:
             c['contractor_name'] = sheet_match.get('name', 'Unknown')
             c['route_ts'] = sheet_match.get('time', '') or local_ts
+            c['wo'] = sheet_match.get('wo', c['contractor_name'])
         else:
             c['contractor_name'] = local_contractor
             c['route_ts'] = local_ts
@@ -1318,8 +1322,9 @@ def run_pod_tab(pod_name):
                 # Gives the button enough room to stay on one line, and vertically centers them
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                 with exp_col:
+                    wo_display = c.get('wo', ic_name)
                     st.markdown("<div class='expander-hook' style='display:none;'></div>", unsafe_allow_html=True)
-                    with st.expander(f"✅ {ic_name}{ts_label} | {c['city']}, {c['state']}"):
+                    with st.expander(f"✅ {wo_display}{ts_label} | {c['city']}, {c['state']}"):
                         st.success("Route accepted. Tasks are assigning in Onfleet now.")
                         render_dispatch(i+2000, c, pod_name, is_sent=True)
                 with btn_col:
@@ -1332,7 +1337,8 @@ def run_pod_tab(pod_name):
 
             # Render Ghost Routes (Tasks already cleared from OnFleet)
             for i, g in enumerate(pod_ghosts):
-                with st.expander(f"✅ {g['contractor_name']} | {g['route_ts']} | {g['city']}, {g['state']}"):
+                wo_display = g.get('wo', g['contractor_name'])
+                with st.expander(f"✅ {wo_display} | {g['route_ts']} | {g['city']}, {g['state']}"):
                     st.success("Route accepted and tasks successfully assigned in OnFleet.")
                     st.markdown(f"""
                         <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:12px; margin-top:5px;">
