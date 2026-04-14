@@ -249,13 +249,17 @@
         function buildMapsUrl(limit) {
             if (!window.payloadData || !window.payloadData.locs) return null;
             const stops = window.payloadData.locs.split('|').slice(0, limit);
-            const origin = encodeURIComponent(stops[0]); 
-            const dest = origin; 
-            const waypoints = stops.slice(1).map(w => encodeURIComponent(w.trim())).join('|');
-            return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}&waypoints=${waypoints}&travelmode=driving`;
+            if (stops.length === 0) return null;
+            
+            // FIX: Using the native '/dir/Stop1/Stop2' format instead of '?api=1'.
+            // This forces Desktop Google Maps to accept the massive list of stops without truncating!
+            const encodedStops = stops.map(stop => encodeURIComponent(stop.trim())).join('/');
+            
+            return `https://www.google.com/maps/dir/${encodedStops}`;
         }
+        
         function viewRoute(limit) { const url = buildMapsUrl(limit); if (url) window.open(url, '_blank'); }
-        function copyMapUrl() { const url = buildMapsUrl(25); if (url) { navigator.clipboard.writeText(url); alert("Link Copied"); } }
+        function copyMapUrl() { const url = buildMapsUrl(25); if (url) { navigator.clipboard.writeText(url); alert("20-Stop Link Copied!"); } }
         function toggleDecisionView() { const d = document.querySelector('input[name="ic_decision"]:checked').value; document.getElementById('reason_block').classList.toggle('hidden', d !== 'Declined'); document.getElementById('signature_block').classList.toggle('hidden', d === 'Declined'); }
         function updateLiveSignature(v) { document.getElementById('live_sig_text').innerText = v || "________________"; }
     </script>
