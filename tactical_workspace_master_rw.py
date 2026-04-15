@@ -700,20 +700,31 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             addr = t.get('destination', {}).get('address', {})
             stt = normalize_state(addr.get('state', ''))
             is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
-            tt_val = str(t.get('taskType', '')).strip() or str(t.get('taskDetails', '')).strip()
-            
-            # 1. Loop through Onfleet Metadata
+            # --- BULLETPROOF TASK EXTRACTION ---
+            # 1. Start with native fields
+            tt_val = str(t.get('taskType', '')).strip().lower()
+            if not tt_val:
+                tt_val = str(t.get('taskDetails', '')).strip().lower()
+
+            # 2. Search Metadata NAMES and VALUES
             for m in (t.get('metadata') or []):
                 m_name = str(m.get('name', '')).strip().lower()
-                m_val = str(m.get('value', '')).strip()
-                m_val_lower = m_val.lower()
+                m_val = str(m.get('value', '')).strip().lower()
                 
-                if 'escalation' in m_name and m_val_lower in ['1', '1.0', 'true', 'yes']:
-                    is_esc = True
+                # Check if the metadata is NAMED "Task Type"
+                if m_name in ["task type", "tasktype", "type"]:
+                    tt_val += f" {m_val}"
                 
-                # Broaden the search for Task Type
-                if m_name in ['task type', 'tasktype', 'type']:
-                    tt_val = m_val
+                # Also do a "Deep Search" on the value itself for safety
+                if any(x in m_val for x in ["digital", "kiosk", "removal", "ins", "offline"]):
+                    tt_val += f" {m_val}"
+
+            # 3. Final safety check in Notes
+            raw_notes = str(t.get('notes', '')).lower()
+            if any(x in raw_notes for x in ["digital", "skykit", "removal"]):
+                tt_val += f" {raw_notes}"
+            
+            t_tt_final = tt_val.strip()
                 
                 # Catch Skykit ANYWHERE in the metadata
                 if 'skykit' in m_val_lower or 'digital' in m_val_lower:
@@ -905,31 +916,29 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     # Iterate through the tasks inside the cluster to calculate metrics per stop
     for t in cluster['data']:
         addr = t['full']
-        tt = str(t.get('task_type', '')).strip().lower()
+        tt = str(t.get('task_type', '')).lower()
         
-        # Priority 1: Digital/Service
-        if any(x in tt for x in ["service", "digital", "skykit", "monitor", "screen"]): 
+        # 1. Digital (Keywords from your request)
+        if any(x in tt for x in ["digital", "service", "skykit", "ins", "offline", "monitor"]): 
             stop_metrics[addr]['digi'] += 1
-        # Priority 2: Kiosk Installs (Expanded keywords)
-        elif any(x in tt for x in ["install", "setup", "assembly", "build"]): 
+        # 2. Kiosk/Install
+        elif any(x in tt for x in ["install", "setup", "assembly", "kiosk", "build"]): 
             stop_metrics[addr]['inst'] += 1
-        # Priority 3: Removals
+        # 3. Removal
         elif "removal" in tt: 
             stop_metrics[addr]['remov'] += 1
-        # Priority 4: Continuity/Maintenance
-        elif any(x in tt for x in ["continuity", "photo", "swap", "refresh", "audit", "survey"]): 
+        # 4. Continuity/Maintenance
+        elif any(x in tt for x in ["continuity", "photo", "swap", "refresh", "audit"]): 
             stop_metrics[addr]['c_ad'] += 1
-        # Priority 5: Defaults
+        # 5. Defaults
         elif any(x in tt for x in ["default", "pull down", "strip"]): 
             stop_metrics[addr]['d_ad'] += 1
-        # Priority 6: New Ads (Expanded keywords)
-        elif any(x in tt for x in ["new ad", "art change", "top", "startup", "launch", "install ad"]): 
+        # 6. New Ad (Fallback)
+        elif any(x in tt for x in ["new ad", "art change", "top", "launch"]): 
             stop_metrics[addr]['n_ad'] += 1
-        # Fallback if blank
-        elif not tt: 
-            stop_metrics[addr]['n_ad'] += 1 
-        else: 
-            stop_metrics[addr]['oth'] += 1
+        else:
+            # Everything else or blank defaults to New Ad
+            stop_metrics[addr]['n_ad'] += 1
             
     loc_pills = {} 
     for addr, metrics in stop_metrics.items():
@@ -1176,16 +1185,23 @@ def run_pod_tab(pod_name):
         cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
         
         # --- CALCULATE & ATTACH ICONS TO CLUSTER ---
+        # --- CALCULATE SUMMARY ICONS ---
         h_icons = ""
-        all_types = " ".join([str(t.get('task_type', '')).lower() for t in c['data']])
-        # Digital logic including INS and Offline
-        if c.get('is_digital') or any(x in all_types for x in ["digital", "ins", "offline"]): 
-            h_icons += " 🔌" 
-        if any(x in all_types for x in ["install", "setup", "assembly"]): h_icons += " 🛠️"
-        if "removal" in all_types: h_icons += " 🛑"
-        if any(x in all_types for x in ["continuity", "photo", "swap", "refresh", "audit"]): h_icons += " 🔄"
-        if any(x in all_types for x in ["new ad", "art change", "top"]): h_icons += " 🆕"
-        if c.get('esc_count', 0) > 0: h_icons += " ⭐" 
+        combined_tt = " ".join([str(t.get('task_type', '')).lower() for t in c['data']])
+        
+        # Icon logic matching the categorization above
+        if any(x in combined_tt for x in ["digital ins", "offline", "service", "skykit"]): 
+            h_icons += " 🔌"
+        if any(x in combined_tt for x in ["install", "kiosk"]): 
+            h_icons += " 🛠️"
+        if "removal" in combined_tt: ["remove", "removal"]): 
+            h_icons += " 🛑"
+        if any(x in combined_tt for x in ["continuity", "photo", "swap", "refresh"]): 
+            h_icons += " 🔄"
+        if any(x in combined_tt for x in ["new ad", "art change", "top"]): 
+            h_icons += " 🆕"
+        if c.get('esc_count', 0) > 0: 
+            h_icons += " ⭐" 
         
         # Attach it so c['h_icons'] works in the UI
         c['h_icons'] = h_icons
