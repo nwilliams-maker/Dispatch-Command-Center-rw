@@ -474,20 +474,6 @@ def finalize_route_handler(cluster_hash):
         st.error(f"Finalization Error: {e}")
         
 def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=False):
-    # --- ADD THIS BLOCK HERE ---
-    # If we are pulling back a route that was specifically 'Declined'
-    if action_label == "Declined":
-        try:
-            # Tell Google Sheets to move this route to the Archive tab immediately
-            # This prevents the 'fetch' function from seeing it as a declined route again
-            requests.post(GAS_WEB_APP_URL, json={
-                "action": "archiveRoute", 
-                "cluster_hash": cluster_hash
-            })
-        except:
-            pass
-    # --- END OF ADDITION ---
-
     clusters = st.session_state.get(f"clusters_{pod_name}", [])
     for c in clusters:
         task_ids = [str(t['id']).strip() for t in c['data']]
@@ -1093,21 +1079,13 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 if not final_route_id or is_declined:
                     home = ic['Location']
                     payload = {
-                            "icn": ic['Name'], 
-                            "ice": ic['Email'], 
-                            "wo": wo_val, 
-                            "due": str(due), 
-                            "comp": final_pay, 
-                            "lCnt": cluster['stops'], 
-                            "mi": mi, 
-                            "time": t_str, 
-                            "phone": str(ic['Phone']),
-                            "locs": " | ".join([home] + list(stop_metrics.keys()) + [home]),
-                            "taskIds": ",".join(task_ids),
-                            "tCnt": len(task_ids),
-                            # 🌟 THIS ENSURES THE PORTAL MATCHES THE DASHBOARD
-                            "jobOnly": " | ".join([f"{a} {p}" for a, p in loc_pills.items()]) 
-                        }
+                        "icn": ic['Name'], "ice": ic['Email'], "wo": wo_val, 
+                        "due": str(due), "comp": final_pay, "lCnt": cluster['stops'], "mi": mi, "time": t_str, "phone": str(ic['Phone']),
+                        "locs": " | ".join([home] + list(stop_metrics.keys()) + [home]),
+                        "taskIds": ",".join(task_ids),
+                        "tCnt": len(task_ids),
+                        "jobOnly": " | ".join([f"{a} {pill}" for a, pill in loc_pills.items()])
+                    }
                     res = requests.post(GAS_WEB_APP_URL, json={"action": "saveRoute", "payload": payload}).json()
                     if res.get("success"):
                         final_route_id = res.get("routeId")
@@ -1250,7 +1228,7 @@ def run_pod_tab(pod_name):
                         <p style='margin:0; font-size:20px; font-weight:800; color:#000000;'>{len(ready)}</p>
                     </div>
                     <div style='background:{TB_BLUE_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
-                        <p style='margin:0; font-size:9px; font-weight:800; color:#000000;'>PENDING</p>
+                        <p style='margin:0; font-size:9px; font-weight:800; color:#000000;'>SENT (PENDING)</p>
                         <p style='margin:0; font-size:20px; font-weight:800; color:#000000;'>{len(sent)}</p>
                     </div>
                     <div style='background:{TB_RED_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
@@ -1379,7 +1357,7 @@ def run_pod_tab(pod_name):
         # SECTION 2: AWAITING CONFIRMATION (RIGHT SIDE - CENTERED)
         # ==========================================
         st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_GREEN}; margin-bottom: 5px; text-align: center;'>⏳ Awaiting Confirmation</div>", unsafe_allow_html=True)
-        t_sent, t_acc, t_dec, t_fin = st.tabs(["✉️ Pending", "✅ Accepted", "❌ Declined", "🏁 Finalized"])
+        t_sent, t_acc, t_dec, t_fin = st.tabs(["✉️ Sent (Pending)", "✅ Accepted", "❌ Declined", "🏁 Finalized"])
         
         with t_sent:
             if not sent: st.info("No pending routes sent.")
