@@ -1325,38 +1325,29 @@ def run_pod_tab(pod_name):
             if not sent: st.info("No pending routes sent.")
             for i, c in enumerate(sent):
                 ic_name = c.get('contractor_name', 'Unknown')
-                ts_label = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
                 esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
                 
                 # Re-calculate hash for the quick-revoke button
                 task_ids = [str(t['id']).strip() for t in c['data']]
                 cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
                 
-                # 1. Back to [5, 1] for perfect proportions
-                # Gives the button enough room to stay on one line, and vertically centers them
+                # Clean native columns, perfectly centered
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                 
                 with exp_col:
-                    # Hidden hook to square off the right side of the expander
-                    st.markdown("<div class='expander-hook' style='display:none;'></div>", unsafe_allow_html=True)
-                    # Move date to end and wrap in span for normal weight
-                # Move date to end and wrap in span for normal weight
-                ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
-                with st.expander(f"✉️ {ic_name} | {c['city']}, {c['state']}{esc_pill}{ts_suffix}"):
+                    ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
+                    with st.expander(f"✉️ {ic_name} | {c['city']}, {c['state']}{esc_pill}{ts_suffix}"):
                         render_dispatch(i+500, c, pod_name, is_sent=True)
                         
                 with btn_col:
-                    task_ids = [str(t['id']).strip() for t in c['data']]
-                    cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
-                    
-                    st.markdown('<div class="mini-btn">', unsafe_allow_html=True)
+                    # Pure Streamlit Button (No HTML wrapping!)
                     st.button(
                         "↩️ Revoke", 
                         key=f"instant_rev_{cluster_hash}", 
                         on_click=instant_revoke_handler,
-                        args=(cluster_hash, ic_name, c, pod_name)
+                        args=(cluster_hash, ic_name, c, pod_name),
+                        use_container_width=True
                     )
-                    st.markdown('</div>', unsafe_allow_html=True)
         with t_acc:
             if not accepted and not pod_ghosts: st.info("Waiting for portal acceptances...")
             
