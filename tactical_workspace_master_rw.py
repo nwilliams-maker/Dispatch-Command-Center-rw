@@ -77,19 +77,48 @@ logo_base64 = get_base64_image("terraboost_logo.png")
 if logo_base64:
     st.markdown(f'<div style="position: fixed; top: 15px; left: 20px; z-index: 999999;"><img src="data:image/png;base64,{logo_base64}" style="width: 140px;"></div>', unsafe_allow_html=True)
 
-# --- UI STYLING (THE SOUL) ---
+# --- RESTORED BRAND UI ---
 st.markdown(f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
 .stApp {{ background-color: {TB_APP_BG} !important; color: #000000 !important; font-family: 'Inter', sans-serif !important; }}
-.main .block-container {{ max-width: 1100px !important; padding-top: 2rem; }}
-.stTabs [data-baseweb="tab-list"] {{ justify-content: center; gap: 12px; background: transparent !important; padding: 15px 15px 20px 15px !important; border-bottom: 2px solid #cbd5e1 !important; }}
-.stTabs [data-baseweb="tab"] {{ border-radius: 30px !important; margin: 0 5px !important; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important; font-weight: 800 !important; padding: 8px 25px !important; border: 2px solid transparent !important; }}
-.stTabs [aria-selected="true"] {{ background-color: #ffffff !important; transform: translateY(-4px) !important; box-shadow: 0 10px 20px rgba(99, 48, 148, 0.25) !important; }}
-h1, h2, h3 {{ font-weight: 800 !important; text-align: center !important; width: 100%; color: {TB_PURPLE}; }}
-div[data-testid="stExpander"] {{ border: 1px solid #cbd5e1 !important; border-radius: 10px !important; box-shadow: 0 2px 4px rgba(0,0,0,0.02) !important; margin-bottom: 8px !important; background-color: #ffffff !important; overflow: hidden !important; }}
-div[data-testid="stExpander"]:hover {{ transform: translateY(-2px) !important; box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08) !important; z-index: 10; transition: all 0.3s ease !important; }}
-div[data-testid="stExpander"] details summary p {{ color: #000000 !important; font-weight: 800 !important; font-size: 0.85rem !important; }}
+
+/* GLOBAL TABS - Floating Purple Pills */
+.stTabs [data-baseweb="tab-list"] {{ justify-content: center; gap: 12px; background: transparent !important; padding-bottom: 20px; border-bottom: 2px solid #cbd5e1 !important; }}
+.stTabs [data-baseweb="tab"] {{
+    border-radius: 30px !important; 
+    margin: 0 5px !important; 
+    font-weight: 800 !important; 
+    padding: 8px 25px !important; 
+    border: 2px solid #633094 !important; 
+    color: #633094 !important;
+    background-color: white !important;
+    transition: all 0.3s ease !important;
+}}
+.stTabs [aria-selected="true"] {{ 
+    background-color: #633094 !important; 
+    color: white !important; 
+    transform: translateY(-4px) !important; 
+    box-shadow: 0 10px 20px rgba(99, 48, 148, 0.25) !important; 
+}}
+
+/* HEADERS */
+h1 {{ color: {TB_PURPLE} !important; font-size: 3rem !important; margin-bottom: 0px !important; }}
+h2, h3 {{ color: {TB_PURPLE} !important; font-weight: 800 !important; }}
+
+/* POD CARDS (GLOBAL TAB) */
+.pod-card-pill {{
+    border-radius: 30px !important;
+    padding: 20px 10px;
+    text-align: center;
+    height: 180px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    transition: transform 0.2s ease;
+}}
+.pod-card-pill:hover {{ transform: translateY(-5px); }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -381,15 +410,29 @@ with col_ref:
 tabs = st.tabs(["Global", "Blue Pod", "Green Pod", "Orange Pod", "Purple Pod", "Red Pod"])
 
 with tabs[0]:
-    st.markdown("## 🌍 Global Command Overview")
+    st.markdown("<h2 style='text-align:center;'>🌍 Global Command Overview</h2>", unsafe_allow_html=True)
     db, ghosts = fetch_sent_records_from_sheet()
+    
     cols = st.columns(len(POD_CONFIGS))
-    for i, (pod, config) in enumerate(POD_CONFIGS.items()):
+    pod_keys = list(POD_CONFIGS.keys())
+
+    # Map colors to pods
+    pod_styles = {
+        "Blue":   {"border": "#3b82f6", "bg": "#f0f7ff", "text": "#1e3a8a"},
+        "Green":  {"border": "#22c55e", "bg": "#f0fdf4", "text": "#064e3b"},
+        "Orange": {"border": "#f97316", "bg": "#fffaf5", "text": "#7c2d12"},
+        "Purple": {"border": "#a855f7", "bg": "#faf5ff", "text": "#4c1d95"},
+        "Red":    {"border": "#ef4444", "bg": "#fef2f2", "text": "#7f1d1d"}
+    }
+
+    for i, pod in enumerate(pod_keys):
+        style = pod_styles.get(pod)
         with cols[i]:
             has_data = f"clusters_{pod}" in st.session_state
+            
             if has_data:
                 pod_cls = st.session_state[f"clusters_{pod}"]
-                sent, accepted, declined, finalized = [], [], [], [] # FIXED NameError
+                sent, accepted, declined, finalized = [], [], [], []
                 for c in pod_cls:
                     ids = [str(t['id']).strip() for t in c['data']]
                     m = db.get(next((tid for tid in ids if tid in db), None))
@@ -399,8 +442,21 @@ with tabs[0]:
                         elif s == 'accepted': accepted.append(c)
                         elif s == 'finalized': finalized.append(c)
                         else: sent.append(c)
-                st.metric(pod, f"{len(accepted)} Accepted", f"{len(sent)} Sent")
-            else: st.write(f"{pod}: Offline")
+                
+                content = f"""
+                    <p style='margin:0; font-size:24px; font-weight:800;'>{len(accepted) + len(sent)}</p>
+                    <p style='margin:0; font-size:11px; opacity:0.7;'>ROUTES ACTIVE</p>
+                """
+            else:
+                content = f"<p style='margin:0; font-weight:800; opacity:0.4;'>OFFLINE</p>"
+
+            # Render the stylized capsule
+            st.markdown(f"""
+                <div class="pod-card-pill" style="border: 2px solid {style['border']}; background-color: {style['bg']}; color: {style['text']};">
+                    <div style="font-weight:800; font-size:1.1rem; margin-bottom:10px;">{pod} Pod</div>
+                    {content}
+                </div>
+            """, unsafe_allow_html=True)
 
 for i, pod in enumerate(POD_CONFIGS.keys(), 1):
     with tabs[i]: run_pod_tab(pod)
