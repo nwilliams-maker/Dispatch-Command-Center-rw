@@ -904,19 +904,25 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         # Iterate through the tasks inside the cluster to calculate metrics per stop
     for t in cluster['data']:
         addr = t['full']
-        # 👇 CRITICAL FIX: Use 't' (the task), NOT 'c' (the cluster)
         tt = str(t.get('task_type', '')).strip().lower()
         
-        # Priority 1: Check Digital/Skykit FIRST
-        if any(x in tt for x in ["service", "digital", "skykit"]): stop_metrics[addr]['digi'] += 1
-        elif "install" in tt: stop_metrics[addr]['inst'] += 1
-        elif "removal" in tt: stop_metrics[addr]['remov'] += 1
-        elif any(x in tt for x in ["continuity", "photo", "swap"]): stop_metrics[addr]['c_ad'] += 1
-        elif any(x in tt for x in ["default", "pull down"]): stop_metrics[addr]['d_ad'] += 1
-        elif any(x in tt for x in ["new ad", "art change", "top"]): stop_metrics[addr]['n_ad'] += 1
-        # If task type is completely blank, fallback to New Ad
-        elif not tt: stop_metrics[addr]['n_ad'] += 1 
-        else: stop_metrics[addr]['oth'] += 1
+        # Enhanced keyword matching
+        if any(x in tt for x in ["service", "digital", "skykit", "monitor", "screen", "player"]): 
+            stop_metrics[addr]['digi'] += 1
+        elif any(x in tt for x in ["kiosk install", "kiosk setup", "kiosk assembly", "kiosk replacement"]): 
+            stop_metrics[addr]['inst'] += 1
+        elif "removal" in tt: 
+            stop_metrics[addr]['remov'] += 1
+        elif any(x in tt for x in ["continuity", "photo", "swap", "refresh", "audit"]): 
+            stop_metrics[addr]['c_ad'] += 1
+        elif any(x in tt for x in ["default", "pull down", "strip"]): 
+            stop_metrics[addr]['d_ad'] += 1
+        elif any(x in tt for x in ["new ad", "art change", "top", "startup", "launch", "install ad"]): 
+            stop_metrics[addr]['n_ad'] += 1
+        elif not tt: 
+            stop_metrics[addr]['n_ad'] += 1 
+        else: 
+            stop_metrics[addr]['oth'] += 1
             
     loc_pills = {} 
     for addr, metrics in stop_metrics.items():
