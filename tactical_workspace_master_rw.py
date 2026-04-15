@@ -1250,7 +1250,7 @@ def run_pod_tab(pod_name):
                         <p style='margin:0; font-size:20px; font-weight:800; color:#000000;'>{len(ready)}</p>
                     </div>
                     <div style='background:{TB_BLUE_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
-                        <p style='margin:0; font-size:9px; font-weight:800; color:#000000;'>SENT (PENDING)</p>
+                        <p style='margin:0; font-size:9px; font-weight:800; color:#000000;'>PENDING</p>
                         <p style='margin:0; font-size:20px; font-weight:800; color:#000000;'>{len(sent)}</p>
                     </div>
                     <div style='background:{TB_RED_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
@@ -1379,7 +1379,7 @@ def run_pod_tab(pod_name):
         # SECTION 2: AWAITING CONFIRMATION (RIGHT SIDE - CENTERED)
         # ==========================================
         st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_GREEN}; margin-bottom: 5px; text-align: center;'>⏳ Awaiting Confirmation</div>", unsafe_allow_html=True)
-        t_sent, t_acc, t_dec, t_fin = st.tabs(["✉️ Sent (Pending)", "✅ Accepted", "❌ Declined", "🏁 Finalized"])
+        t_sent, t_acc, t_dec, t_fin = st.tabs(["✉️ Pending", "✅ Accepted", "❌ Declined", "🏁 Finalized"])
         
         with t_sent:
             if not sent: st.info("No pending routes sent.")
