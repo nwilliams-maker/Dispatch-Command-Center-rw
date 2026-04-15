@@ -459,7 +459,23 @@ def background_sheet_move(cluster_hash, payload_json):
         })
     except:
         pass
-
+def finalize_route_handler(cluster_hash, pod_name):
+    # Sends a request to your GAS Web App to change status to 'finalized'
+    try:
+        # Re-fetch the cluster to get its data for the payload
+        clusters = st.session_state.get(f"clusters_{pod_name}", [])
+        target_cluster = next((c for c in clusters if hashlib.md5("".join(sorted([str(t['id']) for t in c['data']])).encode()).hexdigest() == cluster_hash), None)
+        
+        if target_cluster:
+            requests.post(GAS_WEB_APP_URL, json={
+                "action": "finalizeRoute", 
+                "cluster_hash": cluster_hash,
+                "payload": target_cluster
+            })
+            st.toast("🏁 Route moved to Finalized!")
+    except Exception as e:
+        st.error(f"Failed to finalize: {e}")
+        
 def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=False):
     clusters = st.session_state.get(f"clusters_{pod_name}", [])
     for c in clusters:
@@ -1382,6 +1398,24 @@ def run_pod_tab(pod_name):
                 with exp_col:
                     with st.expander(f"✅ {wo_display} | {c['city']}, {c['state']}{ts_suffix}"):
                         st.success("Route accepted. Tasks are assigning in Onfleet now.")
+                        
+                        # --- NEW: 3-STEP CHECKBOX WORKFLOW ---
+                        st.divider()
+                        st.markdown("<p style='font-weight:800; color:#16a34a; margin-bottom:10px;'>📋 Finalization Checklist</p>", unsafe_allow_html=True)
+                        
+                        c1, c2, c3 = st.columns(3)
+                        # Use unique keys based on the cluster hash to persist state
+                        step1 = c1.checkbox("1. **Onfleet**: Optimized?", key=f"step1_{cluster_hash}")
+                        step2 = c2.checkbox("2. **Plan**: Fields/Backend?", key=f"step2_{cluster_hash}")
+                        step3 = c3.checkbox("3. **Pack**: Packing List?", key=f"step3_{cluster_hash}")
+                        
+                        # Only show the Finalize button if all 3 are checked
+                        if step1 and step2 and step3:
+                            st.markdown("<br>", unsafe_allow_html=True)
+                            if st.button("🏁 Move to Finalized", key=f"btn_fin_{cluster_hash}", type="primary", use_container_width=True):
+                                finalize_route_handler(cluster_hash, pod_name)
+                                st.rerun()
+
                         render_dispatch(i+2000, c, pod_name, is_sent=True)
                         
                 with btn_col:
