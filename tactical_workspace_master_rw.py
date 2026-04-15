@@ -246,17 +246,19 @@ button[kind="secondary"] {{
     transition: all 0.2s ease !important;
 }}
 
-/* EXPANDER & LAYOUT TIGHTENING */
-div[data-testid="stColumn"]:has(.flush-hook) button[kind="secondary"] {{
+/* EXPANDER & LAYOUT TIGHTENING (Pure CSS Fusion) */
+/* 1. Target the Expander on the Left side of the gap */
+div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(2) button) > div[data-testid="stColumn"]:nth-child(1) div[data-testid="stExpander"] {{
+    border-top-right-radius: 0px !important;
+    border-bottom-right-radius: 0px !important;
+}}
+
+/* 2. Target the Button on the Right side of the gap */
+div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(1) div[data-testid="stExpander"]) > div[data-testid="stColumn"]:nth-child(2) button {{
     margin-left: -1rem !important;
     width: calc(100% + 1rem) !important;
     border-top-left-radius: 0px !important;
     border-bottom-left-radius: 0px !important;
-}}
-
-div[data-testid="stColumn"]:has(.expander-hook) div[data-testid="stExpander"] {{
-    border-top-right-radius: 0px !important;
-    border-bottom-right-radius: 0px !important;
 }}
 
 /* Main Expander Container */
