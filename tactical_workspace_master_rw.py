@@ -902,23 +902,30 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             stop_metrics[addr] = {'t_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 'inst': 0, 'remov': 0, 'digi': 0, 'oth': 0}
         stop_metrics[addr]['t_count'] += 1
         # Iterate through the tasks inside the cluster to calculate metrics per stop
+    # Iterate through the tasks inside the cluster to calculate metrics per stop
     for t in cluster['data']:
         addr = t['full']
         tt = str(t.get('task_type', '')).strip().lower()
         
-        # Enhanced keyword matching
-        if any(x in tt for x in ["service", "digital", "skykit", "monitor", "screen", "player"]): 
+        # Priority 1: Digital/Service
+        if any(x in tt for x in ["service", "digital", "skykit", "monitor", "screen"]): 
             stop_metrics[addr]['digi'] += 1
-        elif any(x in tt for x in ["kiosk install", "kiosk setup", "kiosk assembly", "kiosk replacement"]): 
+        # Priority 2: Kiosk Installs (Expanded keywords)
+        elif any(x in tt for x in ["install", "setup", "assembly", "build"]): 
             stop_metrics[addr]['inst'] += 1
+        # Priority 3: Removals
         elif "removal" in tt: 
             stop_metrics[addr]['remov'] += 1
-        elif any(x in tt for x in ["continuity", "photo", "swap", "refresh", "audit"]): 
+        # Priority 4: Continuity/Maintenance
+        elif any(x in tt for x in ["continuity", "photo", "swap", "refresh", "audit", "survey"]): 
             stop_metrics[addr]['c_ad'] += 1
+        # Priority 5: Defaults
         elif any(x in tt for x in ["default", "pull down", "strip"]): 
             stop_metrics[addr]['d_ad'] += 1
+        # Priority 6: New Ads (Expanded keywords)
         elif any(x in tt for x in ["new ad", "art change", "top", "startup", "launch", "install ad"]): 
             stop_metrics[addr]['n_ad'] += 1
+        # Fallback if blank
         elif not tt: 
             stop_metrics[addr]['n_ad'] += 1 
         else: 
@@ -1168,18 +1175,19 @@ def run_pod_tab(pod_name):
         task_ids = [str(t['id']).strip() for t in c['data']]
         cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
         
-        # --- CALCULATE SUMMARY ICONS (Placed to the right of address) ---
+        # --- CALCULATE & ATTACH ICONS TO CLUSTER ---
         h_icons = ""
         all_types = " ".join([str(t.get('task_type', '')).lower() for t in c['data']])
-        
-        if c.get('is_digital'): h_icons += " 🔌" 
+        # Digital logic including INS and Offline
+        if c.get('is_digital') or any(x in all_types for x in ["digital", "ins", "offline"]): 
+            h_icons += " 🔌" 
         if any(x in all_types for x in ["install", "setup", "assembly"]): h_icons += " 🛠️"
         if "removal" in all_types: h_icons += " 🛑"
-        if any(x in all_types for x in ["continuity", "photo", "swap", "refresh"]): h_icons += " 🔄"
-        if any(x in all_types for x in ["new ad", "art change", "top", "launch"]): h_icons += " 🆕"
+        if any(x in all_types for x in ["continuity", "photo", "swap", "refresh", "audit"]): h_icons += " 🔄"
+        if any(x in all_types for x in ["new ad", "art change", "top"]): h_icons += " 🆕"
         if c.get('esc_count', 0) > 0: h_icons += " ⭐" 
         
-        # Attach icons directly to the cluster object for easy rendering
+        # Attach it so c['h_icons'] works in the UI
         c['h_icons'] = h_icons
         
         sheet_match = sent_db.get(next((tid for tid in task_ids if tid in sent_db), None))
@@ -1328,7 +1336,6 @@ def run_pod_tab(pod_name):
 
     with col_left:
         # SECTION 1: DISPATCH (LEFT SIDE)
-        # Pulls the header up to align with the right side
         st.markdown('<div style="margin-top: -35px;"></div>', unsafe_allow_html=True)
         st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_PURPLE}; margin-bottom: 5px; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
         t_ready, t_flagged = st.tabs(["📥 Ready", "⚠️ Flagged"])
@@ -1350,6 +1357,7 @@ def run_pod_tab(pod_name):
                         if closest_ic['d'] > 60: badges += " 📡"
                         if est_rate >= 25.0 or closest_ic['d'] > 60: badges = " 🔒" + badges
 
+                # Header: Icons are now to the right of state
                 with st.expander(f"{badges} 🟢 {c['city']}, {c['state']}{c['h_icons']} | {c['stops']} Stops"):
                     render_dispatch(i, c, pod_name)
                     
@@ -1372,88 +1380,55 @@ def run_pod_tab(pod_name):
                 cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
                 
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
-                
                 with exp_col:
                     ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
                     with st.expander(f"✉️ {ic_name} | {c['city']}, {c['state']}{c['h_icons']}{ts_suffix}"):
                         render_dispatch(i+500, c, pod_name, is_sent=True)
-                        
                 with btn_col:
                     st.button("↩️ Revoke", key=f"instant_rev_{cluster_hash}", on_click=instant_revoke_handler, args=(cluster_hash, ic_name, c, pod_name), use_container_width=True)
 
         with t_acc:
             if not accepted and not pod_ghosts: st.info("Waiting for portal acceptances...")
-            
-            # 1. LIVE ACCEPTED ROUTES
             for i, c in enumerate(accepted):
                 ic_name = c.get('contractor_name', 'Unknown')
                 wo_display = c.get('wo', ic_name)
                 ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
-                
                 task_ids = [str(t['id']).strip() for t in c['data']]
                 cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
                 
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
-                
                 with exp_col:
                     with st.expander(f"✅ {wo_display} | {c['city']}, {c['state']}{c['h_icons']}{ts_suffix}"):
                         st.success("Route accepted. Tasks are assigning in Onfleet.")
-                        
-                        # --- SEQUENTIAL CHECKLIST ---
                         st.divider()
                         st.markdown("<p style='font-weight:800; color:#16a34a;'>📋 Operational Readiness</p>", unsafe_allow_html=True)
-                        
-                        step1 = st.checkbox("1. **Onfleet**: Optimized route?", key=f"s1_{cluster_hash}")
-                        step2 = st.checkbox("2. **Plan**: Fields & Backend Dispatch?", key=f"s2_{cluster_hash}", disabled=not step1)
-                        if st.checkbox("3. **Pack**: Packing list uploaded?", key=f"s3_{cluster_hash}", disabled=not step2):
+                        s1 = st.checkbox("1. **Onfleet**: Optimized route?", key=f"s1_{cluster_hash}")
+                        s2 = st.checkbox("2. **Plan**: Fields & Backend Dispatch?", key=f"s2_{cluster_hash}", disabled=not s1)
+                        if st.checkbox("3. **Pack**: Packing list uploaded?", key=f"s3_{cluster_hash}", disabled=not s2):
                             finalize_route_handler(cluster_hash)
                             st.rerun()
-
                         render_dispatch(i+2000, c, pod_name, is_sent=True)
-                        
                 with btn_col:
                     with st.popover("↩️ Revoke", use_container_width=True):
-                        st.error(f"Revoke from {ic_name}?")
                         if st.button("🚨 Yes, Revoke", key=f"rev_acc_{cluster_hash}", type="primary"):
                             move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=True)
                             st.rerun()
-
-            # 2. GHOST ROUTES
-            for i, g in enumerate(pod_ghosts):
-                wo_display = g.get('wo', g.get('contractor_name', 'Unknown'))
-                ts_suffix = f" | {g.get('route_ts', '')}"
-                
-                with st.expander(f"✅ {wo_display} | {g.get('city', 'Unknown')}, {g.get('state', 'Unknown')}{ts_suffix}"):
-                    st.success("Route accepted and tasks successfully assigned in OnFleet.")
-                    st.markdown(f"""
-                        <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:12px; margin-top:5px;">
-                            <p style="margin:0; font-size:12px; color:#64748b; font-weight:800; text-transform:uppercase;">Historical Route Data</p>
-                            <div style="display:flex; justify-content:space-between; margin-top:8px;">
-                                <div><span style="font-size:11px; color:#475569;">Original Tasks:</span><br><b style="color:#000000; font-size:16px;">{g.get('tasks', 0)}</b></div>
-                                <div><span style="font-size:11px; color:#475569;">Stops:</span><br><b style="color:#000000; font-size:16px;">{g.get('stops', 0)}</b></div>
-                                <div><span style="font-size:11px; color:#475569;">Compensation:</span><br><b style="color:#22c55e; font-size:16px;">${g.get('pay', 0)}</b></div>
-                            </div>
-                        </div>
-                    """, unsafe_allow_html=True)
 
         with t_dec:
             if not declined: st.info("No declined routes.")
             for i, c in enumerate(declined):
                 ic_name = c.get('contractor_name', 'Unknown')
                 ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
-                
                 task_ids = [str(t['id']).strip() for t in c['data']]
                 cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
                 
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
-                
                 with exp_col:
                     with st.expander(f"❌ {ic_name} | {c['city']}, {c['state']}{c['h_icons']}{ts_suffix}"):
-                        st.error("Route declined. Select a new contractor below to generate a fresh link.")
+                        st.error("Route declined. Select a new contractor to generate a fresh link.")
                         render_dispatch(i+3000, c, pod_name, is_declined=True)
-                        
                 with btn_col:
-                    if st.button("↩️ Re-Route", key=f"quick_reroute_{cluster_hash}", use_container_width=True):
+                    if st.button("↩️ Re-Route", key=f"rr_dec_{cluster_hash}", use_container_width=True):
                         move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Declined", check_onfleet=False)
                         st.rerun()
 
@@ -1462,22 +1437,18 @@ def run_pod_tab(pod_name):
             for i, c in enumerate(finalized):
                 ic_name = c.get('contractor_name', 'Unknown')
                 ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
-                
                 task_ids = [str(t['id']).strip() for t in c['data']]
                 cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
                 
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
-                
                 with exp_col:
                     with st.expander(f"🏁 {ic_name} | {c['city']}, {c['state']}{c['h_icons']}{ts_suffix}"):
                         st.info("Route is archived in Finalized.")
                         render_dispatch(i+4000, c, pod_name, is_sent=True)
-                
                 with btn_col:
                     if st.button("↩️ Re-Route", key=f"fin_rr_{cluster_hash}", use_container_width=True):
                         move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Finalized", check_onfleet=False)
                         st.rerun()
-
 # =====================================================================
 # MAIN APP EXECUTION (This sits at the very bottom of your file)
 # =====================================================================
