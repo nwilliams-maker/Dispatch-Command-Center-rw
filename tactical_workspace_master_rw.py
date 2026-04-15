@@ -1349,7 +1349,8 @@ def run_pod_tab(pod_name):
             if not review: st.info("No flagged tasks requiring review.")
             for i, c in enumerate(review):
                 esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
-                with st.expander(f"🔒 🔴 {c['city']}, {c['state']} | {c['stops']} Stops{esc_pill}"): 
+                digi_pill = "  [ 🔌 Digital ]" if c.get('is_digital') else "" # ⬅️ ADD THIS
+                with st.expander(f"🔒 🔴 {c['city']}, {c['state']} | {c['stops']} Stops{digi_pill}{esc_pill}"): 
                     render_dispatch(i+1000, c, pod_name)
 
     with col_right:
@@ -1374,7 +1375,9 @@ def run_pod_tab(pod_name):
                 
                 with exp_col:
                     ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
-                    with st.expander(f"✉️ {ic_name} | {c['city']}, {c['state']}{esc_pill}{ts_suffix}"):
+                    esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
+                    digi_pill = "  [ 🔌 Digital ]" if c.get('is_digital') else "" # ⬅️ ADD THIS
+                    with st.expander(f"✉️ {ic_name} | {c['city']}, {c['state']}{digi_pill}{esc_pill}{ts_suffix}"):
                         render_dispatch(i+500, c, pod_name, is_sent=True)
                         
                 with btn_col:
@@ -1399,9 +1402,12 @@ def run_pod_tab(pod_name):
                 
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                 
-                with exp_col:
-                    with st.expander(f"✅ {wo_display} | {c['city']}, {c['state']}{ts_suffix}"):
+               with exp_col:
+                    digi_pill = "  [ 🔌 Digital ]" if c.get('is_digital') else "" # ⬅️ ADD THIS
+                    esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else "" # ⬅️ ADD THIS
+                    with st.expander(f"✅ {wo_display} | {c['city']}, {c['state']}{digi_pill}{esc_pill}{ts_suffix}"):
                         st.success("Route accepted. Tasks are assigning in Onfleet.")
+                        # ... rest of your sequential checklist code
                         
                         # --- SEQUENTIAL CHECKLIST ---
                         st.divider()
@@ -1463,7 +1469,8 @@ def run_pod_tab(pod_name):
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                 
                 with exp_col:
-                    with st.expander(f"❌ {ic_name} | {c['city']}, {c['state']}{esc_pill}{ts_suffix}"):
+                    digi_pill = "  [ 🔌 Digital ]" if c.get('is_digital') else "" # ⬅️ ADD THIS
+                    with st.expander(f"❌ {ic_name} | {c['city']}, {c['state']}{digi_pill}{esc_pill}{ts_suffix}"):
                         st.error("Route declined. Select a new contractor below to generate a fresh link.")
                         render_dispatch(i+3000, c, pod_name, is_declined=True)
                         
@@ -1485,7 +1492,9 @@ def run_pod_tab(pod_name):
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                 
                 with exp_col:
-                    with st.expander(f"🏁 {ic_name} | {c['city']}, {c['state']}{ts_suffix}"):
+                    digi_pill = "  [ 🔌 Digital ]" if c.get('is_digital') else "" # ⬅️ ADD THIS
+                    esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else "" # ⬅️ ADD THIS
+                    with st.expander(f"🏁 {ic_name} | {c['city']}, {c['state']}{digi_pill}{esc_pill}{ts_suffix}"):
                         st.info("Route is archived in Finalized.")
                         render_dispatch(i+4000, c, pod_name, is_sent=True)
                 
