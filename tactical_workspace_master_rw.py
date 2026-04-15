@@ -390,33 +390,53 @@ div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb
 }}
 
 
-/* --- RIGHT COLUMN: Awaiting Tabs (COMPACT 4-SEGMENT) --- */
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab-list"] {{
-    gap: 0px !important;
-    padding: 5px !important;
-    justify-content: center !important; /* Centers the shorter tabs in the column */
-}}
+/* --- RIGHT COLUMN: Awaiting Tabs (COLOR RESTORATION) --- */
 
-/* Target the individual tabs to shorten them */
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"] {{
-    padding: 6px 12px !important; /* Narrower horizontal padding */
-    min-width: 70px !important;   /* Prevents them from being too tiny */
-    border-radius: 0px !important; /* Reset for middle segments */
-}}
-
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"] p {{
-    font-size: 11px !important;   /* Smaller font for compact look */
-    white-space: nowrap !important;
-}}
-
-/* Re-apply rounding only to the far edges of the row */
+/* 1. Sent (Purple) - Tab 1 */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) {{
+    background-color: #f3e8ff !important;
+    border: 2px solid #633094 !important;
     border-radius: 20px 0px 0px 20px !important;
+    margin: 0 !important;
+}}
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) p {{
+    color: #633094 !important; 
 }}
 
+/* 2. Accepted (Green) - Tab 2 */
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(2) {{
+    background-color: #dcfce7 !important;
+    border: 2px solid #166534 !important;
+    border-radius: 0px !important;
+    border-left: none !important;
+    margin: 0 !important;
+}}
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(2) p {{
+    color: #166534 !important; 
+}}
+
+/* 3. Declined (Red) - Tab 3 */
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(3) {{
+    background-color: #fee2e2 !important;
+    border: 2px solid #991b1b !important;
+    border-radius: 0px !important;
+    border-left: none !important; 
+    margin: 0 !important;
+}}
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(3) p {{
+    color: #991b1b !important; 
+}}
+
+/* 4. Finalized (Gray/Slate) - Tab 4 */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(4) {{
+    background-color: #f8fafc !important;
+    border: 2px solid #475569 !important;
     border-radius: 0px 20px 20px 0px !important;
     border-left: none !important;
+    margin: 0 !important;
+}}
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(4) p {{
+    color: #334155 !important; 
 }}
 
 /* ALIGN COLUMNS AT THE TOP (Fixes the giant gap on the left) */
