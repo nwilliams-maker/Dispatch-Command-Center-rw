@@ -1092,7 +1092,6 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             with st.spinner("Generating secure link..."):
                 if not final_route_id or is_declined:
                     home = ic['Location']
-                    payload = {
                         payload = {
                             "icn": ic['Name'], 
                             "ice": ic['Email'], 
