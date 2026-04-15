@@ -474,6 +474,18 @@ def finalize_route_handler(cluster_hash):
         st.error(f"Finalization Error: {e}")
         
 def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=False):
+    # --- NEW ARCHIVE LOGIC ---
+    # If we are pulling back a route that was specifically 'Declined'
+    if action_label == "Declined":
+        try:
+            # Tell Google Sheets to move this route to the Archive tab immediately
+            requests.post(GAS_WEB_APP_URL, json={
+                "action": "archiveRoute", 
+                "cluster_hash": cluster_hash
+            })
+        except:
+            pass
+
     clusters = st.session_state.get(f"clusters_{pod_name}", [])
     for c in clusters:
         task_ids = [str(t['id']).strip() for t in c['data']]
@@ -517,16 +529,14 @@ def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", ch
             hist.append(f"{ic_name} ({datetime.now().strftime('%m/%d')} - {action_label})")
             st.session_state[f"history_{new_hash}"] = hist
             
-            # 🚨 CRITICAL FIX: Only delete old keys if the hash actually changed!
             if old_hash != new_hash:
                 for key in [f"history_{old_hash}", f"reverted_{old_hash}", f"route_state_{old_hash}", f"sync_{old_hash}"]:
                     st.session_state.pop(key, None)
             else:
-                # If hash is the same, just delete the sync link so it resets
                 st.session_state.pop(f"sync_{old_hash}", None)
                 
-            st.toast(f"✅ Route pulled back! ({len(valid_tasks)} tasks added to Dispatch)")
-            return # Exit safely without forcing a double-rerun
+            st.toast(f"✅ Tasks released from {action_label} route and sent to Dispatch.")
+            return
 
 def instant_revoke_handler(cluster_hash, ic_name, payload_json, pod_name):
     # This specifically handles the SENT tab
