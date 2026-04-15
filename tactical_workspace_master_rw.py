@@ -1386,8 +1386,8 @@ def run_pod_tab(pod_name):
             
             for i, c in enumerate(accepted):
                 ic_name = c.get('contractor_name', 'Unknown')
-                wo_display = c.get('wo', ic_name) [cite: 250]
-                ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else "" [cite: 251]
+                wo_display = c.get('wo', ic_name)
+                ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
                 
                 task_ids = [str(t['id']).strip() for t in c['data']]
                 cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
@@ -1417,7 +1417,7 @@ def run_pod_tab(pod_name):
                         render_dispatch(i+2000, c, pod_name, is_sent=True)
                         
                 with btn_col:
-                    # Keep the manual revoke option for emergencies [cite: 253-255]
+                    # Keep the manual revoke option for emergencies 
                     with st.popover("↩️ Revoke", use_container_width=True):
                         st.error(f"Revoke from {ic_name}?")
                         if st.button("🚨 Yes, Revoke", key=f"rev_acc_{cluster_hash}", type="primary"):
