@@ -1479,10 +1479,131 @@ def run_pod_tab(pod_name):
                         st.rerun()
 
 # =====================================================================
-# THE FINAL EXECUTION BLOCK (This sits directly beneath the function)
+# MAIN APP EXECUTION (This sits at the very bottom of your file)
 # =====================================================================
 
-    # --- 3. THE LOADING ZONE (Progress Bar ABOVE cards via placeholder) ---
+# --- START (Database Initialization) ---
+if "ic_df" not in st.session_state:
+    try:
+        url = f"{IC_SHEET_URL.split('/edit')[0]}/export?format=csv&gid=0"
+        st.session_state.ic_df = pd.read_csv(url)
+    except: st.error("Database connection failed.")
+
+# --- HEADER ROW (Title & Refresh Button) ---
+col_left_space, col_main_title, col_ref = st.columns([1, 8, 2])
+
+with col_main_title:
+    st.markdown("<h1 style='color: #633094;'>Terraboost Media: Dispatch Command Center</h1>", unsafe_allow_html=True)
+
+with col_ref:
+    st.markdown("<div class='refresh-btn-container' style='margin-top: 26px;'>", unsafe_allow_html=True)
+    if st.button("🔄 Refresh", key="top_ref_btn"):
+        st.cache_data.clear()
+        st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# 🚨 THIS IS THE LINE YOU WERE MISSING 🚨
+# Define the tabs for the entire app
+tabs = st.tabs(["Global", "Blue Pod", "Green Pod", "Orange Pod", "Purple Pod", "Red Pod"])
+
+# --- TAB 0: GLOBAL CONTROL ---
+with tabs[0]:
+    st.markdown("<h2 style='color: #633094; text-align:center;'>🌍 Global Command Overview</h2>", unsafe_allow_html=True)
+    
+    # --- 1. INITIALIZE BUTTON ---
+    c_btn = st.columns([1,2,1])[1]
+    if c_btn.button("🚀 Initialize All Pods", key="global_init_btn", use_container_width=True):
+        st.session_state.sent_db, st.session_state.ghost_db = fetch_sent_records_from_sheet()
+        st.session_state.trigger_pull = True
+
+    st.markdown("---")
+    
+    # Placeholder to anchor the progress bar ABOVE the cards
+    loading_placeholder = st.empty()
+
+    # --- 2. PILL CARDS LOOP ---
+    cols = st.columns(len(POD_CONFIGS))
+    pod_keys = list(POD_CONFIGS.keys())
+    global_map = folium.Map(location=[39.8283, -98.5795], zoom_start=4, tiles="cartodbpositron")
+    
+    current_sent_db, ghost_db = fetch_sent_records_from_sheet()
+
+    for i, pod in enumerate(pod_keys):
+        colors = {
+            "Blue":   {"border": "#3b82f6", "bg": "#f0f7ff", "text": "#1e3a8a"},
+            "Green":  {"border": "#22c55e", "bg": "#f0fdf4", "text": "#064e3b"},
+            "Orange": {"border": "#f97316", "bg": "#fffaf5", "text": "#7c2d12"},
+            "Purple": {"border": "#a855f7", "bg": "#faf5ff", "text": "#4c1d95"},
+            "Red":    {"border": "#ef4444", "bg": "#fef2f2", "text": "#7f1d1d"}
+        }.get(pod)
+        
+        with cols[i]:
+            is_loading = st.session_state.get("current_loading_pod") == pod
+            has_data = f"clusters_{pod}" in st.session_state
+            
+            if is_loading:
+                card_content = f"<p class='loading-pulse' style='color:{colors['border']}; margin-top:25px;'>📡 SYNCING...</p>"
+            elif has_data:
+                pod_cls = st.session_state[f"clusters_{pod}"]
+                total_routes = len(pod_cls)
+                total_tasks = sum(len(c['data']) for c in pod_cls)
+                total_stops = sum(c['stops'] for c in pod_cls)
+                
+                # 🌟 FIXED: Initialized 'finalized'
+                sent, accepted, declined, finalized = [], [], [], []
+                
+                for c in pod_cls:
+                    task_ids = [str(t['id']).strip() for t in c['data']]
+                    cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+                    
+                    sheet_match = current_sent_db.get(next((tid for tid in task_ids if tid in current_sent_db), None))
+                    route_state = st.session_state.get(f"route_state_{cluster_hash}")
+                    is_reverted = st.session_state.get(f"reverted_{cluster_hash}", False)
+                    
+                    if sheet_match and not is_reverted:
+                        raw_status = sheet_match.get('status')
+                        if raw_status == 'declined':
+                            declined.append(c)
+                        elif raw_status == 'accepted':
+                            accepted.append(c)
+                        elif raw_status == 'finalized':
+                            finalized.append(c)
+                        else:
+                            sent.append(c)
+                    elif route_state == "email_sent" and not is_reverted:
+                        sent.append(c)
+                    elif route_state == "link_generated" and not is_reverted:
+                        orig = st.session_state.get(f"orig_status_{cluster_hash}")
+                        if orig == "declined":
+                            declined.append(c)
+                
+                pod_ghosts = ghost_db.get(pod, [])
+                total_accepted = len(accepted) + len(pod_ghosts)
+                true_sent_count = len(sent) + total_accepted + len(declined) + len(finalized) 
+                visual_total_routes = len(pod_cls) + len(pod_ghosts)
+                
+                card_content = f"""
+<p style='margin: 10px 0 0 0; font-size: 26px; font-weight: 800; color: {colors['text']};'>{true_sent_count} / {visual_total_routes}</p>
+<p style='margin: -5px 0 0 0; font-size: 11px; font-weight: 700; color: {colors['text']}; opacity: 0.6; text-transform: uppercase;'>Routes Sent</p>
+<p style='margin: 2px 0 8px 0; font-size: 9px; font-weight: 700; color: {colors['text']}; opacity: 0.5;'>{total_accepted} ACCEPTED | {len(declined)} DECLINED</p>
+<div style='display: flex; justify-content: space-around; border-top: 1px solid rgba(0,0,0,0.08); padding-top: 10px;'>
+<div><p style='margin:0; font-size:9px; color: {colors['text']}; opacity: 0.8; font-weight: 800;'>TASKS</p><b style='color: {colors['text']};'>{total_tasks}</b></div>
+<div style='border-left: 1px solid rgba(0,0,0,0.08); height: 20px;'></div>
+<div><p style='margin:0; font-size:9px; color: {colors['text']}; opacity: 0.8; font-weight: 800;'>STOPS</p><b style='color: {colors['text']};'>{total_stops}</b></div>
+</div>
+"""
+                for c in pod_cls: folium.CircleMarker(c['center'], radius=5, color=colors['border'], fill=True, fill_opacity=0.7).add_to(global_map)
+            else:
+                card_content = f"<p style='color: {colors['text']}; opacity: 0.3; font-weight: 800; margin-top: 30px;'>OFFLINE</p>"
+
+            st.markdown(f"""
+<div class="pod-card-pill" style="border: 2px solid {colors['border']}; border-radius: 30px; padding: 20px 10px; background-color: {colors['bg']}; text-align: center; height: 190px; box-shadow: 0 4px 10px rgba(0,0,0,0.03); display: flex; flex-direction: column; justify-content: center;">
+<div style="margin: 0; color: {colors['text']}; font-weight: 800; font-size: 1.2rem;">{pod} Pod</div>
+{card_content}
+</div>
+""", unsafe_allow_html=True)
+            
+    # --- 3. THE LOADING ZONE ---
     if st.session_state.get("trigger_pull"):
         st.session_state.sent_db, st.session_state.ghost_db = fetch_sent_records_from_sheet()
         p_bar = loading_placeholder.progress(0, text="🎬 Initializing Operational Data...")
