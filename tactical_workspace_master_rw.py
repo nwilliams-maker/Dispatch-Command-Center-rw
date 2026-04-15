@@ -1128,7 +1128,6 @@ def run_pod_tab(pod_name):
     # Grab the contractor database from session state
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
     
-    # ... rest of your header code ...
     # Grab the matching "Midnight" text color for the current pod
     text_color = {
         "Blue": "#1e3a8a",
@@ -1145,7 +1144,6 @@ def run_pod_tab(pod_name):
     # Check if data exists for this pod
     if f"clusters_{pod_name}" not in st.session_state:
         if st.button(f"🚀 Initialize {pod_name} Data", key=f"init_{pod_name}"):
-            # We don't pass total_pods, so it defaults to a single-pod behavior
             process_pod(pod_name)
             st.rerun()
         return
@@ -1163,12 +1161,26 @@ def run_pod_tab(pod_name):
     sent_db, ghost_db = fetch_sent_records_from_sheet()
     pod_ghosts = ghost_db.get(pod_name, [])
 
-    # Added 'finalized' to the list
+    # 🌟 FIXED: Added 'finalized' to the list to prevent NameError
     ready, review, sent, accepted, declined, finalized = [], [], [], [], [], []
 
     for c in cls:
         task_ids = [str(t['id']).strip() for t in c['data']]
         cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+        
+        # --- CALCULATE SUMMARY ICONS (Placed to the right of address) ---
+        h_icons = ""
+        all_types = " ".join([str(t.get('task_type', '')).lower() for t in c['data']])
+        
+        if c.get('is_digital'): h_icons += " 🔌" 
+        if any(x in all_types for x in ["install", "setup", "assembly"]): h_icons += " 🛠️"
+        if "removal" in all_types: h_icons += " 🛑"
+        if any(x in all_types for x in ["continuity", "photo", "swap", "refresh"]): h_icons += " 🔄"
+        if any(x in all_types for x in ["new ad", "art change", "top", "launch"]): h_icons += " 🆕"
+        if c.get('esc_count', 0) > 0: h_icons += " ⭐" 
+        
+        # Attach icons directly to the cluster object for easy rendering
+        c['h_icons'] = h_icons
         
         sheet_match = sent_db.get(next((tid for tid in task_ids if tid in sent_db), None))
         route_state = st.session_state.get(f"route_state_{cluster_hash}")
@@ -1216,15 +1228,11 @@ def run_pod_tab(pod_name):
     total_stops = sum(c['stops'] for c in cls)
     total_routes = len(cls)
 
-    # 🌟 NEW: Add ghosts to the Tracking Math
+    # 🌟 NEW: Add ghosts and finalized to the Tracking Math
     total_accepted = len(accepted) + len(pod_ghosts)
-    # 🌟 FIXED: Includes the Finalized count in the tracking total
     total_dispatched = len(sent) + total_accepted + len(declined) + len(finalized)
 
-    # We swap the widths so the wider 'Routes' card fits on the left
-    c1, c2, c3 = st.columns([1.5, 1, 1.5])
-
-    # Dashboard Supercards (Now with Hover Glow!)
+    # Dashboard Supercards
     c1, c2, c3 = st.columns([1.5, 1, 1.5])
 
     with c1:
@@ -1289,21 +1297,16 @@ def run_pod_tab(pod_name):
         process_pod(pod_name) # Re-runs Onfleet pull and clustering
         st.rerun()
 
-    # --- MAP RENDERING (STAYS RIGHT BELOW) ---
-    
-    # We use the first cluster as the center point
+    # --- MAP RENDERING ---
     m = folium.Map(location=cls[0]['center'], zoom_start=6, tiles="cartodbpositron")
     
-    # Draw markers
     for c in ready: folium.CircleMarker(c['center'], radius=8, color=TB_GREEN, fill=True, opacity=0.8).add_to(m)
     for c in sent: folium.CircleMarker(c['center'], radius=8, color="#3b82f6", fill=True, opacity=0.8).add_to(m)
     for c in review: folium.CircleMarker(c['center'], radius=8, color="#ef4444", fill=True, opacity=0.8).add_to(m)
     
-    # FIX: Remove width=1100 and use container width for responsiveness
     st_folium(m, height=400, use_container_width=True, key=f"map_{pod_name}")
     
     # --- ICON KEY (LEGEND) ---
-    # (Pushed to the far left so Streamlit doesn't turn it into a code block)
     st.markdown("""
 <div style="display: flex; justify-content: center; flex-wrap: wrap; gap: 20px; background: #ffffff; padding: 12px; border-radius: 12px; border: 1px solid #cbd5e1; margin-top: -10px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
     <div style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; align-self: center; margin-right: 10px;">Route Key:</div>
@@ -1320,21 +1323,19 @@ def run_pod_tab(pod_name):
 
     st.markdown("---")
 
-    # Create two equal-width columns for side-by-side layout
-    # [4, 5.5] ratio makes the left card narrower and the right side wider
-    col_left, col_right = st.columns([4.5, 5.5])
+    # Ratio makes the left card narrower and the right side wider for the 4 tabs
+    col_left, col_right = st.columns([4, 6])
 
     with col_left:
-        # ==========================================
-        # SECTION 1: DISPATCH (LEFT SIDE - CENTERED)
-        # ==========================================
+        # SECTION 1: DISPATCH (LEFT SIDE)
+        # Pulls the header up to align with the right side
+        st.markdown('<div style="margin-top: -35px;"></div>', unsafe_allow_html=True)
         st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_PURPLE}; margin-bottom: 5px; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
         t_ready, t_flagged = st.tabs(["📥 Ready", "⚠️ Flagged"])
 
         with t_ready:
             if not ready: st.info("No tasks ready for dispatch.")
             for i, c in enumerate(ready):
-                # --- PRE-CALCULATE BADGES ---
                 badges = ""
                 if not ic_df.empty:
                     v_ics = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].dropna(subset=['Lat', 'Lng']).copy()
@@ -1349,72 +1350,110 @@ def run_pod_tab(pod_name):
                         if closest_ic['d'] > 60: badges += " 📡"
                         if est_rate >= 25.0 or closest_ic['d'] > 60: badges = " 🔒" + badges
 
-                esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
-                digi_pill = "  [ 🔌 Digital ]" if c.get('is_digital') else ""
-                with st.expander(f"{badges} 🟢 {c['city']}, {c['state']} | {c['stops']} Stops{digi_pill}{esc_pill}"):
+                with st.expander(f"{badges} 🟢 {c['city']}, {c['state']}{c['h_icons']} | {c['stops']} Stops"):
                     render_dispatch(i, c, pod_name)
                     
         with t_flagged:
             if not review: st.info("No flagged tasks requiring review.")
             for i, c in enumerate(review):
-                esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
-                digi_pill = "  [ 🔌 Digital ]" if c.get('is_digital') else "" # ⬅️ ADD THIS
-                with st.expander(f"🔒 🔴 {c['city']}, {c['state']} | {c['stops']} Stops{digi_pill}{esc_pill}"): 
+                with st.expander(f"🔒 🔴 {c['city']}, {c['state']}{c['h_icons']} | {c['stops']} Stops"): 
                     render_dispatch(i+1000, c, pod_name)
 
     with col_right:
+        # SECTION 2: AWAITING CONFIRMATION (RIGHT SIDE)
         st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_GREEN}; margin-bottom: 5px; text-align: center;'>⏳ Awaiting Confirmation</div>", unsafe_allow_html=True)
         t_sent, t_acc, t_dec, t_fin = st.tabs(["✉️ Sent (Pending)", "✅ Accepted", "❌ Declined", "🏁 Finalized"])
-
+        
         with t_sent:
             if not sent: st.info("No pending routes sent.")
             for i, c in enumerate(sent):
                 ic_name = c.get('contractor_name', 'Unknown')
-                cluster_hash = hashlib.md5("".join(sorted([str(t['id']) for t in c['data']])).encode()).hexdigest()
+                task_ids = [str(t['id']).strip() for t in c['data']]
+                cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+                
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                
                 with exp_col:
                     ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
-                    with st.expander(f"✉️ {ic_name} | {c['city']}, {c['state']}{h_icons}{ts_suffix}"):
+                    with st.expander(f"✉️ {ic_name} | {c['city']}, {c['state']}{c['h_icons']}{ts_suffix}"):
                         render_dispatch(i+500, c, pod_name, is_sent=True)
+                        
                 with btn_col:
-                    st.button("↩️ Revoke", key=f"rev_sent_{cluster_hash}", on_click=instant_revoke_handler, args=(cluster_hash, ic_name, c, pod_name), use_container_width=True)
+                    st.button("↩️ Revoke", key=f"instant_rev_{cluster_hash}", on_click=instant_revoke_handler, args=(cluster_hash, ic_name, c, pod_name), use_container_width=True)
 
         with t_acc:
             if not accepted and not pod_ghosts: st.info("Waiting for portal acceptances...")
+            
+            # 1. LIVE ACCEPTED ROUTES
             for i, c in enumerate(accepted):
                 ic_name = c.get('contractor_name', 'Unknown')
                 wo_display = c.get('wo', ic_name)
-                cluster_hash = hashlib.md5("".join(sorted([str(t['id']) for t in c['data']])).encode()).hexdigest()
+                ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
+                
+                task_ids = [str(t['id']).strip() for t in c['data']]
+                cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+                
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                
                 with exp_col:
-                    ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
-                    with st.expander(f"✅ {wo_display} | {c['city']}, {c['state']}{h_icons}{ts_suffix}"):
-                        st.success("Route accepted. Complete the checklist to Finalize.")
+                    with st.expander(f"✅ {wo_display} | {c['city']}, {c['state']}{c['h_icons']}{ts_suffix}"):
+                        st.success("Route accepted. Tasks are assigning in Onfleet.")
+                        
+                        # --- SEQUENTIAL CHECKLIST ---
                         st.divider()
-                        s1 = st.checkbox("1. **Onfleet**: Optimized?", key=f"s1_{cluster_hash}")
-                        s2 = st.checkbox("2. **Plan**: Backend Fields?", key=f"s2_{cluster_hash}", disabled=not s1)
-                        if st.checkbox("3. **Pack**: Packing List?", key=f"s3_{cluster_hash}", disabled=not s2):
+                        st.markdown("<p style='font-weight:800; color:#16a34a;'>📋 Operational Readiness</p>", unsafe_allow_html=True)
+                        
+                        step1 = st.checkbox("1. **Onfleet**: Optimized route?", key=f"s1_{cluster_hash}")
+                        step2 = st.checkbox("2. **Plan**: Fields & Backend Dispatch?", key=f"s2_{cluster_hash}", disabled=not step1)
+                        if st.checkbox("3. **Pack**: Packing list uploaded?", key=f"s3_{cluster_hash}", disabled=not step2):
                             finalize_route_handler(cluster_hash)
                             st.rerun()
+
                         render_dispatch(i+2000, c, pod_name, is_sent=True)
+                        
                 with btn_col:
                     with st.popover("↩️ Revoke", use_container_width=True):
-                        if st.button("🚨 Yes, Revoke", key=f"rev_acc_{cluster_hash}", type="primary", use_container_width=True):
+                        st.error(f"Revoke from {ic_name}?")
+                        if st.button("🚨 Yes, Revoke", key=f"rev_acc_{cluster_hash}", type="primary"):
                             move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=True)
                             st.rerun()
+
+            # 2. GHOST ROUTES
+            for i, g in enumerate(pod_ghosts):
+                wo_display = g.get('wo', g.get('contractor_name', 'Unknown'))
+                ts_suffix = f" | {g.get('route_ts', '')}"
+                
+                with st.expander(f"✅ {wo_display} | {g.get('city', 'Unknown')}, {g.get('state', 'Unknown')}{ts_suffix}"):
+                    st.success("Route accepted and tasks successfully assigned in OnFleet.")
+                    st.markdown(f"""
+                        <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:12px; margin-top:5px;">
+                            <p style="margin:0; font-size:12px; color:#64748b; font-weight:800; text-transform:uppercase;">Historical Route Data</p>
+                            <div style="display:flex; justify-content:space-between; margin-top:8px;">
+                                <div><span style="font-size:11px; color:#475569;">Original Tasks:</span><br><b style="color:#000000; font-size:16px;">{g.get('tasks', 0)}</b></div>
+                                <div><span style="font-size:11px; color:#475569;">Stops:</span><br><b style="color:#000000; font-size:16px;">{g.get('stops', 0)}</b></div>
+                                <div><span style="font-size:11px; color:#475569;">Compensation:</span><br><b style="color:#22c55e; font-size:16px;">${g.get('pay', 0)}</b></div>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
 
         with t_dec:
             if not declined: st.info("No declined routes.")
             for i, c in enumerate(declined):
                 ic_name = c.get('contractor_name', 'Unknown')
-                cluster_hash = hashlib.md5("".join(sorted([str(t['id']) for t in c['data']])).encode()).hexdigest()
+                ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
+                
+                task_ids = [str(t['id']).strip() for t in c['data']]
+                cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+                
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                
                 with exp_col:
-                    ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
-                    with st.expander(f"❌ {ic_name} | {c['city']}, {c['state']}{h_icons}{ts_suffix}"):
+                    with st.expander(f"❌ {ic_name} | {c['city']}, {c['state']}{c['h_icons']}{ts_suffix}"):
+                        st.error("Route declined. Select a new contractor below to generate a fresh link.")
                         render_dispatch(i+3000, c, pod_name, is_declined=True)
+                        
                 with btn_col:
-                    if st.button("↩️ Re-Route", key=f"rr_dec_{cluster_hash}", use_container_width=True):
+                    if st.button("↩️ Re-Route", key=f"quick_reroute_{cluster_hash}", use_container_width=True):
                         move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Declined", check_onfleet=False)
                         st.rerun()
 
@@ -1422,148 +1461,30 @@ def run_pod_tab(pod_name):
             if not finalized: st.info("No finalized routes.")
             for i, c in enumerate(finalized):
                 ic_name = c.get('contractor_name', 'Unknown')
-                cluster_hash = hashlib.md5("".join(sorted([str(t['id']) for t in c['data']])).encode()).hexdigest()
+                ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
+                
+                task_ids = [str(t['id']).strip() for t in c['data']]
+                cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+                
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                
                 with exp_col:
-                    ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
-                    with st.expander(f"🏁 {ic_name} | {c['city']}, {c['state']}{h_icons}{ts_suffix}"):
+                    with st.expander(f"🏁 {ic_name} | {c['city']}, {c['state']}{c['h_icons']}{ts_suffix}"):
+                        st.info("Route is archived in Finalized.")
                         render_dispatch(i+4000, c, pod_name, is_sent=True)
+                
                 with btn_col:
-                    if st.button("↩️ Re-Route", key=f"rr_fin_{cluster_hash}", use_container_width=True):
+                    if st.button("↩️ Re-Route", key=f"fin_rr_{cluster_hash}", use_container_width=True):
                         move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Finalized", check_onfleet=False)
                         st.rerun()
-                        
-# --- START ---
-if "ic_df" not in st.session_state:
-    try:
-        url = f"{IC_SHEET_URL.split('/edit')[0]}/export?format=csv&gid=0"
-        st.session_state.ic_df = pd.read_csv(url)
-    except: st.error("Database connection failed.")
 
-# --- HEADER ROW (Title & Refresh Button) ---
-# [1, 8, 2] ratio gives the refresh button enough room to stay flat
-col_left_space, col_main_title, col_ref = st.columns([1, 8, 2])
+# =====================================================================
+# THE FINAL EXECUTION BLOCK (This sits directly beneath the function)
+# =====================================================================
 
-with col_main_title:
-    st.markdown("<h1 style='color: #633094;'>Terraboost Media: Dispatch Command Center</h1>", unsafe_allow_html=True)
-
-with col_ref:
-    st.markdown("<div class='refresh-btn-container' style='margin-top: 26px;'>", unsafe_allow_html=True)
-    if st.button("🔄 Refresh", key="top_ref_btn"):
-        st.cache_data.clear()
-        st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# Define the tabs for the entire app
-tabs = st.tabs(["Global", "Blue Pod", "Green Pod", "Orange Pod", "Purple Pod", "Red Pod"])
-
-# --- TAB 0: GLOBAL CONTROL ---
-with tabs[0]:
-    st.markdown("<h2 style='color: #633094; text-align:center;'>🌍 Global Command Overview</h2>", unsafe_allow_html=True)
-    
-    # --- 1. INITIALIZE BUTTON ---
-    c_btn = st.columns([1,2,1])[1]
-    if c_btn.button("🚀 Initialize All Pods", key="global_init_btn", use_container_width=True):
-        st.session_state.sent_db, st.session_state.ghost_db = fetch_sent_records_from_sheet()
-        st.session_state.trigger_pull = True
-
-    st.markdown("---")
-    
-    # NEW: Placeholder to anchor the progress bar ABOVE the cards
-    loading_placeholder = st.empty()
-
-    # --- 2. PILL CARDS LOOP ---
-    cols = st.columns(len(POD_CONFIGS))
-    pod_keys = list(POD_CONFIGS.keys())
-    global_map = folium.Map(location=[39.8283, -98.5795], zoom_start=4, tiles="cartodbpositron")
-    
-    current_sent_db, ghost_db = fetch_sent_records_from_sheet()
-
-    for i, pod in enumerate(pod_keys):
-        # Python Colors Mapping
-        colors = {
-            "Blue":   {"border": "#3b82f6", "bg": "#f0f7ff", "text": "#1e3a8a"},
-            "Green":  {"border": "#22c55e", "bg": "#f0fdf4", "text": "#064e3b"},
-            "Orange": {"border": "#f97316", "bg": "#fffaf5", "text": "#7c2d12"},
-            "Purple": {"border": "#a855f7", "bg": "#faf5ff", "text": "#4c1d95"},
-            "Red":    {"border": "#ef4444", "bg": "#fef2f2", "text": "#7f1d1d"}
-        }.get(pod)
-        
-        with cols[i]:
-            is_loading = st.session_state.get("current_loading_pod") == pod
-            has_data = f"clusters_{pod}" in st.session_state
-            
-            # --- CONSTRUCT INNER CONTENT ---
-            if is_loading:
-                card_content = f"<p class='loading-pulse' style='color:{colors['border']}; margin-top:25px;'>📡 SYNCING...</p>"
-            elif has_data:
-                pod_cls = st.session_state[f"clusters_{pod}"]
-                total_routes = len(pod_cls)
-                total_tasks = sum(len(c['data']) for c in pod_cls)
-                total_stops = sum(c['stops'] for c in pod_cls)
-                
-                # --- EXACT SYNC LOGIC FROM POD TABS ---
-                sent, accepted, declined, finalized = [], [], [], []
-                for c in pod_cls:
-                    task_ids = [str(t['id']).strip() for t in c['data']]
-                    cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
-                    
-                    sheet_match = current_sent_db.get(next((tid for tid in task_ids if tid in current_sent_db), None))
-                    route_state = st.session_state.get(f"route_state_{cluster_hash}")
-                    is_reverted = st.session_state.get(f"reverted_{cluster_hash}", False)
-                    
-                    # --- NEW PRIORITY: LIVE DATABASE OVERRIDES LOCAL STATE ---
-                    if sheet_match and not is_reverted:
-                        raw_status = sheet_match.get('status')
-                        if raw_status == 'declined':
-                            declined.append(c)
-                        elif raw_status == 'accepted':
-                            accepted.append(c)
-                        elif raw_status == 'finalized': # ⬅️ ADD THIS
-                            finalized.append(c)
-                        else:
-                            sent.append(c)
-                    elif route_state == "email_sent" and not is_reverted:
-                        sent.append(c)
-                    elif route_state == "link_generated" and not is_reverted:
-                        orig = st.session_state.get(f"orig_status_{cluster_hash}")
-                        if orig == "declined":
-                            declined.append(c)
-                
-                # Combine Live data with Ghost History
-                pod_ghosts = ghost_db.get(pod, [])
-                total_accepted = len(accepted) + len(pod_ghosts)
-                # 🌟 FIXED: Include finalized in the global true_sent_count
-                true_sent_count = len(sent) + total_accepted + len(declined) + len(finalized) 
-                visual_total_routes = len(pod_cls) + len(pod_ghosts)
-                
-                # Metrics HTML (Flushed Left to prevent markdown code blocks)
-                card_content = f"""
-<p style='margin: 10px 0 0 0; font-size: 26px; font-weight: 800; color: {colors['text']};'>{true_sent_count} / {visual_total_routes}</p>
-<p style='margin: -5px 0 0 0; font-size: 11px; font-weight: 700; color: {colors['text']}; opacity: 0.6; text-transform: uppercase;'>Routes Sent</p>
-<p style='margin: 2px 0 8px 0; font-size: 9px; font-weight: 700; color: {colors['text']}; opacity: 0.5;'>{total_accepted} ACCEPTED | {len(declined)} DECLINED</p>
-<div style='display: flex; justify-content: space-around; border-top: 1px solid rgba(0,0,0,0.08); padding-top: 10px;'>
-<div><p style='margin:0; font-size:9px; color: {colors['text']}; opacity: 0.8; font-weight: 800;'>TASKS</p><b style='color: {colors['text']};'>{total_tasks}</b></div>
-<div style='border-left: 1px solid rgba(0,0,0,0.08); height: 20px;'></div>
-<div><p style='margin:0; font-size:9px; color: {colors['text']}; opacity: 0.8; font-weight: 800;'>STOPS</p><b style='color: {colors['text']};'>{total_stops}</b></div>
-</div>
-"""
-                for c in pod_cls: folium.CircleMarker(c['center'], radius=5, color=colors['border'], fill=True, fill_opacity=0.7).add_to(global_map)
-            else:
-                card_content = f"<p style='color: {colors['text']}; opacity: 0.3; font-weight: 800; margin-top: 30px;'>OFFLINE</p>"
-
-            # --- RENDER THE PILL (Entire string Flushed Left) ---
-            st.markdown(f"""
-<div class="pod-card-pill" style="border: 2px solid {colors['border']}; border-radius: 30px; padding: 20px 10px; background-color: {colors['bg']}; text-align: center; height: 190px; box-shadow: 0 4px 10px rgba(0,0,0,0.03); display: flex; flex-direction: column; justify-content: center;">
-<div style="margin: 0; color: {colors['text']}; font-weight: 800; font-size: 1.2rem;">{pod} Pod</div>
-{card_content}
-</div>
-""", unsafe_allow_html=True)
-            
     # --- 3. THE LOADING ZONE (Progress Bar ABOVE cards via placeholder) ---
     if st.session_state.get("trigger_pull"):
         st.session_state.sent_db, st.session_state.ghost_db = fetch_sent_records_from_sheet()
-        # THE FIX: Tell the progress bar to render inside the placeholder we made up top
         p_bar = loading_placeholder.progress(0, text="🎬 Initializing Operational Data...")
         for idx, p in enumerate(pod_keys):
             st.session_state.current_loading_pod = p 
