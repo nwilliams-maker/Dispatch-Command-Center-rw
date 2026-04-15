@@ -1309,7 +1309,7 @@ with col_left:
     # 🚨 THE FIX: Pulls the "Dispatch" header up so it aligns with "Awaiting"
     st.markdown('<div style="margin-top: -35px;"></div>', unsafe_allow_html=True)
     st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_PURPLE}; margin-bottom: 5px; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
-        t_ready, t_flagged = st.tabs(["📥 Ready", "⚠️ Flagged"])
+    t_ready, t_flagged = st.tabs(["📥 Ready", "⚠️ Flagged"])
 
         with t_ready:
             if not ready: st.info("No tasks ready for dispatch.")
