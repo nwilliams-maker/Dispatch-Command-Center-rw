@@ -390,50 +390,42 @@ div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb
 }}
 
 
-/* --- RIGHT COLUMN: Awaiting Tabs (LEFT-SIDE SYNC) --- */
+/* --- RIGHT COLUMN: Awaiting Tabs --- */
+/* Force the gap so they break apart into individual pills */
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab-list"] {
+    gap: 12px !important;
+}
 
-/* 1. Reset the Container: Force it to behave like the Left Side */
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab-list"] {{
-    gap: 8px !important; /* Matches the global tab gap */
-    justify-content: center !important;
-    overflow: visible !important;
-    padding-left: 10px !important; /* Buffer to prevent clipping the first pill */
-}}
-
-/* 2. Restore Global Pill Shape for all Right-Side Tabs */
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"] {{
-    border-radius: 30px !important; /* Back to perfect circles */
-    margin: 0 4px !important;      /* Matches Left-side margin [cite: 22] */
-    padding: 8px 20px !important;   /* Standard pill padding */
-}}
-
-/* 3. Sent (Purple) */
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) {{
+/* 1. Sent (Purple/Blue) - THE MISSING FIX */
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) {
     background-color: #f3e8ff !important;
     border: 2px solid #633094 !important;
-}}
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) p {{ color: #633094 !important; }}
+    border-radius: 30px !important;
+}
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) p {
+    color: #633094 !important; 
+}
 
-/* 4. Accepted (Green) */
+/* 2. Accepted (Green) */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(2) {{
     background-color: #dcfce7 !important;
     border: 2px solid #166534 !important;
+    border-radius: 30px !important;
 }}
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(2) p {{ color: #166534 !important; }}
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(2) p {{
+    color: #166534 !important; 
+}}
 
-/* 5. Declined (Red) */
+/* 3. Declined (Red) */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(3) {{
     background-color: #fee2e2 !important;
     border: 2px solid #991b1b !important;
+    border-radius: 30px !important;
 }}
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(3) p {{ color: #991b1b !important; }}
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(3) p {{
+    color: #991b1b !important; 
+}}
 
-/* 6. Finalized (Gray) */
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(4) {{
-    background-color: #f8fafc !important;
-    border: 2px solid #475569 !important;
-}}
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(4) p {{ color: #475569 !important; }}
 
 /* ALIGN COLUMNS AT THE TOP (Fixes the giant gap on the left) */
 div[data-testid="stHorizontalBlock"] {{ align-items: flex-start !important; }}
@@ -1145,8 +1137,8 @@ def run_pod_tab(pod_name):
     sent_db, ghost_db = fetch_sent_records_from_sheet()
     pod_ghosts = ghost_db.get(pod_name, [])
 
-    ready, review, sent, accepted, declined, finalized = [], [], [], [], [], []
-    
+    ready, review, sent, accepted, declined = [], [], [], [], []
+
     for c in cls:
         task_ids = [str(t['id']).strip() for t in c['data']]
         cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
@@ -1169,13 +1161,11 @@ def run_pod_tab(pod_name):
         
         # --- NEW PRIORITY: LIVE DATABASE OVERRIDES LOCAL STATE ---
         if sheet_match and not is_reverted:
-            raw_status = sheet_match.get('status', '').lower()
+            raw_status = sheet_match.get('status')
             if raw_status == 'declined':
                 declined.append(c)
             elif raw_status == 'accepted':
                 accepted.append(c)
-            elif raw_status == 'finalized': # Sorts finalized tasks!
-                finalized.append(c)
             else:
                 sent.append(c)
         elif route_state == "email_sent" and not is_reverted:
@@ -1217,7 +1207,7 @@ def run_pod_tab(pod_name):
                         <p style='margin:0; font-size:20px; font-weight:800; color:#000000;'>{len(ready)}</p>
                     </div>
                     <div style='background:{TB_BLUE_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
-                        <p style='margin:0; font-size:9px; font-weight:800; color:#000000;'>PENDING</p>
+                        <p style='margin:0; font-size:9px; font-weight:800; color:#000000;'>SENT (PENDING)</p>
                         <p style='margin:0; font-size:20px; font-weight:800; color:#000000;'>{len(sent)}</p>
                     </div>
                     <div style='background:{TB_RED_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
@@ -1302,16 +1292,16 @@ def run_pod_tab(pod_name):
 
     # Create two equal-width columns for side-by-side layout
     # [4, 5.5] ratio makes the left card narrower and the right side wider
-    # Change ratio to 4/6 to give the 4 right-side tabs more space
-col_left, col_right = st.columns([4, 6]) 
+    col_left, col_right = st.columns([4.5, 5.5])
 
-with col_left:
-    # 🚨 THE FIX: Pulls the "Dispatch" header up so it aligns with "Awaiting"
-    st.markdown('<div style="margin-top: -35px;"></div>', unsafe_allow_html=True)
-    st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_PURPLE}; margin-bottom: 5px; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
-    t_ready, t_flagged = st.tabs(["📥 Ready", "⚠️ Flagged"])
+    with col_left:
+        # ==========================================
+        # SECTION 1: DISPATCH (LEFT SIDE - CENTERED)
+        # ==========================================
+        st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_PURPLE}; margin-bottom: 5px; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
+        t_ready, t_flagged = st.tabs(["📥 Ready", "⚠️ Flagged"])
 
-with t_ready:
+        with t_ready:
             if not ready: st.info("No tasks ready for dispatch.")
             for i, c in enumerate(ready):
                 # --- PRE-CALCULATE BADGES ---
@@ -1334,7 +1324,7 @@ with t_ready:
                 with st.expander(f"{badges} 🟢 {c['city']}, {c['state']} | {c['stops']} Stops{digi_pill}{esc_pill}"):
                     render_dispatch(i, c, pod_name)
                     
-            with t_flagged:
+        with t_flagged:
             if not review: st.info("No flagged tasks requiring review.")
             for i, c in enumerate(review):
                 esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
@@ -1346,7 +1336,7 @@ with t_ready:
         # SECTION 2: AWAITING CONFIRMATION (RIGHT SIDE - CENTERED)
         # ==========================================
         st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_GREEN}; margin-bottom: 5px; text-align: center;'>⏳ Awaiting Confirmation</div>", unsafe_allow_html=True)
-        t_sent, t_acc, t_dec, t_fin = st.tabs(["✉️ Sent (Pending)", "✅ Accepted", "❌ Declined", "🏁 Finalized"])
+        t_sent, t_acc, t_dec = st.tabs(["✉️ Sent (Pending)", "✅ Accepted", "❌ Declined"])
 
         with t_sent:
             if not sent: st.info("No pending routes sent.")
@@ -1445,30 +1435,7 @@ with t_ready:
                     if clicked:
                         move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Declined", check_onfleet=False)
                         st.rerun()
-        with t_fin:
-            if not finalized: st.info("No finalized routes.")
-            for i, c in enumerate(finalized):
-                ic_name = c.get('contractor_name', 'Unknown')
-                ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
-                
-                # Re-calculate hash for the button key
-                task_ids = [str(t['id']).strip() for t in c['data']]
-                cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
-                
-                # Using the fused [8.2, 1.8] layout to match the other tabs
-                exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
-                
-                with exp_col:
-                    with st.expander(f"🏁 {ic_name} | {c['city']}, {c['state']}{ts_suffix}"):
-                        st.success("This route has been marked as Finalized.")
-                        render_dispatch(i+4000, c, pod_name, is_sent=True)
                         
-                with btn_col:
-                    if st.button("↩️ Re-Route", key=f"fin_reroute_{cluster_hash}", use_container_width=True):
-                        move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Finalized", check_onfleet=False)
-                        st.rerun()
-        
-
 # --- START ---
 if "ic_df" not in st.session_state:
     try:
