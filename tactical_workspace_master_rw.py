@@ -38,6 +38,7 @@ IC_SHEET_URL = "https://docs.google.com/spreadsheets/d/1y6wX0x93iDc3gdK_nZKLD-2Q
 SAVED_ROUTES_GID = "1477617688"
 ACCEPTED_ROUTES_GID = "934075207"
 DECLINED_ROUTES_GID = "600909788"
+FINALIZED_ROUTES_GID = "2137441498"
 
 # Terraboost Media Brand Palette
 TB_PURPLE = "#633094"
@@ -550,10 +551,12 @@ def normalize_state(st_str):
 def fetch_sent_records_from_sheet():
     try:
         base_url = f"{IC_SHEET_URL.split('/edit')[0]}/export?format=csv&gid="
+        # Ensure you have a GID for your Finalized sheet defined at the top
         sheets_to_fetch = [
             (DECLINED_ROUTES_GID, "declined"),
             (ACCEPTED_ROUTES_GID, "accepted"),
-            (SAVED_ROUTES_GID, "sent")
+            (SAVED_ROUTES_GID, "sent"),
+            (FINALIZED_ROUTES_GID, "finalized") # ⬅️ ADD THIS LINE
         ]
         
         sent_dict = {}
@@ -1209,7 +1212,8 @@ def run_pod_tab(pod_name):
 
     # 🌟 NEW: Add ghosts to the Tracking Math
     total_accepted = len(accepted) + len(pod_ghosts)
-    total_dispatched = len(sent) + total_accepted + len(declined)
+    # 🌟 FIXED: Includes the Finalized count in the tracking total
+    total_dispatched = len(sent) + total_accepted + len(declined) + len(finalized)
 
     # We swap the widths so the wider 'Routes' card fits on the left
     c1, c2, c3 = st.columns([1.5, 1, 1.5])
@@ -1534,6 +1538,8 @@ with tabs[0]:
                             declined.append(c)
                         elif raw_status == 'accepted':
                             accepted.append(c)
+                        elif raw_status == 'finalized': # ⬅️ ADD THIS
+                            finalized.append(c)
                         else:
                             sent.append(c)
                     elif route_state == "email_sent" and not is_reverted:
@@ -1546,7 +1552,8 @@ with tabs[0]:
                 # Combine Live data with Ghost History
                 pod_ghosts = ghost_db.get(pod, [])
                 total_accepted = len(accepted) + len(pod_ghosts)
-                true_sent_count = len(sent) + total_accepted + len(declined)
+                # 🌟 FIXED: Include finalized in the global true_sent_count
+                true_sent_count = len(sent) + total_accepted + len(declined) + len(finalized) 
                 visual_total_routes = len(pod_cls) + len(pod_ghosts)
                 
                 # Metrics HTML (Flushed Left to prevent markdown code blocks)
