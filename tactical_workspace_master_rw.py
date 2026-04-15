@@ -1311,7 +1311,7 @@ with col_left:
     st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_PURPLE}; margin-bottom: 5px; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
     t_ready, t_flagged = st.tabs(["📥 Ready", "⚠️ Flagged"])
 
-        with t_ready:
+with t_ready:
             if not ready: st.info("No tasks ready for dispatch.")
             for i, c in enumerate(ready):
                 # --- PRE-CALCULATE BADGES ---
