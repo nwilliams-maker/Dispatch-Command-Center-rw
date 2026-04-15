@@ -833,10 +833,11 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             
             gate_avg, _ = check_viability(group)
             
-            # Set the base status based on the database flag first
-            if anc_status in ['sent', 'accepted', 'declined']:
+            # NEW: Sent/Accepted stay frozen. Ready and Declined both become 'Ready'
+            if anc_status in ['sent', 'accepted']:
                 status = anc_status.capitalize()
             else:
+                # If the anchor was 'declined' or 'ready', the new route is fresh
                 status = "Ready"
             
             # If the price is too high, we still attempt to "shave off" the last stop added
