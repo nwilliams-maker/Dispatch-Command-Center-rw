@@ -390,50 +390,32 @@ div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb
 }}
 
 
-/* --- RIGHT COLUMN: Awaiting Tabs (4-SEGMENT CONTROL) --- */
+/* --- RIGHT COLUMN: Awaiting Tabs (4-SEGMENT) --- */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab-list"] {{
     gap: 0px !important;
     padding: 5px !important;
+    overflow: visible !important;
 }}
 
-/* 1. Sent (Left Edge) */
+/* Target the text inside these specific tabs to make them smaller */
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"] {{
+    padding: 6px 10px !important; /* Shorter and narrower */
+    min-width: 80px !important;   /* Ensures they don't vanish */
+}}
+
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"] p {{
+    font-size: 11px !important;   /* Smaller font to fit 4 segments */
+}}
+
+/* Rounding logic for 4 segments */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) {{
-    background-color: #f3e8ff !important;
-    border: 2px solid #633094 !important;
-    border-radius: 20px 0px 0px 20px !important;
-    margin: 0 !important;
-}}
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) p {{ color: #633094 !important; }}
-
-/* 2. Accepted (Middle 1) */
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(2) {{
-    background-color: #dcfce7 !important;
-    border: 2px solid #166534 !important;
-    border-radius: 0px !important;
-    border-left: none !important;
-    margin: 0 !important;
-}}
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(2) p {{ color: #166534 !important; }}
-
-/* 3. Declined (Now Middle Segment) */
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(3) {{
-    background-color: #fee2e2 !important;
-    border: 2px solid #991b1b !important;
-    border-radius: 0px !important; /* Flat on both sides */
-    border-left: none !important; 
-    margin: 0 !important;
+    border-radius: 20px 0px 0px 20px !important; /* Left End */
 }}
 
-/* 4. Finalized (Right Edge) */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(4) {{
-    background-color: #f8fafc !important;
-    border: 2px solid #475569 !important;
-    border-radius: 0px 20px 20px 0px !important; /* Rounded Right edge */
+    border-radius: 0px 20px 20px 0px !important; /* Right End */
     border-left: none !important;
-    margin: 0 !important;
 }}
-
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(4) p {{ color: #334155 !important; }}
 
 /* ALIGN COLUMNS AT THE TOP (Fixes the giant gap on the left) */
 div[data-testid="stHorizontalBlock"] {{ align-items: flex-start !important; }}
@@ -1302,7 +1284,7 @@ def run_pod_tab(pod_name):
 
     # Create two equal-width columns for side-by-side layout
     # [4, 5.5] ratio makes the left card narrower and the right side wider
-    col_left, col_right = st.columns([4.5, 5.5])
+    col_left, col_right = st.columns([4, 6])
 
     with col_left:
         # ==========================================
