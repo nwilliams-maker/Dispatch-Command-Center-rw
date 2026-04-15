@@ -720,13 +720,17 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             if 'skykit' in str(t.get('notes', '')).lower():
                 tt_val += " skykit "
                 
-            # --- NEW: Extract Status AND Work Order from Database ---
+            # --- FIXED: Always pull fresh data before clustering ---
             t_status = 'ready'
             t_wo = 'none'
-            sent_db = st.session_state.get('sent_db', {})
-            if t['id'] in sent_db:
-                t_status = sent_db[t['id']].get('status', 'ready').lower()
-                t_wo = sent_db[t['id']].get('wo', 'none')
+            
+            # Fetch fresh records and update session state
+            fresh_sent_db, _ = fetch_sent_records_from_sheet()
+            st.session_state.sent_db = fresh_sent_db
+            
+            if t['id'] in fresh_sent_db:
+                t_status = fresh_sent_db[t['id']].get('status', 'ready').lower()
+                t_wo = fresh_sent_db[t['id']].get('wo', 'none')
             
             if stt in config['states']:
                 pool.append({
@@ -834,10 +838,10 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             gate_avg, _ = check_viability(group)
             
             # NEW: Sent/Accepted stay frozen. Ready and Declined both become 'Ready'
+            # This forces Declined routes to merge back into Dispatch
             if anc_status in ['sent', 'accepted']:
                 status = anc_status.capitalize()
             else:
-                # If the anchor was 'declined' or 'ready', the new route is fresh
                 status = "Ready"
             
             # If the price is too high, we still attempt to "shave off" the last stop added
