@@ -390,48 +390,50 @@ div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb
 }}
 
 
-/* --- RIGHT COLUMN: Awaiting Tabs --- */
-
-/* 1. Container Fix: Force the gap and expose the overflow */
+/* --- RIGHT COLUMN: Awaiting Tabs (4-SEGMENT CONTROL) --- */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab-list"] {{
-    gap: 15px !important;
-    overflow: visible !important;
+    gap: 0px !important;
+    padding: 5px !important;
 }}
 
-/* 2. Sent (Purple) - THE FIX */
+/* 1. Sent (Left Edge) */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) {{
     background-color: #f3e8ff !important;
     border: 2px solid #633094 !important;
-    border-radius: 30px !important;
-    margin-left: 4px !important; /* ⬅️ CRITICAL: Pushes the pill right, saving it from the invisible scissors */
-    margin-right: 0 !important;
+    border-radius: 20px 0px 0px 20px !important;
+    margin: 0 !important;
 }}
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) p {{
-    color: #633094 !important; 
-}}
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) p {{ color: #633094 !important; }}
 
-/* 3. Accepted (Green) */
+/* 2. Accepted (Middle 1) */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(2) {{
     background-color: #dcfce7 !important;
     border: 2px solid #166534 !important;
-    border-radius: 30px !important;
+    border-radius: 0px !important;
+    border-left: none !important;
     margin: 0 !important;
 }}
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(2) p {{
-    color: #166534 !important; 
-}}
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(2) p {{ color: #166534 !important; }}
 
-/* 4. Declined (Red) */
+/* 3. Declined (Middle 2 - Now Flat!) */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(3) {{
     background-color: #fee2e2 !important;
     border: 2px solid #991b1b !important;
-    border-radius: 30px !important;
+    border-radius: 0px !important;
+    border-left: none !important; 
     margin: 0 !important;
 }}
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(3) p {{
-    color: #991b1b !important; 
-}}
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(3) p {{ color: #991b1b !important; }}
 
+/* 4. Finalized (Right Edge) */
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(4) {{
+    background-color: #f8fafc !important;
+    border: 2px solid #475569 !important;
+    border-radius: 0px 20px 20px 0px !important;
+    border-left: none !important;
+    margin: 0 !important;
+}}
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(4) p {{ color: #334155 !important; }}
 
 /* ALIGN COLUMNS AT THE TOP (Fixes the giant gap on the left) */
 div[data-testid="stHorizontalBlock"] {{ align-items: flex-start !important; }}
@@ -1143,8 +1145,8 @@ def run_pod_tab(pod_name):
     sent_db, ghost_db = fetch_sent_records_from_sheet()
     pod_ghosts = ghost_db.get(pod_name, [])
 
-    ready, review, sent, accepted, declined = [], [], [], [], []
-
+    ready, review, sent, accepted, declined, finalized = [], [], [], [], [], []
+    
     for c in cls:
         task_ids = [str(t['id']).strip() for t in c['data']]
         cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
@@ -1167,11 +1169,13 @@ def run_pod_tab(pod_name):
         
         # --- NEW PRIORITY: LIVE DATABASE OVERRIDES LOCAL STATE ---
         if sheet_match and not is_reverted:
-            raw_status = sheet_match.get('status')
+            raw_status = sheet_match.get('status', '').lower()
             if raw_status == 'declined':
                 declined.append(c)
             elif raw_status == 'accepted':
                 accepted.append(c)
+            elif raw_status == 'finalized': # Sorts finalized tasks!
+                finalized.append(c)
             else:
                 sent.append(c)
         elif route_state == "email_sent" and not is_reverted:
@@ -1342,7 +1346,7 @@ def run_pod_tab(pod_name):
         # SECTION 2: AWAITING CONFIRMATION (RIGHT SIDE - CENTERED)
         # ==========================================
         st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_GREEN}; margin-bottom: 5px; text-align: center;'>⏳ Awaiting Confirmation</div>", unsafe_allow_html=True)
-        t_sent, t_acc, t_dec = st.tabs(["✉️ Sent (Pending)", "✅ Accepted", "❌ Declined"])
+        t_sent, t_acc, t_dec, t_fin = st.tabs(["✉️ Sent (Pending)", "✅ Accepted", "❌ Declined", "🏁 Finalized"])
 
         with t_sent:
             if not sent: st.info("No pending routes sent.")
@@ -1441,7 +1445,19 @@ def run_pod_tab(pod_name):
                     if clicked:
                         move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Declined", check_onfleet=False)
                         st.rerun()
-                        
+        with t_fin:
+            if not finalized: st.info("No finalized routes.")
+            for i, c in enumerate(finalized):
+                ic_name = c.get('contractor_name', 'Unknown')
+                wo_display = c.get('wo', ic_name) 
+                ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
+                
+                with st.expander(f"🏁 {wo_display} | {c['city']}, {c['state']}{ts_suffix}"):
+                    st.success("Route is finalized and completed.")
+                    # Setting is_sent=True disables the email action buttons so it acts as a read-only log
+                    render_dispatch(i+4000, c, pod_name, is_sent=True)
+        
+
 # --- START ---
 if "ic_df" not in st.session_state:
     try:
