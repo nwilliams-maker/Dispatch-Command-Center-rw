@@ -1192,9 +1192,9 @@ def run_pod_tab(pod_name):
         # Icon logic matching the categorization above
         if any(x in combined_tt for x in ["digital ins", "offline", "service", "skykit"]): 
             h_icons += " 🔌"
-        if any(x in combined_tt for x in ["install", "kiosk"]): 
+        if any(x in combined_tt for x in ["kiosk install"]): 
             h_icons += " 🛠️"
-        if "removal" in combined_tt for x in ["remove", "removal"]): 
+        if any (x in combined_tt for x in ["remove", "removal"]): 
             h_icons += " 🛑"
         if any(x in combined_tt for x in ["continuity", "photo", "swap", "refresh"]): 
             h_icons += " 🔄"
