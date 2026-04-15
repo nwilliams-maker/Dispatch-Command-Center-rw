@@ -474,6 +474,20 @@ def finalize_route_handler(cluster_hash):
         st.error(f"Finalization Error: {e}")
         
 def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=False):
+    # --- ADD THIS BLOCK HERE ---
+    # If we are pulling back a route that was specifically 'Declined'
+    if action_label == "Declined":
+        try:
+            # Tell Google Sheets to move this route to the Archive tab immediately
+            # This prevents the 'fetch' function from seeing it as a declined route again
+            requests.post(GAS_WEB_APP_URL, json={
+                "action": "archiveRoute", 
+                "cluster_hash": cluster_hash
+            })
+        except:
+            pass
+    # --- END OF ADDITION ---
+
     clusters = st.session_state.get(f"clusters_{pod_name}", [])
     for c in clusters:
         task_ids = [str(t['id']).strip() for t in c['data']]
