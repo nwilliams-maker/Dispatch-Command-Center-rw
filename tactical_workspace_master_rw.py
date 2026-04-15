@@ -392,19 +392,19 @@ div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb
 
 /* --- RIGHT COLUMN: Awaiting Tabs --- */
 
-/* 1. The Container Fix: Stop the clipping and force the gap */
+/* 1. Container Fix: Force the gap and expose the overflow */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab-list"] {{
-    gap: 12px !important;
-    padding: 5px !important; /* CRITICAL: Stops the left side from being chopped flat! */
+    gap: 15px !important;
     overflow: visible !important;
 }}
 
-/* 2. Sent (Purple) */
+/* 2. Sent (Purple) - THE FIX */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) {{
     background-color: #f3e8ff !important;
     border: 2px solid #633094 !important;
     border-radius: 30px !important;
-    margin-right: 5px !important; /* Forces physical space */
+    margin-left: 4px !important; /* ⬅️ CRITICAL: Pushes the pill right, saving it from the invisible scissors */
+    margin-right: 0 !important;
 }}
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) p {{
     color: #633094 !important; 
@@ -415,7 +415,7 @@ div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb
     background-color: #dcfce7 !important;
     border: 2px solid #166534 !important;
     border-radius: 30px !important;
-    margin-right: 5px !important; /* Forces physical space */
+    margin: 0 !important;
 }}
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(2) p {{
     color: #166534 !important; 
@@ -426,6 +426,7 @@ div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb
     background-color: #fee2e2 !important;
     border: 2px solid #991b1b !important;
     border-radius: 30px !important;
+    margin: 0 !important;
 }}
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(3) p {{
     color: #991b1b !important; 
