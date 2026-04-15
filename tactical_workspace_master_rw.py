@@ -459,22 +459,19 @@ def background_sheet_move(cluster_hash, payload_json):
         })
     except:
         pass
-def finalize_route_handler(cluster_hash, pod_name):
-    # Sends a request to your GAS Web App to change status to 'finalized'
+def finalize_route_handler(cluster_hash):
+    # This fires the command to your Google Sheet to change status to 'finalized'
     try:
-        # Re-fetch the cluster to get its data for the payload
-        clusters = st.session_state.get(f"clusters_{pod_name}", [])
-        target_cluster = next((c for c in clusters if hashlib.md5("".join(sorted([str(t['id']) for t in c['data']])).encode()).hexdigest() == cluster_hash), None)
-        
-        if target_cluster:
-            requests.post(GAS_WEB_APP_URL, json={
-                "action": "finalizeRoute", 
-                "cluster_hash": cluster_hash,
-                "payload": target_cluster
-            })
-            st.toast("🏁 Route moved to Finalized!")
+        res = requests.post(GAS_WEB_APP_URL, json={
+            "action": "finalizeRoute", 
+            "cluster_hash": cluster_hash
+        }).json()
+        if res.get("success"):
+            st.toast("🏁 Route Finalized!")
+        else:
+            st.error("Failed to update database.")
     except Exception as e:
-        st.error(f"Failed to finalize: {e}")
+        st.error(f"Finalization Error: {e}")
         
 def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=False):
     clusters = st.session_state.get(f"clusters_{pod_name}", [])
@@ -1153,7 +1150,8 @@ def run_pod_tab(pod_name):
     sent_db, ghost_db = fetch_sent_records_from_sheet()
     pod_ghosts = ghost_db.get(pod_name, [])
 
-    ready, review, sent, accepted, declined = [], [], [], [], []
+    # Added 'finalized' to the list
+    ready, review, sent, accepted, declined, finalized = [], [], [], [], [], []
 
     for c in cls:
         task_ids = [str(t['id']).strip() for t in c['data']]
@@ -1177,11 +1175,13 @@ def run_pod_tab(pod_name):
         
         # --- NEW PRIORITY: LIVE DATABASE OVERRIDES LOCAL STATE ---
         if sheet_match and not is_reverted:
-            raw_status = sheet_match.get('status')
+            raw_status = str(sheet_match.get('status', '')).lower()
             if raw_status == 'declined':
                 declined.append(c)
             elif raw_status == 'accepted':
                 accepted.append(c)
+            elif raw_status == 'finalized': # NEW: Catch finalized status
+                finalized.append(c)
             else:
                 sent.append(c)
         elif route_state == "email_sent" and not is_reverted:
@@ -1352,8 +1352,8 @@ def run_pod_tab(pod_name):
         # SECTION 2: AWAITING CONFIRMATION (RIGHT SIDE - CENTERED)
         # ==========================================
         st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_GREEN}; margin-bottom: 5px; text-align: center;'>⏳ Awaiting Confirmation</div>", unsafe_allow_html=True)
-        t_sent, t_acc, t_dec = st.tabs(["✉️ Sent (Pending)", "✅ Accepted", "❌ Declined"])
-
+        t_sent, t_acc, t_dec, t_fin = st.tabs(["✉️ Sent (Pending)", "✅ Accepted", "❌ Declined", "🏁 Finalized"])
+        
         with t_sent:
             if not sent: st.info("No pending routes sent.")
             for i, c in enumerate(sent):
@@ -1384,11 +1384,10 @@ def run_pod_tab(pod_name):
         with t_acc:
             if not accepted and not pod_ghosts: st.info("Waiting for portal acceptances...")
             
-            # --- 1. LIVE ACCEPTED ROUTES ---
             for i, c in enumerate(accepted):
                 ic_name = c.get('contractor_name', 'Unknown')
-                wo_display = c.get('wo', ic_name) 
-                ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
+                wo_display = c.get('wo', ic_name) [cite: 250]
+                ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else "" [cite: 251]
                 
                 task_ids = [str(t['id']).strip() for t in c['data']]
                 cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
@@ -1397,31 +1396,31 @@ def run_pod_tab(pod_name):
                 
                 with exp_col:
                     with st.expander(f"✅ {wo_display} | {c['city']}, {c['state']}{ts_suffix}"):
-                        st.success("Route accepted. Tasks are assigning in Onfleet now.")
+                        st.success("Route accepted. Tasks are assigning in Onfleet.")
                         
-                        # --- NEW: 3-STEP CHECKBOX WORKFLOW ---
+                        # --- SEQUENTIAL CHECKLIST ---
                         st.divider()
-                        st.markdown("<p style='font-weight:800; color:#16a34a; margin-bottom:10px;'>📋 Finalization Checklist</p>", unsafe_allow_html=True)
+                        st.markdown("<p style='font-weight:800; color:#16a34a;'>📋 Operational Readiness</p>", unsafe_allow_html=True)
                         
-                        c1, c2, c3 = st.columns(3)
-                        # Use unique keys based on the cluster hash to persist state
-                        step1 = c1.checkbox("1. **Onfleet**: Optimized?", key=f"step1_{cluster_hash}")
-                        step2 = c2.checkbox("2. **Plan**: Fields/Backend?", key=f"step2_{cluster_hash}")
-                        step3 = c3.checkbox("3. **Pack**: Packing List?", key=f"step3_{cluster_hash}")
+                        # Step 1: Onfleet Optimization
+                        step1 = st.checkbox("1. **Onfleet**: Optimized route?", key=f"s1_{cluster_hash}")
                         
-                        # Only show the Finalize button if all 3 are checked
-                        if step1 and step2 and step3:
-                            st.markdown("<br>", unsafe_allow_html=True)
-                            if st.button("🏁 Move to Finalized", key=f"btn_fin_{cluster_hash}", type="primary", use_container_width=True):
-                                finalize_route_handler(cluster_hash, pod_name)
-                                st.rerun()
+                        # Step 2: Backend Plan (Disabled until Step 1 is done)
+                        step2 = st.checkbox("2. **Plan**: Fields & Backend Dispatch?", key=f"s2_{cluster_hash}", disabled=not step1)
+                        
+                        # Step 3: Packing List (Disabled until Step 2 is done)
+                        # Automatic trigger: if step3 is clicked, fire the database update
+                        if st.checkbox("3. **Pack**: Packing list uploaded?", key=f"s3_{cluster_hash}", disabled=not step2):
+                            finalize_route_handler(cluster_hash)
+                            st.rerun()
 
                         render_dispatch(i+2000, c, pod_name, is_sent=True)
                         
                 with btn_col:
+                    # Keep the manual revoke option for emergencies [cite: 253-255]
                     with st.popover("↩️ Revoke", use_container_width=True):
-                        st.error(f"⚠️ **Revoke from {ic_name}?**\n\nThey have already accepted this route.")
-                        if st.button("🚨 Yes, Revoke", key=f"do_rev_{cluster_hash}", type="primary", use_container_width=True):
+                        st.error(f"Revoke from {ic_name}?")
+                        if st.button("🚨 Yes, Revoke", key=f"rev_acc_{cluster_hash}", type="primary"):
                             move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=True)
                             st.rerun()
 
@@ -1468,6 +1467,27 @@ def run_pod_tab(pod_name):
                     
                     if clicked:
                         move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Declined", check_onfleet=False)
+                        st.rerun()
+        with t_fin:
+            if not finalized: st.info("No finalized routes.")
+            for i, c in enumerate(finalized):
+                ic_name = c.get('contractor_name', 'Unknown')
+                ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
+                
+                task_ids = [str(t['id']).strip() for t in c['data']]
+                cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+                
+                exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                
+                with exp_col:
+                    with st.expander(f"🏁 {ic_name} | {c['city']}, {c['state']}{ts_suffix}"):
+                        st.info("Route is archived in Finalized.")
+                        render_dispatch(i+4000, c, pod_name, is_sent=True)
+                
+                with btn_col:
+                    # Allows moving work back to Dispatch if a mistake was made
+                    if st.button("↩️ Re-Route", key=f"fin_rr_{cluster_hash}", use_container_width=True):
+                        move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Finalized", check_onfleet=False)
                         st.rerun()
                         
 # --- START ---
