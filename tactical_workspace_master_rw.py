@@ -1334,7 +1334,7 @@ with t_ready:
                 with st.expander(f"{badges} 🟢 {c['city']}, {c['state']} | {c['stops']} Stops{digi_pill}{esc_pill}"):
                     render_dispatch(i, c, pod_name)
                     
-        with t_flagged:
+            with t_flagged:
             if not review: st.info("No flagged tasks requiring review.")
             for i, c in enumerate(review):
                 esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
