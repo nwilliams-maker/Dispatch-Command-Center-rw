@@ -415,24 +415,24 @@ div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb
 }}
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(2) p {{ color: #166534 !important; }}
 
-/* 3. Declined (Middle 2 - Now Flat!) */
+/* 3. Declined (Now Middle Segment) */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(3) {{
     background-color: #fee2e2 !important;
     border: 2px solid #991b1b !important;
-    border-radius: 0px !important;
+    border-radius: 0px !important; /* Flat on both sides */
     border-left: none !important; 
     margin: 0 !important;
 }}
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(3) p {{ color: #991b1b !important; }}
 
 /* 4. Finalized (Right Edge) */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(4) {{
     background-color: #f8fafc !important;
     border: 2px solid #475569 !important;
-    border-radius: 0px 20px 20px 0px !important;
+    border-radius: 0px 20px 20px 0px !important; /* Rounded Right edge */
     border-left: none !important;
     margin: 0 !important;
 }}
+
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(4) p {{ color: #334155 !important; }}
 
 /* ALIGN COLUMNS AT THE TOP (Fixes the giant gap on the left) */
@@ -1449,13 +1449,24 @@ def run_pod_tab(pod_name):
             if not finalized: st.info("No finalized routes.")
             for i, c in enumerate(finalized):
                 ic_name = c.get('contractor_name', 'Unknown')
-                wo_display = c.get('wo', ic_name) 
                 ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
                 
-                with st.expander(f"🏁 {wo_display} | {c['city']}, {c['state']}{ts_suffix}"):
-                    st.success("Route is finalized and completed.")
-                    # Setting is_sent=True disables the email action buttons so it acts as a read-only log
-                    render_dispatch(i+4000, c, pod_name, is_sent=True)
+                # Re-calculate hash for the button key
+                task_ids = [str(t['id']).strip() for t in c['data']]
+                cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+                
+                # Using the fused [8.2, 1.8] layout to match the other tabs
+                exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                
+                with exp_col:
+                    with st.expander(f"🏁 {ic_name} | {c['city']}, {c['state']}{ts_suffix}"):
+                        st.success("This route has been marked as Finalized.")
+                        render_dispatch(i+4000, c, pod_name, is_sent=True)
+                        
+                with btn_col:
+                    if st.button("↩️ Re-Route", key=f"fin_reroute_{cluster_hash}", use_container_width=True):
+                        move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Finalized", check_onfleet=False)
+                        st.rerun()
         
 
 # --- START ---
