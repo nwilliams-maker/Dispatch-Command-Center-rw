@@ -1221,7 +1221,7 @@ def run_pod_tab(pod_name):
                         <p style='margin:0; font-size:20px; font-weight:800; color:#000000;'>{len(ready)}</p>
                     </div>
                     <div style='background:{TB_BLUE_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
-                        <p style='margin:0; font-size:9px; font-weight:800; color:#000000;'>SENT (PENDING)</p>
+                        <p style='margin:0; font-size:9px; font-weight:800; color:#000000;'>PENDING</p>
                         <p style='margin:0; font-size:20px; font-weight:800; color:#000000;'>{len(sent)}</p>
                     </div>
                     <div style='background:{TB_RED_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
