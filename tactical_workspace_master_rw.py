@@ -390,50 +390,55 @@ div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb
 }}
 
 
-/* --- RIGHT COLUMN: Awaiting Tabs (COLOR RESTORATION) --- */
+/* --- RIGHT COLUMN: Awaiting Tabs (MATCHING LEFT SIDE) --- */
 
-/* 1. Sent (Purple) - Tab 1 */
+/* 1. Reset Container: Restore the gap and remove the fusion */
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab-list"] {{
+    gap: 12px !important;
+    padding: 15px !important;
+    justify-content: center !important;
+    overflow: visible !important;
+}}
+
+/* 2. Common Pill Styling: Matches the [data-baseweb="tab"] global rules */
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"] {{
+    border-radius: 30px !important; /* Full rounded pill */
+    margin: 0 5px !important;
+    padding: 8px 25px !important; /* Matches the global padding from line 29 */
+    min-width: 100px !important;
+}}
+
+/* 3. Sent (Purple) */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) {{
     background-color: #f3e8ff !important;
     border: 2px solid #633094 !important;
-    border-radius: 20px 0px 0px 20px !important;
-    margin: 0 !important;
 }}
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) p {{
     color: #633094 !important; 
 }}
 
-/* 2. Accepted (Green) - Tab 2 */
+/* 4. Accepted (Green) */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(2) {{
     background-color: #dcfce7 !important;
     border: 2px solid #166534 !important;
-    border-radius: 0px !important;
-    border-left: none !important;
-    margin: 0 !important;
 }}
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(2) p {{
     color: #166534 !important; 
 }}
 
-/* 3. Declined (Red) - Tab 3 */
+/* 5. Declined (Red) */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(3) {{
     background-color: #fee2e2 !important;
     border: 2px solid #991b1b !important;
-    border-radius: 0px !important;
-    border-left: none !important; 
-    margin: 0 !important;
 }}
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(3) p {{
     color: #991b1b !important; 
 }}
 
-/* 4. Finalized (Gray/Slate) - Tab 4 */
+/* 6. Finalized (Gray/Slate) */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(4) {{
     background-color: #f8fafc !important;
     border: 2px solid #475569 !important;
-    border-radius: 0px 20px 20px 0px !important;
-    border-left: none !important;
-    margin: 0 !important;
 }}
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(4) p {{
     color: #334155 !important; 
