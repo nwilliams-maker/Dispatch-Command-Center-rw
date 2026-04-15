@@ -1168,16 +1168,31 @@ def run_pod_tab(pod_name):
     # Added 'finalized' to the list
     ready, review, sent, accepted, declined, finalized = [], [], [], [], [], []
 
+    # 1. Initialize all status lists (including finalized to prevent NameError)
+    ready, review, sent, accepted, declined, finalized = [], [], [], [], [], []
+
     for c in cls:
         task_ids = [str(t['id']).strip() for t in c['data']]
         cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+        
+        # --- NEW: CALCULATE & ATTACH ICONS TO THE CLUSTER ---
+        h_icons = ""
+        combined_tt = " ".join([str(t.get('task_type', '')).lower() for t in c['data']])
+        
+        if any(x in combined_tt for x in ["digital ins", "offline", "service", "skykit"]): h_icons += " 🔌"
+        if any(x in combined_tt for x in ["kiosk install"]): h_icons += " 🛠️"
+        if any(x in combined_tt for x in ["remove", "removal"]): h_icons += " 🛑"
+        if any(x in combined_tt for x in ["continuity", "photo", "swap", "refresh"]): h_icons += " 🔄"
+        if any(x in combined_tt for x in ["new ad", "art change", "top"]): h_icons += " 🆕"
+        if c.get('esc_count', 0) > 0: h_icons += " ⭐"
+        
+        # Save it to the cluster object so expanders in ANY tab can see it
+        c['h_icons'] = h_icons
         
         sheet_match = sent_db.get(next((tid for tid in task_ids if tid in sent_db), None))
         route_state = st.session_state.get(f"route_state_{cluster_hash}")
         local_ts = st.session_state.get(f"sent_ts_{cluster_hash}", "")
         local_contractor = st.session_state.get(f"contractor_{cluster_hash}", "Unknown")
-        
-        # Check if the dispatcher manually revoked this route
         is_reverted = st.session_state.get(f"reverted_{cluster_hash}", False)
         
         if sheet_match and not is_reverted:
@@ -1188,14 +1203,14 @@ def run_pod_tab(pod_name):
             c['contractor_name'] = local_contractor
             c['route_ts'] = local_ts
         
-        # --- NEW PRIORITY: LIVE DATABASE OVERRIDES LOCAL STATE ---
+        # --- SORTING LOGIC ---
         if sheet_match and not is_reverted:
             raw_status = str(sheet_match.get('status', '')).lower()
             if raw_status == 'declined':
                 declined.append(c)
             elif raw_status == 'accepted':
                 accepted.append(c)
-            elif raw_status == 'finalized': # NEW: Catch finalized status
+            elif raw_status == 'finalized': 
                 finalized.append(c)
             else:
                 sent.append(c)
@@ -1208,19 +1223,19 @@ def run_pod_tab(pod_name):
             else:
                 ready.append(c)
         else:
-            # Falls back into standard Dispatching
             if c.get('status') == 'Ready': 
                 ready.append(c)
             else: 
                 review.append(c)
 
+    # --- TRACKING MATH ---
     total_tasks = sum(len(c['data']) for c in cls)
     total_stops = sum(c['stops'] for c in cls)
     total_routes = len(cls)
 
-    # 🌟 NEW: Add ghosts to the Tracking Math
     total_accepted = len(accepted) + len(pod_ghosts)
-    total_dispatched = len(sent) + total_accepted + len(declined)
+    # Includes 'finalized' in the total dispatched count
+    total_dispatched = len(sent) + total_accepted + len(declined) + len(finalized)
 
     # We swap the widths so the wider 'Routes' card fits on the left
     c1, c2, c3 = st.columns([1.5, 1, 1.5])
@@ -1384,7 +1399,7 @@ def run_pod_tab(pod_name):
                 
                 with exp_col:
                     ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
-                    with st.expander(f"✉️ {ic_name} | {c['city']}, {c['state']}{esc_pill}{ts_suffix}"):
+                    with st.expander(f"✉️ {ic_name} | {c['city']}, {c['state']}{c['h_icons']}{ts_suffix}"):
                         render_dispatch(i+500, c, pod_name, is_sent=True)
                         
                 with btn_col:
@@ -1410,7 +1425,7 @@ def run_pod_tab(pod_name):
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                 
                 with exp_col:
-                    with st.expander(f"✅ {wo_display} | {c['city']}, {c['state']}{ts_suffix}"):
+                    with st.expander(f"✅ {wo_display} | {c['city']}, {c['state']}{c['h_icons']}{ts_suffix}"):
                         st.success("Route accepted. Tasks are assigning in Onfleet.")
                         
                         # --- SEQUENTIAL CHECKLIST ---
@@ -1473,7 +1488,7 @@ def run_pod_tab(pod_name):
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                 
                 with exp_col:
-                    with st.expander(f"❌ {ic_name} | {c['city']}, {c['state']}{esc_pill}{ts_suffix}"):
+                    with st.expander(f"❌ {ic_name} | {c['city']}, {c['state']}{c['h_icons']}{ts_suffix}"):
                         st.error("Route declined. Select a new contractor below to generate a fresh link.")
                         render_dispatch(i+3000, c, pod_name, is_declined=True)
                         
