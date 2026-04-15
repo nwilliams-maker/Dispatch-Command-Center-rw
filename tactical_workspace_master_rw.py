@@ -38,7 +38,6 @@ IC_SHEET_URL = "https://docs.google.com/spreadsheets/d/1y6wX0x93iDc3gdK_nZKLD-2Q
 SAVED_ROUTES_GID = "1477617688"
 ACCEPTED_ROUTES_GID = "934075207"
 DECLINED_ROUTES_GID = "600909788"
-FINALIZED_ROUTES_GID = "2137441498"
 
 # Terraboost Media Brand Palette
 TB_PURPLE = "#633094"
@@ -551,12 +550,10 @@ def normalize_state(st_str):
 def fetch_sent_records_from_sheet():
     try:
         base_url = f"{IC_SHEET_URL.split('/edit')[0]}/export?format=csv&gid="
-        # Ensure you have a GID for your Finalized sheet defined at the top
         sheets_to_fetch = [
             (DECLINED_ROUTES_GID, "declined"),
             (ACCEPTED_ROUTES_GID, "accepted"),
-            (SAVED_ROUTES_GID, "sent"),
-            (FINALIZED_ROUTES_GID, "finalized") # ⬅️ ADD THIS LINE
+            (SAVED_ROUTES_GID, "sent")
         ]
         
         sent_dict = {}
@@ -840,7 +837,8 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             
             gate_avg, _ = check_viability(group)
             
-            # Frozen Sent/Accepted stay put. Declined and Ready become 'Ready' for re-optimization.
+            # NEW: Sent/Accepted stay frozen. Ready and Declined both become 'Ready'
+            # This forces Declined routes to merge back into Dispatch
             if anc_status in ['sent', 'accepted']:
                 status = anc_status.capitalize()
             else:
@@ -904,25 +902,19 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         # Iterate through the tasks inside the cluster to calculate metrics per stop
     for t in cluster['data']:
         addr = t['full']
+        # 👇 CRITICAL FIX: Use 't' (the task), NOT 'c' (the cluster)
         tt = str(t.get('task_type', '')).strip().lower()
         
-        # Enhanced keyword matching
-        if any(x in tt for x in ["service", "digital", "skykit", "monitor", "screen", "player"]): 
-            stop_metrics[addr]['digi'] += 1
-        elif any(x in tt for x in ["kiosk install", "kiosk setup", "kiosk assembly", "kiosk replacement"]): 
-            stop_metrics[addr]['inst'] += 1
-        elif "removal" in tt: 
-            stop_metrics[addr]['remov'] += 1
-        elif any(x in tt for x in ["continuity", "photo", "swap", "refresh", "audit"]): 
-            stop_metrics[addr]['c_ad'] += 1
-        elif any(x in tt for x in ["default", "pull down", "strip"]): 
-            stop_metrics[addr]['d_ad'] += 1
-        elif any(x in tt for x in ["new ad", "art change", "top", "startup", "launch", "install ad"]): 
-            stop_metrics[addr]['n_ad'] += 1
-        elif not tt: 
-            stop_metrics[addr]['n_ad'] += 1 
-        else: 
-            stop_metrics[addr]['oth'] += 1
+        # Priority 1: Check Digital/Skykit FIRST
+        if any(x in tt for x in ["service", "digital", "skykit"]): stop_metrics[addr]['digi'] += 1
+        elif "install" in tt: stop_metrics[addr]['inst'] += 1
+        elif "removal" in tt: stop_metrics[addr]['remov'] += 1
+        elif any(x in tt for x in ["continuity", "photo", "swap"]): stop_metrics[addr]['c_ad'] += 1
+        elif any(x in tt for x in ["default", "pull down"]): stop_metrics[addr]['d_ad'] += 1
+        elif any(x in tt for x in ["new ad", "art change", "top"]): stop_metrics[addr]['n_ad'] += 1
+        # If task type is completely blank, fallback to New Ad
+        elif not tt: stop_metrics[addr]['n_ad'] += 1 
+        else: stop_metrics[addr]['oth'] += 1
             
     loc_pills = {} 
     for addr, metrics in stop_metrics.items():
@@ -1218,8 +1210,7 @@ def run_pod_tab(pod_name):
 
     # 🌟 NEW: Add ghosts to the Tracking Math
     total_accepted = len(accepted) + len(pod_ghosts)
-    # 🌟 FIXED: Includes the Finalized count in the tracking total
-    total_dispatched = len(sent) + total_accepted + len(declined) + len(finalized)
+    total_dispatched = len(sent) + total_accepted + len(declined)
 
     # We swap the widths so the wider 'Routes' card fits on the left
     c1, c2, c3 = st.columns([1.5, 1, 1.5])
@@ -1363,97 +1354,152 @@ def run_pod_tab(pod_name):
                     render_dispatch(i+1000, c, pod_name)
 
     with col_right:
+        # ==========================================
+        # SECTION 2: AWAITING CONFIRMATION (RIGHT SIDE - CENTERED)
+        # ==========================================
         st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_GREEN}; margin-bottom: 5px; text-align: center;'>⏳ Awaiting Confirmation</div>", unsafe_allow_html=True)
         t_sent, t_acc, t_dec, t_fin = st.tabs(["✉️ Sent (Pending)", "✅ Accepted", "❌ Declined", "🏁 Finalized"])
-
+        
         with t_sent:
             if not sent: st.info("No pending routes sent.")
             for i, c in enumerate(sent):
                 ic_name = c.get('contractor_name', 'Unknown')
                 esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
-                digi_pill = "  [ 🔌 Digital ]" if c.get('is_digital') else ""
-                ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
                 
+                # Re-calculate hash for the quick-revoke button
                 task_ids = [str(t['id']).strip() for t in c['data']]
                 cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
                 
+                # Clean native columns, perfectly centered
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                
                 with exp_col:
+                    ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
+                    esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
+                    digi_pill = "  [ 🔌 Digital ]" if c.get('is_digital') else "" # ⬅️ ADD THIS
                     with st.expander(f"✉️ {ic_name} | {c['city']}, {c['state']}{digi_pill}{esc_pill}{ts_suffix}"):
                         render_dispatch(i+500, c, pod_name, is_sent=True)
+                        
                 with btn_col:
-                    st.button("↩️ Revoke", key=f"inst_rev_{cluster_hash}", on_click=instant_revoke_handler, args=(cluster_hash, ic_name, c, pod_name), use_container_width=True)
-
+                    # Pure Streamlit Button (No HTML wrapping!)
+                    st.button(
+                        "↩️ Revoke", 
+                        key=f"instant_rev_{cluster_hash}", 
+                        on_click=instant_revoke_handler,
+                        args=(cluster_hash, ic_name, c, pod_name),
+                        use_container_width=True
+                    )
         with t_acc:
             if not accepted and not pod_ghosts: st.info("Waiting for portal acceptances...")
+            
             for i, c in enumerate(accepted):
                 ic_name = c.get('contractor_name', 'Unknown')
                 wo_display = c.get('wo', ic_name)
-                esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
-                digi_pill = "  [ 🔌 Digital ]" if c.get('is_digital') else ""
                 ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
                 
                 task_ids = [str(t['id']).strip() for t in c['data']]
                 cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
                 
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
-                with exp_col:
+                
+               with exp_col:
+                    digi_pill = "  [ 🔌 Digital ]" if c.get('is_digital') else "" # ⬅️ ADD THIS
+                    esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else "" # ⬅️ ADD THIS
                     with st.expander(f"✅ {wo_display} | {c['city']}, {c['state']}{digi_pill}{esc_pill}{ts_suffix}"):
                         st.success("Route accepted. Tasks are assigning in Onfleet.")
+                        # ... rest of your sequential checklist code
+                        
+                        # --- SEQUENTIAL CHECKLIST ---
                         st.divider()
                         st.markdown("<p style='font-weight:800; color:#16a34a;'>📋 Operational Readiness</p>", unsafe_allow_html=True)
                         
-                        s1 = st.checkbox("1. **Onfleet**: Optimized route?", key=f"s1_{cluster_hash}")
-                        s2 = st.checkbox("2. **Plan**: Fields & Backend Dispatch?", key=f"s2_{cluster_hash}", disabled=not s1)
-                        if st.checkbox("3. **Pack**: Packing list uploaded?", key=f"s3_{cluster_hash}", disabled=not s2):
+                        # Step 1: Onfleet Optimization
+                        step1 = st.checkbox("1. **Onfleet**: Optimized route?", key=f"s1_{cluster_hash}")
+                        
+                        # Step 2: Backend Plan (Disabled until Step 1 is done)
+                        step2 = st.checkbox("2. **Plan**: Fields & Backend Dispatch?", key=f"s2_{cluster_hash}", disabled=not step1)
+                        
+                        # Step 3: Packing List (Disabled until Step 2 is done)
+                        # Automatic trigger: if step3 is clicked, fire the database update
+                        if st.checkbox("3. **Pack**: Packing list uploaded?", key=f"s3_{cluster_hash}", disabled=not step2):
                             finalize_route_handler(cluster_hash)
                             st.rerun()
+
                         render_dispatch(i+2000, c, pod_name, is_sent=True)
+                        
                 with btn_col:
+                    # Keep the manual revoke option for emergencies 
                     with st.popover("↩️ Revoke", use_container_width=True):
                         st.error(f"Revoke from {ic_name}?")
                         if st.button("🚨 Yes, Revoke", key=f"rev_acc_{cluster_hash}", type="primary"):
                             move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=True)
                             st.rerun()
 
+            # --- 2. GHOST ROUTES ---
+            for i, g in enumerate(pod_ghosts):
+                wo_display = g.get('wo', g.get('contractor_name', 'Unknown'))
+                ts_suffix = f" | {g.get('route_ts', '')}"
+                
+                with st.expander(f"✅ {wo_display} | {g.get('city', 'Unknown')}, {g.get('state', 'Unknown')}{ts_suffix}"):
+                    st.success("Route accepted and tasks successfully assigned in OnFleet.")
+                    st.markdown(f"""
+                        <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:12px; margin-top:5px;">
+                            <p style="margin:0; font-size:12px; color:#64748b; font-weight:800; text-transform:uppercase;">Historical Route Data</p>
+                            <div style="display:flex; justify-content:space-between; margin-top:8px;">
+                                <div><span style="font-size:11px; color:#475569;">Original Tasks:</span><br><b style="color:#000000; font-size:16px;">{g.get('tasks', 0)}</b></div>
+                                <div><span style="font-size:11px; color:#475569;">Stops:</span><br><b style="color:#000000; font-size:16px;">{g.get('stops', 0)}</b></div>
+                                <div><span style="font-size:11px; color:#475569;">Compensation:</span><br><b style="color:#22c55e; font-size:16px;">${g.get('pay', 0)}</b></div>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
         with t_dec:
             if not declined: st.info("No declined routes.")
             for i, c in enumerate(declined):
                 ic_name = c.get('contractor_name', 'Unknown')
+                ts_label = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
                 esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
-                digi_pill = "  [ 🔌 Digital ]" if c.get('is_digital') else ""
-                ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
                 
+                # Re-calculate hash for the quick-action button
                 task_ids = [str(t['id']).strip() for t in c['data']]
                 cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
                 
+                # Use the exact same [5, 1] layout as the Sent tab
+                # Gives the button enough room to stay on one line, and vertically centers them
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                
                 with exp_col:
+                    digi_pill = "  [ 🔌 Digital ]" if c.get('is_digital') else "" # ⬅️ ADD THIS
                     with st.expander(f"❌ {ic_name} | {c['city']}, {c['state']}{digi_pill}{esc_pill}{ts_suffix}"):
-                        st.error("Route declined. Select a new contractor to re-dispatch.")
+                        st.error("Route declined. Select a new contractor below to generate a fresh link.")
                         render_dispatch(i+3000, c, pod_name, is_declined=True)
+                        
                 with btn_col:
-                    if st.button("↩️ Re-Route", key=f"quick_reroute_{cluster_hash}", use_container_width=True):
+                    clicked = st.button("↩️ Re-Route", key=f"quick_reroute_{cluster_hash}", help="Pull this declined route back to Dispatch", use_container_width=True)
+                    
+                    if clicked:
                         move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Declined", check_onfleet=False)
                         st.rerun()
-
         with t_fin:
             if not finalized: st.info("No finalized routes.")
             for i, c in enumerate(finalized):
                 ic_name = c.get('contractor_name', 'Unknown')
-                esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
-                digi_pill = "  [ 🔌 Digital ]" if c.get('is_digital') else ""
                 ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
                 
                 task_ids = [str(t['id']).strip() for t in c['data']]
                 cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
                 
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                
                 with exp_col:
+                    digi_pill = "  [ 🔌 Digital ]" if c.get('is_digital') else "" # ⬅️ ADD THIS
+                    esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else "" # ⬅️ ADD THIS
                     with st.expander(f"🏁 {ic_name} | {c['city']}, {c['state']}{digi_pill}{esc_pill}{ts_suffix}"):
-                        st.info("Route archived in Finalized.")
+                        st.info("Route is archived in Finalized.")
                         render_dispatch(i+4000, c, pod_name, is_sent=True)
+                
                 with btn_col:
+                    # Allows moving work back to Dispatch if a mistake was made
                     if st.button("↩️ Re-Route", key=f"fin_rr_{cluster_hash}", use_container_width=True):
                         move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Finalized", check_onfleet=False)
                         st.rerun()
@@ -1544,8 +1590,6 @@ with tabs[0]:
                             declined.append(c)
                         elif raw_status == 'accepted':
                             accepted.append(c)
-                        elif raw_status == 'finalized': # ⬅️ ADD THIS
-                            finalized.append(c)
                         else:
                             sent.append(c)
                     elif route_state == "email_sent" and not is_reverted:
@@ -1558,8 +1602,7 @@ with tabs[0]:
                 # Combine Live data with Ghost History
                 pod_ghosts = ghost_db.get(pod, [])
                 total_accepted = len(accepted) + len(pod_ghosts)
-                # 🌟 FIXED: Include finalized in the global true_sent_count
-                true_sent_count = len(sent) + total_accepted + len(declined) + len(finalized) 
+                true_sent_count = len(sent) + total_accepted + len(declined)
                 visual_total_routes = len(pod_cls) + len(pod_ghosts)
                 
                 # Metrics HTML (Flushed Left to prevent markdown code blocks)
