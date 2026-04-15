@@ -390,22 +390,21 @@ div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb
 }}
 
 
-/* --- RIGHT COLUMN: Awaiting Tabs (MATCHING LEFT SIDE) --- */
+/* --- RIGHT COLUMN: Awaiting Tabs (LEFT-SIDE SYNC) --- */
 
-/* 1. Reset Container: Restore the gap and remove the fusion */
+/* 1. Reset the Container: Force it to behave like the Left Side */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab-list"] {{
-    gap: 12px !important;
-    padding: 15px !important;
+    gap: 8px !important; /* Matches the global tab gap */
     justify-content: center !important;
     overflow: visible !important;
+    padding-left: 10px !important; /* Buffer to prevent clipping the first pill */
 }}
 
-/* 2. Common Pill Styling: Matches the [data-baseweb="tab"] global rules */
+/* 2. Restore Global Pill Shape for all Right-Side Tabs */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"] {{
-    border-radius: 30px !important; /* Full rounded pill */
-    margin: 0 5px !important;
-    padding: 8px 25px !important; /* Matches the global padding from line 29 */
-    min-width: 100px !important;
+    border-radius: 30px !important; /* Back to perfect circles */
+    margin: 0 4px !important;      /* Matches Left-side margin [cite: 22] */
+    padding: 8px 20px !important;   /* Standard pill padding */
 }}
 
 /* 3. Sent (Purple) */
@@ -413,36 +412,28 @@ div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb
     background-color: #f3e8ff !important;
     border: 2px solid #633094 !important;
 }}
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) p {{
-    color: #633094 !important; 
-}}
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) p {{ color: #633094 !important; }}
 
 /* 4. Accepted (Green) */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(2) {{
     background-color: #dcfce7 !important;
     border: 2px solid #166534 !important;
 }}
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(2) p {{
-    color: #166534 !important; 
-}}
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(2) p {{ color: #166534 !important; }}
 
 /* 5. Declined (Red) */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(3) {{
     background-color: #fee2e2 !important;
     border: 2px solid #991b1b !important;
 }}
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(3) p {{
-    color: #991b1b !important; 
-}}
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(3) p {{ color: #991b1b !important; }}
 
-/* 6. Finalized (Gray/Slate) */
+/* 6. Finalized (Gray) */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(4) {{
     background-color: #f8fafc !important;
     border: 2px solid #475569 !important;
 }}
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(4) p {{
-    color: #334155 !important; 
-}}
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(4) p {{ color: #475569 !important; }}
 
 /* ALIGN COLUMNS AT THE TOP (Fixes the giant gap on the left) */
 div[data-testid="stHorizontalBlock"] {{ align-items: flex-start !important; }}
@@ -1311,13 +1302,13 @@ def run_pod_tab(pod_name):
 
     # Create two equal-width columns for side-by-side layout
     # [4, 5.5] ratio makes the left card narrower and the right side wider
-    col_left, col_right = st.columns([4.5, 5.5])
+    # Change ratio to 4/6 to give the 4 right-side tabs more space
+col_left, col_right = st.columns([4, 6]) 
 
-    with col_left:
-        # ==========================================
-        # SECTION 1: DISPATCH (LEFT SIDE - CENTERED)
-        # ==========================================
-        st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_PURPLE}; margin-bottom: 5px; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
+with col_left:
+    # 🚨 THE FIX: Pulls the "Dispatch" header up so it aligns with "Awaiting"
+    st.markdown('<div style="margin-top: -35px;"></div>', unsafe_allow_html=True)
+    st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_PURPLE}; margin-bottom: 5px; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
         t_ready, t_flagged = st.tabs(["📥 Ready", "⚠️ Flagged"])
 
         with t_ready:
