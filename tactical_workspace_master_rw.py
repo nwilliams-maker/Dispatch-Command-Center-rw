@@ -391,32 +391,37 @@ div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb
 
 
 /* --- RIGHT COLUMN: Awaiting Tabs --- */
-/* Force the gap so they break apart into individual pills */
+
+/* 1. The Container Fix: Stop the clipping and force the gap */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab-list"] {{
     gap: 12px !important;
+    padding: 5px !important; /* CRITICAL: Stops the left side from being chopped flat! */
+    overflow: visible !important;
 }}
 
-/* 1. Sent (Purple/Blue) - THE MISSING FIX */
+/* 2. Sent (Purple) */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) {{
     background-color: #f3e8ff !important;
     border: 2px solid #633094 !important;
     border-radius: 30px !important;
+    margin-right: 5px !important; /* Forces physical space */
 }}
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) p {{
     color: #633094 !important; 
 }}
 
-/* 2. Accepted (Green) */
+/* 3. Accepted (Green) */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(2) {{
     background-color: #dcfce7 !important;
     border: 2px solid #166534 !important;
     border-radius: 30px !important;
+    margin-right: 5px !important; /* Forces physical space */
 }}
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(2) p {{
     color: #166534 !important; 
 }}
 
-/* 3. Declined (Red) */
+/* 4. Declined (Red) */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(3) {{
     background-color: #fee2e2 !important;
     border: 2px solid #991b1b !important;
