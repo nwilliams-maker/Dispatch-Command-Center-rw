@@ -919,7 +919,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     v_ics = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].dropna(subset=['Lat', 'Lng']).copy()
     if not v_ics.empty:
         v_ics['d'] = v_ics.apply(lambda x: haversine(cluster['center'][0], cluster['center'][1], x['Lat'], x['Lng']), axis=1)
-        v_ics = v_ics[v_ics['d'] <= 100].sort_values('d').head(5)
+        v_ics = v_ics[v_ics['d'] <= 100].sort_values('d')
 
     if v_ics.empty:
         st.error("⚠️ No contractors found within 100 miles. Manual recruiting or assignment required.")
