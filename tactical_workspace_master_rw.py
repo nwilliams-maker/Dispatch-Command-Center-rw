@@ -391,10 +391,26 @@ div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb
 
 
 /* --- RIGHT COLUMN: Awaiting Tabs --- */
-/* 2. Accepted (Green) - Note: Sent is tab 1, we leave it alone */
+/* Force the gap so they break apart into individual pills */
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab-list"] {
+    gap: 12px !important;
+}
+
+/* 1. Sent (Purple/Blue) - THE MISSING FIX */
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) {
+    background-color: #f3e8ff !important;
+    border: 2px solid #633094 !important;
+    border-radius: 30px !important;
+}
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) p {
+    color: #633094 !important; 
+}
+
+/* 2. Accepted (Green) */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(2) {{
     background-color: #dcfce7 !important;
     border: 2px solid #166534 !important;
+    border-radius: 30px !important;
 }}
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(2) p {{
     color: #166534 !important; 
@@ -404,6 +420,7 @@ div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(3) {{
     background-color: #fee2e2 !important;
     border: 2px solid #991b1b !important;
+    border-radius: 30px !important;
 }}
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(3) p {{
     color: #991b1b !important; 
