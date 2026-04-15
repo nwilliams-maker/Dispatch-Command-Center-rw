@@ -926,21 +926,30 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         elif not tt: stop_metrics[addr]['n_ad'] += 1 
         else: stop_metrics[addr]['oth'] += 1
             
-    loc_pills = {} 
+    # Build the dynamic summary string for each stop
     for addr, metrics in stop_metrics.items():
         pill_parts = []
-        if metrics['n_ad'] > 0: pill_parts.append(f"🆕 {metrics['n_ad']} New Ad")
-        if metrics['c_ad'] > 0: pill_parts.append(f"🔄 {metrics['c_ad']} Continuity")
-        if metrics['d_ad'] > 0: pill_parts.append(f"⚪ {metrics['d_ad']} Default")
+        
+        # Add components only if they exist for this stop
+        if metrics['digi'] > 0: pill_parts.append(f"🔌 {metrics['digi']} Digital Service")
         if metrics['inst'] > 0: pill_parts.append(f"🛠️ {metrics['inst']} Kiosk Install")
         if metrics['remov'] > 0: pill_parts.append(f"🛑 {metrics['remov']} Kiosk Removal")
-        if metrics['digi'] > 0: pill_parts.append(f"🔌 {metrics['digi']} Digital Service")
+        if metrics['c_ad'] > 0: pill_parts.append(f"🔄 {metrics['c_ad']} Continuity")
+        if metrics['d_ad'] > 0: pill_parts.append(f"⚪ {metrics['d_ad']} Default")
+        if metrics['n_ad'] > 0: pill_parts.append(f"🆕 {metrics['n_ad']} New Ad")
         if metrics['oth'] > 0: pill_parts.append(f"📦 {metrics['oth']} Other")
-        pill_str = " | ".join(pill_parts)
-        loc_pills[addr] = f"({metrics['t_count']} Tasks) {pill_str}"
-        st.markdown(f"**{addr}** &nbsp;<span style='color: #633094; background-color: #f3e8ff; padding: 2px 6px; border-radius: 10px; font-weight: 800; font-size: 11px;'>{metrics['t_count']} Tasks</span>&nbsp; <span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", unsafe_allow_html=True)
         
-    st.divider()
+        # Join the parts with a divider
+        pill_str = " | ".join(pill_parts)
+        
+        # Display the formatted line
+        st.markdown(
+            f"**{addr}** &nbsp;"
+            f"<span style='color: #633094; background-color: #f3e8ff; padding: 2px 6px; border-radius: 10px; font-weight: 800; font-size: 11px;'>"
+            f"{metrics['t_count']} Tasks</span>"
+            f"&nbsp; <span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", 
+            unsafe_allow_html=True
+        )
 
     # --- 3. CONTRACTOR FILTERING (100 MILES) ---
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
