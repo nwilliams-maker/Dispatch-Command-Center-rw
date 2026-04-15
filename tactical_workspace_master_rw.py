@@ -1093,13 +1093,22 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 if not final_route_id or is_declined:
                     home = ic['Location']
                     payload = {
-                        "icn": ic['Name'], "ice": ic['Email'], "wo": wo_val, 
-                        "due": str(due), "comp": final_pay, "lCnt": cluster['stops'], "mi": mi, "time": t_str, "phone": str(ic['Phone']),
-                        "locs": " | ".join([home] + list(stop_metrics.keys()) + [home]),
-                        "taskIds": ",".join(task_ids),
-                        "tCnt": len(task_ids),
-                        "jobOnly": " | ".join([f"{a} {pill}" for a, pill in loc_pills.items()])
-                    }
+                        payload = {
+                            "icn": ic['Name'], 
+                            "ice": ic['Email'], 
+                            "wo": wo_val, 
+                            "due": str(due), 
+                            "comp": final_pay, 
+                            "lCnt": cluster['stops'], 
+                            "mi": mi, 
+                            "time": t_str, 
+                            "phone": str(ic['Phone']),
+                            "locs": " | ".join([home] + list(stop_metrics.keys()) + [home]),
+                            "taskIds": ",".join(task_ids),
+                            "tCnt": len(task_ids),
+                            # 🌟 THIS ENSURES THE PORTAL MATCHES THE DASHBOARD
+                            "jobOnly": " | ".join([f"{a} {p}" for a, p in loc_pills.items()]) 
+                        }
                     res = requests.post(GAS_WEB_APP_URL, json={"action": "saveRoute", "payload": payload}).json()
                     if res.get("success"):
                         final_route_id = res.get("routeId")
