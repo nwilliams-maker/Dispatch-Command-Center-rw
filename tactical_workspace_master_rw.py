@@ -390,30 +390,32 @@ div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb
 }}
 
 
-/* --- RIGHT COLUMN: Awaiting Tabs (4-SEGMENT) --- */
+/* --- RIGHT COLUMN: Awaiting Tabs (COMPACT 4-SEGMENT) --- */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab-list"] {{
     gap: 0px !important;
     padding: 5px !important;
-    overflow: visible !important;
+    justify-content: center !important; /* Centers the shorter tabs in the column */
 }}
 
-/* Target the text inside these specific tabs to make them smaller */
+/* Target the individual tabs to shorten them */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"] {{
-    padding: 6px 10px !important; /* Shorter and narrower */
-    min-width: 80px !important;   /* Ensures they don't vanish */
+    padding: 6px 12px !important; /* Narrower horizontal padding */
+    min-width: 70px !important;   /* Prevents them from being too tiny */
+    border-radius: 0px !important; /* Reset for middle segments */
 }}
 
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"] p {{
-    font-size: 11px !important;   /* Smaller font to fit 4 segments */
+    font-size: 11px !important;   /* Smaller font for compact look */
+    white-space: nowrap !important;
 }}
 
-/* Rounding logic for 4 segments */
+/* Re-apply rounding only to the far edges of the row */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) {{
-    border-radius: 20px 0px 0px 20px !important; /* Left End */
+    border-radius: 20px 0px 0px 20px !important;
 }}
 
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(4) {{
-    border-radius: 0px 20px 20px 0px !important; /* Right End */
+    border-radius: 0px 20px 20px 0px !important;
     border-left: none !important;
 }}
 
@@ -1284,7 +1286,7 @@ def run_pod_tab(pod_name):
 
     # Create two equal-width columns for side-by-side layout
     # [4, 5.5] ratio makes the left card narrower and the right side wider
-    col_left, col_right = st.columns([4, 6])
+    col_left, col_right = st.columns([4.5, 5.5])
 
     with col_left:
         # ==========================================
