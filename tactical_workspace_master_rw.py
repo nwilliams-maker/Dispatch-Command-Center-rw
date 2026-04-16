@@ -937,7 +937,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
 
         # 3. New Ad & Installs 
         # We catch "Install" keywords here to increment both the UI count and the 'inst' total
-        elif any(x in tt for x in ["top", "new ad", "art change", "ad install", "billboard install"]):
+        elif any(x in tt for x in ["top", "new ad", "art change", "ad install", "billboard install", "escalation"]):
             stop_metrics[addr]['n_ad'] += 1
             if "install" in tt:
                 stop_metrics[addr]['inst'] += 1 # 🛠️ This feeds your 'total_installs' variable
