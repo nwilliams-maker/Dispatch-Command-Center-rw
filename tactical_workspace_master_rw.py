@@ -706,25 +706,32 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             if not tt_val:
                 tt_val = str(t.get('taskDetails', '')).strip().lower()
 
-            # 2. Search Metadata NAMES and VALUES
+            # --- BULLETPROOF METADATA & NOTES EXTRACTION ---
+            # Search through all metadata fields
             for m in (t.get('metadata') or []):
                 m_name = str(m.get('name', '')).strip().lower()
-                m_val = str(m.get('value', '')).strip().lower()
+                m_val = str(m.get('value', '')).strip()
+                v_low = m_val.lower()
                 
-                # Check if the metadata is NAMED "Task Type"
-                if m_name in ["task type", "tasktype", "type"]:
-                    tt_val += f" {m_val}"
+                # 1. Check for Escalation
+                if 'escalation' in m_name and v_low in ['1', '1.0', 'true', 'yes']:
+                    is_esc = True
                 
-                # Also do a "Deep Search" on the value itself for safety
-                if any(x in m_val for x in ["service", "kiosk", "removal", "digital ins", "offline"]):
+                # 2. Check for Task Type labels
+                if m_name in ['task type', 'tasktype', 'type']:
+                    tt_val = m_val
+                
+                # 3. Deep Search for keywords in metadata values
+                if any(x in v_low for x in ["skykit", "digital", "ins", "offline", "service"]):
                     tt_val += f" {m_val}"
 
-            # 3. Final safety check in Notes
+            # 4. Check for keywords hiding in raw Notes
             raw_notes = str(t.get('notes', '')).lower()
-            if any(x in raw_notes for x in ["service", "skykit", "removal"]):
+            if any(x in raw_notes for x in ["skykit", "digital", "ins", "offline"]):
                 tt_val += f" {raw_notes}"
             
-            t_tt_final = tt_val.strip()
+            # Clean up the final string
+            t_tt_final = tt_val.strip().lower()
                 
                 # Catch Skykit ANYWHERE in the metadata
             if 'skykit' in m_val_lower or 'service' in m_val_lower:
