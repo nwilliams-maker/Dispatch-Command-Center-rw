@@ -453,7 +453,7 @@ def background_sheet_move(cluster_hash, payload_json):
     try:
         # This runs safely in a separate invisible thread
         requests.post(GAS_WEB_APP_URL, json={
-            "action": "revokeRoute", 
+            "action": "archiveRoute",  # 🌟 FIX: Tell the Sheet to Archive instead of Delete
             "cluster_hash": cluster_hash,
             "payload": payload_json
         })
@@ -474,17 +474,16 @@ def finalize_route_handler(cluster_hash):
         st.error(f"Finalization Error: {e}")
         
 def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=False):
-    # --- NEW ARCHIVE LOGIC ---
-    # If we are pulling back a route that was specifically 'Declined'
-    if action_label == "Declined":
-        try:
-            # Tell Google Sheets to move this route to the Archive tab immediately
-            requests.post(GAS_WEB_APP_URL, json={
-                "action": "archiveRoute", 
-                "cluster_hash": cluster_hash
-            })
-        except:
-            pass
+    # --- 🌟 FIX: UNIVERSAL ARCHIVE LOGIC ---
+    # Always tell Google Sheets to move this route to the Archive tab, 
+    # regardless of whether it was Revoked, Declined, or Finalized.
+    try:
+        requests.post(GAS_WEB_APP_URL, json={
+            "action": "archiveRoute", 
+            "cluster_hash": cluster_hash
+        })
+    except:
+        pass
 
     clusters = st.session_state.get(f"clusters_{pod_name}", [])
     for c in clusters:
