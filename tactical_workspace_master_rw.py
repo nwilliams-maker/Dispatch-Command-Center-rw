@@ -700,59 +700,43 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             addr = t.get('destination', {}).get('address', {})
             stt = normalize_state(addr.get('state', ''))
             is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
-            # --- BULLETPROOF TASK EXTRACTION ---
-            # 1. Start with native fields
-            tt_val = str(t.get('taskType', '')).strip().lower()
-            if not tt_val:
-                tt_val = str(t.get('taskDetails', '')).strip().lower()
+            
+            # --- THE UNIFIED SPONGE ---
+            # We combine every text field into ONE searchable variable
+            # We include native fields, metadata names, metadata values, and notes.
+            sponge = f"{t.get('taskType','')} {t.get('taskDetails','')} {t.get('notes','')} ".lower()
 
-            # --- BULLETPROOF METADATA & NOTES EXTRACTION ---
-            # Search through all metadata fields
             for m in (t.get('metadata') or []):
                 m_name = str(m.get('name', '')).strip().lower()
-                m_val = str(m.get('value', '')).strip()
-                v_low = m_val.lower()
-                
-                # 1. Check for Escalation
-                if 'escalation' in m_name and v_low in ['1', '1.0', 'true', 'yes']:
-                    is_esc = True
-                
-                # --- AGGRESSIVE TASK EXTRACTION ---
-            # Start by grabbing text from the main Task Type and Details fields
-            tt_raw = f"{t.get('taskType','')} {t.get('taskDetails','')}".lower()
-
-            # "Sponge" up every single word from the metadata values
-            for m in (t.get('metadata') or []):
                 m_val = str(m.get('value', '')).strip().lower()
-                tt_raw += f" {m_val}"
-
-            # Sponge up every word from the internal Onfleet Notes
-            notes_raw = str(t.get('notes', '')).lower()
-            tt_raw += f" {notes_raw}"
-            
-            # This is the final string the categorizer will search
-            t_tt_final = tt_raw.strip()
                 
-            # --- FIXED: Always pull fresh data before clustering ---
+                # Update sponge with metadata
+                sponge += f" {m_name} {m_val}"
+                
+                # Check for escalation while we are in here
+                if 'escalation' in m_name and m_val in ['1', '1.0', 'true', 'yes']:
+                    is_esc = True
+
+            # --- DATABASE SYNC ---
+            fresh_sent_db, _ = fetch_sent_records_from_sheet()
             t_status = 'ready'
             t_wo = 'none'
-            
-            # Fetch fresh records and update session state
-            fresh_sent_db, _ = fetch_sent_records_from_sheet()
-            st.session_state.sent_db = fresh_sent_db
-            
             if t['id'] in fresh_sent_db:
                 t_status = fresh_sent_db[t['id']].get('status', 'ready').lower()
                 t_wo = fresh_sent_db[t['id']].get('wo', 'none')
-            
+
             if stt in config['states']:
                 pool.append({
-                    "id": t['id'], "city": addr.get('city', 'Unknown'), "state": stt,
+                    "id": t['id'], 
+                    "city": addr.get('city', 'Unknown'), 
+                    "state": stt,
                     "full": f"{addr.get('number','')} {addr.get('street','')}, {addr.get('city','')}, {stt}",
-                    "lat": t['destination']['location'][1], "lon": t['destination']['location'][0],
-                    "escalated": is_esc, "task_type": tt_val,
-                    "db_status": t_status, # Passes status to engine
-                    "wo": t_wo             # Passes WO to engine
+                    "lat": t['destination']['location'][1], 
+                    "lon": t['destination']['location'][0],
+                    "escalated": is_esc, 
+                    "task_type": sponge.strip(), # 👈 FIXED: Using the sponge variable here
+                    "db_status": t_status, 
+                    "wo": t_wo
                 })
         
         clusters = []
@@ -904,45 +888,39 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     if hist:
         st.markdown(f"<p style='color: #94a3b8; font-size: 13px; margin-top: -10px; margin-bottom: 15px; font-weight: 600;'>↩️ Previously sent to: {', '.join(hist)}</p>", unsafe_allow_html=True)
 
-    # 1. Initialize metrics (Added 'inst' to prevent the KeyError crash)
     stop_metrics = {}
     for t in cluster['data']:
         addr = t['full']
         if addr not in stop_metrics:
-            stop_metrics[addr] = {
-                't_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 
-                'digi': 0, 'remov': 0, 'oth': 0, 'inst': 0 
-            }
+            stop_metrics[addr] = {'t_count':0, 'n_ad':0, 'c_ad':0, 'd_ad':0, 'digi':0, 'remov':0, 'oth':0, 'inst':0}
         
         stop_metrics[addr]['t_count'] += 1
+        # The searchable string we built in the Nuclear Sponge
         tt = str(t.get('task_type', '')).lower()
 
-        # --- YOUR STRICT MAPPING RULES ---
-
-        # RULE A: Digital Service (Digital Service, Offline, INS)
-        if any(x in tt for x in ["digital service", "digital offline", "digital ins", "skykit"]):
+        # --- THE MAPPING ENGINE ---
+        # A. Digital (Highest Priority)
+        if any(x in tt for x in ["digital", "offline", "ins", "service", "skykit"]):
             stop_metrics[addr]['digi'] += 1
 
-        # RULE B: Kiosk Removal (Remove Kiosk)
-        elif "remove kiosk" in tt or "removal" in tt:
+        # B. Kiosk Removal
+        elif any(x in tt for x in ["remove kiosk", "removal", "remove"]):
             stop_metrics[addr]['remov'] += 1
 
-        # RULE C: New Ad (Top, New Ad, Art Change, Ad Install, Billboard Install)
-        elif any(x in tt for x in ["top", "new ad", "art change", "ad install", "billboard install", "install"]):
+        # C. New Ad (Catching 'Art Change', 'Launch', 'Install', etc.)
+        elif any(x in tt for x in ["top", "new ad", "art change", "install", "billboard", "launch", "ad install"]):
             stop_metrics[addr]['n_ad'] += 1
-            # Special check for the email warning (Heavy Lifting)
-            if "install" in tt:
-                stop_metrics[addr]['inst'] += 1
+            if "install" in tt: stop_metrics[addr]['inst'] += 1
 
-        # RULE D: Continuity (Photo, Swap, Pull Down, Move Kiosk, Location, etc.)
-        elif any(x in tt for x in ["photo", "swap", "pull down", "pulldown", "takedown", "move kiosk", "move", "location"]):
+        # D. Continuity (Catching 'Photo', 'Swap', 'Move', etc.)
+        elif any(x in tt for x in ["photo", "swap", "pull down", "pulldown", "takedown", "move", "location", "audit", "refresh"]):
             stop_metrics[addr]['c_ad'] += 1
 
-        # RULE E: Default (Default)
+        # E. Default
         elif "default" in tt:
             stop_metrics[addr]['d_ad'] += 1
 
-        # RULE F: Other (Plexiglass, Storage, Freezer, Decal, etc.)
+        # F. Everything else falls into 'Other'
         else:
             stop_metrics[addr]['oth'] += 1
 
