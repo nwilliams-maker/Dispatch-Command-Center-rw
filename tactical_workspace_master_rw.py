@@ -1000,14 +1000,23 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
 
     # Initial Setup (First time card is seen)
     if pay_key not in st.session_state:
-        first_ic_label = list(ic_opts.keys())[0]
-        ic_init = ic_opts[first_ic_label]
+        # 🌟 FIX: Look for the previously sent contractor first!
+        prev_name = cluster.get('contractor_name', 'Unknown')
+        default_label = list(ic_opts.keys())[0] # Fallback to closest if previous is missing
+        
+        if prev_name != 'Unknown':
+            for label, row in ic_opts.items():
+                if row['Name'] == prev_name:
+                    default_label = label
+                    break
+                    
+        ic_init = ic_opts[default_label]
         _, h, _ = get_gmaps(ic_init['Location'], list(stop_metrics.keys())[:25])
         initial_pay = float(round(max(cluster['stops'] * 18.0, h * 25.0), 2))
         st.session_state[pay_key] = initial_pay
         st.session_state[rate_key] = round(initial_pay / cluster['stops'], 2) if cluster['stops'] > 0 else 0
-        st.session_state[sel_key] = first_ic_label
-        st.session_state[last_sel_key] = first_ic_label
+        st.session_state[sel_key] = default_label
+        st.session_state[last_sel_key] = default_label
 
     # --- 5. THE UI ROW ---
     col_a, col_b, col_c, col_d = st.columns([1.5, 1, 1, 1])
@@ -1063,11 +1072,17 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     total_installs = sum(metrics['inst'] for metrics in stop_metrics.values())
     install_warning = "⚠️ Please Note: This route contains kiosk install(s) which will require heavy lifting of up to 50lbs.\n\n" if total_installs > 0 else ""
 
-    # --- DYNAMIC EMAIL PREVIEW (Fixed to Capture Edits) ---
+    # --- DYNAMIC EMAIL PREVIEW (Upgraded with Smart WO & Bulletproof Refresh) ---
     due = st.session_state.get(f"dd_{cluster_hash}", datetime.now().date()+timedelta(14))
     
-    # Use existing Work Order if available, otherwise generate new
-    wo_val = cluster.get('wo') if cluster.get('wo') != 'none' else f"{ic['Name']} - {datetime.now().strftime('%m%d%Y')}"
+    # 🌟 FIX 1: Smart Work Order Generation
+    # If the dropdown matches the original contractor, keep the old Work Order.
+    # If you change to a new person, generate a NEW Work Order.
+    prev_ic_name = cluster.get('contractor_name', 'Unknown')
+    if ic['Name'] == prev_ic_name and cluster.get('wo', 'none') != 'none':
+        wo_val = cluster['wo']
+    else:
+        wo_val = f"{ic['Name']} - {datetime.now().strftime('%m%d%Y')}"
     
     sig_preview = (
         f"Hello {ic['Name']},\n\n"
@@ -1076,7 +1091,6 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         f"📅 Due Date: {due.strftime('%A, %b %d, %Y')}\n"
         f" Total Stops: {cluster['stops']}\n"
         f" Estimated Compensation: ${final_pay:.2f}\n"
-        f" Kiosk Installs: {total_installs}\n\n"
         f"{install_warning}"
         f"To view the complete route details—including total stops, estimated mileage, and time—please click the secure link below to access your Route Summary.\n\n"
         f"⚠️ ACTION REQUIRED:\n"
@@ -1085,18 +1099,24 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         f"{PORTAL_BASE_URL}?route=LINK_PENDING&v2=true"
     )
     
-    tx_key = f"tx_{cluster_hash}_preview"
-    
-    # Only reset the text area if the Contractor, Price, or Date actually changes
+    # 🌟 FIX 2: Bulletproof Key Versioning for the Text Box
+    # Streamlit holds onto text area data aggressively. We force it to reset by 
+    # changing the "version" of the key whenever you touch a dropdown.
     last_data_key = f"last_data_{cluster_hash}"
-    current_data_fingerprint = f"{ic['Name']}_{final_pay}_{due}"
+    version_key = f"tx_ver_{cluster_hash}"
+    current_data_fingerprint = f"{ic['Name']}_{final_pay}_{due}_{wo_val}"
     
+    if version_key not in st.session_state:
+        st.session_state[version_key] = 1
+
     if st.session_state.get(last_data_key) != current_data_fingerprint:
-        st.session_state[tx_key] = sig_preview
+        st.session_state[version_key] += 1
         st.session_state[last_data_key] = current_data_fingerprint
+        st.session_state[f"tx_{cluster_hash}_{st.session_state[version_key]}"] = sig_preview
     
-    # Render the text area (this captures your manual typing)
-    email_body_content = st.text_area("Email Content Preview", height=180, key=tx_key, disabled=not is_unlocked)
+    # Render the text area using the ACTIVE version key
+    active_tx_key = f"tx_{cluster_hash}_{st.session_state[version_key]}"
+    email_body_content = st.text_area("Email Content Preview", height=180, key=active_tx_key, disabled=not is_unlocked)
 
     # --- 7. BUTTON LAYOUT ---
     btn_label = "🚀 GENERATE LINK & OPEN GMAIL"
@@ -1122,7 +1142,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 else:
                     st.error("Failed to sync data to link database."); st.stop()
 
-            # 🌟 THE CRITICAL FIX: Use 'email_body_content' so your edits are preserved!
+            # The critical fix: Use 'email_body_content' so your edits are preserved!
             final_sig = email_body_content.replace("LINK_PENDING", final_route_id)
             
             subject_line = f"Route Request | {wo_val}"
