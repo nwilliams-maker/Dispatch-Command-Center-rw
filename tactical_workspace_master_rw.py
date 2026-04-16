@@ -225,7 +225,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if addr not in stop_metrics: stop_metrics[addr] = {'t_count': 0, 'digi': 0, 'inst': 0, 'remov': 0, 'c_ad': 0, 'd_ad': 0, 'n_ad': 0, 'oth': 0}
         stop_metrics[addr]['t_count'] += 1
         tt = t['task_type']
-        if any(x in tt for x in ["digital", "ins", "offline", "service"]): stop_metrics[addr]['digi'] += 1
+        if any(x in tt for x in ["digital", "ins", "offline", "service", "skykit"]): stop_metrics[addr]['digi'] += 1
         elif any(x in tt for x in ["install", "setup", "assembly"]): stop_metrics[addr]['inst'] += 1
         elif "removal" in tt: stop_metrics[addr]['remov'] += 1
         elif any(x in tt for x in ["continuity", "photo", "swap"]): stop_metrics[addr]['c_ad'] += 1
@@ -236,8 +236,8 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     for addr, m in stop_metrics.items():
         pills = []
         if m['digi'] > 0: pills.append(f"🔌 {m['digi']} Digital")
-        if m['inst'] > 0: pills.append(f"🛠️ {m['inst']} Kiosk")
-        if m['remov'] > 0: pills.append(f"🛑 {m['remov']} Removal")
+        if m['inst'] > 0: pills.append(f"🛠️ {m['inst']} Kiosk Install")
+        if m['remov'] > 0: pills.append(f"🛑 {m['remov']} Kiosk Removal")
         if m['c_ad'] > 0: pills.append(f"🔄 {m['c_ad']} Continuity")
         if m['n_ad'] > 0: pills.append(f"🆕 {m['n_ad']} New Ad")
         pill_str = " | ".join(pills)
@@ -281,7 +281,7 @@ def run_pod_tab(pod_name):
         c_hash = hashlib.md5("".join(sorted(ids)).encode()).hexdigest()
         h_icons = ""
         tt_all = " ".join([t['task_type'] for t in c['data']])
-        if any(x in tt_all for x in ["digital", "ins", "offline"]): h_icons += " 🔌"
+        if any(x in tt_all for x in ["digital", "ins", "offline", "service", "skykit"]): h_icons += " 🔌"
         if "install" in tt_all: h_icons += " 🛠️"
         if "removal" in tt_all: h_icons += " 🛑"
         if any(x in tt_all for x in ["continuity", "photo", "swap"]): h_icons += " 🔄"
