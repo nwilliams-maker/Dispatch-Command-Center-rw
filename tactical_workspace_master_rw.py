@@ -1511,7 +1511,10 @@ with col_ref:
     st.markdown("</div>", unsafe_allow_html=True)
 
 # 🚨 THIS IS THE LINE YOU WERE MISSING 🚨
-# Define the tabs for the entire app
+# 🌟 DEFINE THE SLOT HERE so it's available for Surgery 2
+loading_slot = st.empty()
+
+# Define the tabs
 tabs = st.tabs(["Global", "Blue Pod", "Green Pod", "Orange Pod", "Purple Pod", "Red Pod"])
 
 # --- TAB 0: GLOBAL CONTROL ---
