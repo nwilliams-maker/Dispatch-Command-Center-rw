@@ -1171,8 +1171,7 @@ def render_mini_summary(pod_name, target_container):
         st.markdown("---")
         
 def render_pod_card(pod_name, slot):
-    """Calculates metrics and renders the data directly into the custom supercard HTML."""
-    # Define colors to match your UI
+    """Calculates metrics and renders them into the custom supercard HTML."""
     colors = {
         "Blue": {"border": "#3b82f6", "bg": "#eff6ff", "text": "#1e3a8a"},
         "Green": {"border": "#22c55e", "bg": "#f0fdf4", "text": "#14532d"},
@@ -1181,25 +1180,22 @@ def render_pod_card(pod_name, slot):
         "Red": {"border": "#ef4444", "bg": "#fef2f2", "text": "#7f1d1d"}
     }.get(pod_name, {"border": "#cbd5e1", "bg": "#ffffff", "text": "#1e293b"})
 
+    # Check if data exists
     if f"clusters_{pod_name}" not in st.session_state:
-        # RENDER OFFLINE STATE
         slot.markdown(f"""
-            <div style='border: 2px solid {colors["border"]}; border-radius: 20px; padding: 25px; text-align: center; background-color: {colors["bg"]}; opacity: 0.6; min-height: 200px; display: flex; flex-direction: column; justify-content: center;'>
-                <h3 style='margin: 0; color: {colors["text"]};'>{pod_name} Pod</h3>
-                <p style='color: {colors["text"]}; font-weight: 800; font-size: 1.2rem; margin-top: 15px;'>OFFLINE</p>
+            <div style='border: 2px solid {colors["border"]}; border-radius: 20px; padding: 20px; text-align: center; background-color: {colors["bg"]}; opacity: 0.6;'>
+                <h3 style='margin: 0; color: {colors["text"]}; font-size: 1rem;'>{pod_name} Pod</h3>
+                <p style='color: {colors["text"]}; font-weight: 800; margin-top: 10px;'>OFFLINE</p>
             </div>
         """, unsafe_allow_html=True)
         return
 
-    # --- CALCULATION LOGIC ---
+    # Calculations
     cls = st.session_state[f"clusters_{pod_name}"]
     sent_db, _ = fetch_sent_records_from_sheet()
-    
     total_tasks = sum(len(c['data']) for c in cls)
     total_stops = sum(c['stops'] for c in cls)
-    sent_routes = 0
-    accepted = 0
-    declined = 0
+    sent_routes, accepted, declined = 0, 0, 0
     
     for c in cls:
         task_ids = [str(t['id']).strip() for t in c['data']]
@@ -1210,26 +1206,24 @@ def render_pod_card(pod_name, slot):
             if stt == 'accepted': accepted += 1
             elif stt == 'declined': declined += 1
 
-    # --- RENDER LIVE STATE ---
-    # This HTML mimics your 'Blue Pod' supercard layout exactly
+    # Render Live State
     slot.markdown(f"""
-        <div style='border: 3px solid {colors["border"]}; border-radius: 20px; padding: 15px; text-align: center; background-color: {colors["bg"]}; min-height: 200px;'>
-            <h3 style='margin: 0; color: {colors["text"]}; font-size: 1.1rem;'>{pod_name} Pod</h3>
-            <div style='margin: 10px 0;'>
-                <span style='font-size: 1.8rem; font-weight: 900; color: {colors["text"]};'>{sent_routes} / {len(cls)}</span>
-                <p style='margin: 0; font-size: 0.7rem; font-weight: 700; color: {colors["text"]}; text-transform: uppercase;'>Routes Sent</p>
-                <p style='margin: 5px 0 0 0; font-size: 0.6rem; font-weight: 800; color: {colors["text"]}; opacity: 0.8;'>{accepted} ACCEPTED | {declined} DECLINED</p>
+        <div style='border: 3px solid {colors["border"]}; border-radius: 20px; padding: 12px; text-align: center; background-color: {colors["bg"]};'>
+            <h3 style='margin: 0; color: {colors["text"]}; font-size: 1rem;'>{pod_name} Pod</h3>
+            <div style='margin: 8px 0;'>
+                <span style='font-size: 1.5rem; font-weight: 900; color: {colors["text"]};'>{sent_routes} / {len(cls)}</span>
+                <p style='margin: 0; font-size: 0.6rem; font-weight: 700; color: {colors["text"]}; text-transform: uppercase;'>Routes Sent</p>
+                <p style='margin: 2px 0 0 0; font-size: 0.55rem; font-weight: 800; color: {colors["text"]}; opacity: 0.8;'>{accepted} ACC | {declined} DEC</p>
             </div>
-            <hr style='margin: 10px 0; border: 0; border-top: 1px solid {colors["border"]}; opacity: 0.3;'>
+            <hr style='margin: 8px 0; border: 0; border-top: 1px solid {colors["border"]}; opacity: 0.2;'>
             <div style='display: flex; justify-content: space-around;'>
                 <div>
-                    <p style='margin: 0; font-size: 0.6rem; font-weight: 800; color: {colors["text"]}; opacity: 0.6;'>TASKS</p>
-                    <p style='margin: 0; font-size: 1.1rem; font-weight: 800; color: {colors["text"]};'>{total_tasks}</p>
+                    <p style='margin: 0; font-size: 0.55rem; font-weight: 800; color: {colors["text"]}; opacity: 0.6;'>TASKS</p>
+                    <p style='margin: 0; font-size: 0.9rem; font-weight: 800; color: {colors["text"]};'>{total_tasks}</p>
                 </div>
-                <div style='border-left: 1px solid {colors["border"]}; opacity: 0.2;'></div>
                 <div>
-                    <p style='margin: 0; font-size: 0.6rem; font-weight: 800; color: {colors["text"]}; opacity: 0.6;'>STOPS</p>
-                    <p style='margin: 0; font-size: 1.1rem; font-weight: 800; color: {colors["text"]};'>{total_stops}</p>
+                    <p style='margin: 0; font-size: 0.55rem; font-weight: 800; color: {colors["text"]}; opacity: 0.6;'>STOPS</p>
+                    <p style='margin: 0; font-size: 0.9rem; font-weight: 800; color: {colors["text"]};'>{total_stops}</p>
                 </div>
             </div>
         </div>
@@ -1585,145 +1579,46 @@ tabs = st.tabs(["Global", "Blue Pod", "Green Pod", "Orange Pod", "Purple Pod", "
 with tabs[0]:
     st.markdown("<h2 style='color: #633094; text-align:center;'>🌍 Global Command Overview</h2>", unsafe_allow_html=True)
     
-    # --- 1. INITIALIZE BUTTON ---
+    # --- 1. ACTION BUTTON ---
     c_btn = st.columns([1,2,1])[1]
     if c_btn.button("🚀 Initialize All Pods", key="global_init_btn", use_container_width=True):
+        # Fresh pull of the sheet DB before starting the sync
         st.session_state.sent_db, st.session_state.ghost_db = fetch_sent_records_from_sheet()
         st.session_state.trigger_pull = True
 
-    st.markdown("---")
-    
-    # Placeholder to anchor the progress bar ABOVE the cards
-    loading_placeholder = st.empty()
+    st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- 2. PILL CARDS LOOP ---
-    cols = st.columns(len(POD_CONFIGS))
-    pod_keys = list(POD_CONFIGS.keys())
-    global_map = folium.Map(location=[39.8283, -98.5795], zoom_start=4, tiles="cartodbpositron")
-    
-    current_sent_db, ghost_db = fetch_sent_records_from_sheet()
+    # --- 2. THE LOADING BAR SLOT ---
+    # This stays at the top of the dashboard area
+    loading_slot = st.empty()
 
-    for i, pod in enumerate(pod_keys):
-        colors = {
-            "Blue":   {"border": "#3b82f6", "bg": "#f0f7ff", "text": "#1e3a8a"},
-            "Green":  {"border": "#22c55e", "bg": "#f0fdf4", "text": "#064e3b"},
-            "Orange": {"border": "#f97316", "bg": "#fffaf5", "text": "#7c2d12"},
-            "Purple": {"border": "#a855f7", "bg": "#faf5ff", "text": "#4c1d95"},
-            "Red":    {"border": "#ef4444", "bg": "#fef2f2", "text": "#7f1d1d"}
-        }.get(pod)
-        
-        with cols[i]:
-            is_loading = st.session_state.get("current_loading_pod") == pod
-            has_data = f"clusters_{pod}" in st.session_state
-            
-            if is_loading:
-                card_content = f"<p class='loading-pulse' style='color:{colors['border']}; margin-top:25px;'>📡 SYNCING...</p>"
-            elif has_data:
-                pod_cls = st.session_state[f"clusters_{pod}"]
-                total_routes = len(pod_cls)
-                total_tasks = sum(len(c['data']) for c in pod_cls)
-                total_stops = sum(c['stops'] for c in pod_cls)
-                
-                # 🌟 FIXED: Initialized 'finalized'
-                sent, accepted, declined, finalized = [], [], [], []
-                
-                for c in pod_cls:
-                    task_ids = [str(t['id']).strip() for t in c['data']]
-                    cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
-                    
-                    sheet_match = current_sent_db.get(next((tid for tid in task_ids if tid in current_sent_db), None))
-                    route_state = st.session_state.get(f"route_state_{cluster_hash}")
-                    is_reverted = st.session_state.get(f"reverted_{cluster_hash}", False)
-                    
-                    if sheet_match and not is_reverted:
-                        raw_status = sheet_match.get('status')
-                        if raw_status == 'declined':
-                            declined.append(c)
-                        elif raw_status == 'accepted':
-                            accepted.append(c)
-                        elif raw_status == 'finalized':
-                            finalized.append(c)
-                        else:
-                            sent.append(c)
-                    elif route_state == "email_sent" and not is_reverted:
-                        sent.append(c)
-                    elif route_state == "link_generated" and not is_reverted:
-                        orig = st.session_state.get(f"orig_status_{cluster_hash}")
-                        if orig == "declined":
-                            declined.append(c)
-                
-                pod_ghosts = ghost_db.get(pod, [])
-                total_accepted = len(accepted) + len(pod_ghosts)
-                true_sent_count = len(sent) + total_accepted + len(declined) + len(finalized) 
-                visual_total_routes = len(pod_cls) + len(pod_ghosts)
-                
-                card_content = f"""
-<p style='margin: 10px 0 0 0; font-size: 26px; font-weight: 800; color: {colors['text']};'>{true_sent_count} / {visual_total_routes}</p>
-<p style='margin: -5px 0 0 0; font-size: 11px; font-weight: 700; color: {colors['text']}; opacity: 0.6; text-transform: uppercase;'>Routes Sent</p>
-<p style='margin: 2px 0 8px 0; font-size: 9px; font-weight: 700; color: {colors['text']}; opacity: 0.5;'>{total_accepted} ACCEPTED | {len(declined)} DECLINED</p>
-<div style='display: flex; justify-content: space-around; border-top: 1px solid rgba(0,0,0,0.08); padding-top: 10px;'>
-<div><p style='margin:0; font-size:9px; color: {colors['text']}; opacity: 0.8; font-weight: 800;'>TASKS</p><b style='color: {colors['text']};'>{total_tasks}</b></div>
-<div style='border-left: 1px solid rgba(0,0,0,0.08); height: 20px;'></div>
-<div><p style='margin:0; font-size:9px; color: {colors['text']}; opacity: 0.8; font-weight: 800;'>STOPS</p><b style='color: {colors['text']};'>{total_stops}</b></div>
-</div>
-"""
-                for c in pod_cls: folium.CircleMarker(c['center'], radius=5, color=colors['border'], fill=True, fill_opacity=0.7).add_to(global_map)
-            else:
-                card_content = f"<p style='color: {colors['text']}; opacity: 0.3; font-weight: 800; margin-top: 30px;'>OFFLINE</p>"
-
-            st.markdown(f"""
-<div class="pod-card-pill" style="border: 2px solid {colors['border']}; border-radius: 30px; padding: 20px 10px; background-color: {colors['bg']}; text-align: center; height: 190px; box-shadow: 0 4px 10px rgba(0,0,0,0.03); display: flex; flex-direction: column; justify-content: center;">
-<div style="margin: 0; color: {colors['text']}; font-weight: 800; font-size: 1.2rem;">{pod} Pod</div>
-{card_content}
-</div>
-""", unsafe_allow_html=True)
-            
-    # --- 3. THE LOADING ZONE ---
-    # 1. Create 5 columns to hold the supercards
+    # --- 3. THE SUPERCARD LAYOUT ---
+    # Create 5 columns and put an 'empty' slot inside each one
     pod_keys = list(POD_CONFIGS.keys())
     cols = st.columns(len(pod_keys))
-    
-    # 2. Map each pod to an empty slot inside its column
     slots = {}
     for i, p in enumerate(pod_keys):
         with cols[i]:
             slots[p] = st.empty()
-    # 3. If not currently pulling, show current data
-    if not st.session_state.get("trigger_pull"):
-        for p in pod_keys:
-            # 🌟 FIX: Use 'slots' and 'render_pod_card'
-            render_pod_card(p, slots[p])
 
-    # 4. Live Syncing Loop
-    if st.session_state.get("trigger_pull"):
-        p_bar = loading_slot.progress(0.0, text="🎬 Initializing Global Sync...")
-        
-        for idx, p in enumerate(pod_keys):
-            process_pod(p, master_bar=p_bar, pod_idx=idx, total_pods=len(pod_keys))
-            
-            # 🌟 FIX: Use 'slots' and 'render_pod_card'
-            render_pod_card(p, slots[p])
-            
-    # 1. Create a placeholder slot for every pod
-    pod_keys = list(POD_CONFIGS.keys())
-    slots = {p: st.empty() for p in pod_keys}
-
-    # 2. Fill slots with whatever data currently exists (or 'Offline' cards)
+    # --- 4. DATA FILL LOGIC ---
+    # Case A: Not syncing? Just show whatever data we currently have in the slots
     if not st.session_state.get("trigger_pull"):
         for p in pod_keys:
             render_pod_card(p, slots[p])
 
-    # 3. The Live Syncing Loop
+    # Case B: Live Syncing? Update the bar and cards one-by-one
     if st.session_state.get("trigger_pull"):
         p_bar = loading_slot.progress(0.0, text="🎬 Initializing Global Sync...")
         
         for idx, p in enumerate(pod_keys):
-            # Sync the pod
+            # Sync the pod via API
             process_pod(p, master_bar=p_bar, pod_idx=idx, total_pods=len(pod_keys))
             
-            # 🌟 LIVE UPDATE: Push the new data to the card as soon as the pod finishes
+            # 🌟 LIVE UPDATE: Immediately push the new data into the specific column slot
             render_pod_card(p, slots[p])
         
+        # Finalize
         p_bar.progress(1.0, text="✅ Global Sync Complete!")
         import time
         time.sleep(1)
