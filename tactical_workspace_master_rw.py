@@ -926,10 +926,6 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         elif "default" in tt:
             stop_metrics[addr]['d_ad'] += 1
 
-        # 6. Other (Catch-all for Plexi, Decals, Freezer, Floor, etc.)
-        else:
-            stop_metrics[addr]['oth'] += 1
-
     # --- 2. THE UI SUMMARY LINE ---
     for addr, metrics in stop_metrics.items():
         pills = []
