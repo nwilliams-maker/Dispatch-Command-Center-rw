@@ -856,15 +856,26 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             if not has_ic and status not in ['Sent', 'Accepted']: status = "Flagged"
             
             pool = rem
+            # Calculate how many escalations are in this specific route
+            e_count = sum(1 for x in group if x.get('escalated'))
+
+            # Determine Status: Sent/Accepted first, then Flagged if stars exist, else Ready
+            if anc_status in ['sent', 'accepted']:
+                final_stat = anc_status.capitalize()
+            elif e_count > 0:
+                final_stat = "Flagged"
+            else:
+                final_stat = "Ready"
+
             clusters.append({
                 "data": group, 
                 "center": [anc['lat'], anc['lon']], 
                 "stops": len(u_stops),
                 "city": anc['city'], 
                 "state": anc['state'], 
-                "status": anc_status.capitalize() if anc_status in ['sent', 'accepted'] else "Ready",
-                "esc_count": sum(1 for x in group if x.get('escalated')), # Captures the Star
-                "is_digital": anc_is_digital,                            # Captures the Plug
+                "status": final_stat,
+                "esc_count": e_count,
+                "is_digital": anc_is_digital,
                 "wo": anc_wo
             })
             
@@ -1230,13 +1241,12 @@ def render_pod_card(pod_name, slot):
     """, unsafe_allow_html=True)
       
 def run_pod_tab(pod_name):
-    # --- 1. THE INITIALIZE BUTTON (FOR THIS POD ONLY) ---
-    c1, c2 = st.columns([3, 1])
-    with c1:
-        st.markdown(f"## {pod_name} Pod Dispatch")
-    with c2:
-        if st.button(f"🚀 Sync {pod_name}", key=f"sync_{pod_name}", use_container_width=True):
-            # This tells the app to only process THIS pod
+    # --- 1. CONSOLIDATED HEADER & SYNC ---
+    col_h, col_b = st.columns([2, 1])
+    with col_h:
+        st.markdown(f"## 🚀 {pod_name} Pod Dispatch")
+    with col_b:
+        if st.button(f"🔄 Sync {pod_name}", key=f"sync_{pod_name}", use_container_width=True):
             st.session_state.trigger_specific = pod_name
 
     # --- 2. RUN THE SYNC IF TRIGGERED ---
