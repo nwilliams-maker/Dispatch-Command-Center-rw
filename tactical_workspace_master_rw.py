@@ -727,7 +727,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             t_tt_final = tt_val.strip()
                 
                 # Catch Skykit ANYWHERE in the metadata
-                if 'skykit' in m_val_lower or 'digital' in m_val_lower:
+            if 'skykit' in m_val_lower or 'digital' in m_val_lower:
                     tt_val += " skykit " 
             
             # 2. Catch Skykit hiding in the raw Onfleet Notes
