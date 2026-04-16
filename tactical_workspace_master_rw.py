@@ -716,18 +716,18 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                     tt_val += f" {m_val}"
                 
                 # Also do a "Deep Search" on the value itself for safety
-                if any(x in m_val for x in ["digital", "kiosk", "removal", "ins", "offline"]):
+                if any(x in m_val for x in ["service", "kiosk", "removal", "digital ins", "offline"]):
                     tt_val += f" {m_val}"
 
             # 3. Final safety check in Notes
             raw_notes = str(t.get('notes', '')).lower()
-            if any(x in raw_notes for x in ["digital", "skykit", "removal"]):
+            if any(x in raw_notes for x in ["service", "skykit", "removal"]):
                 tt_val += f" {raw_notes}"
             
             t_tt_final = tt_val.strip()
                 
                 # Catch Skykit ANYWHERE in the metadata
-            if 'skykit' in m_val_lower or 'digital' in m_val_lower:
+            if 'skykit' in m_val_lower or 'service' in m_val_lower:
                     tt_val += " skykit " 
             
             # 2. Catch Skykit hiding in the raw Onfleet Notes
@@ -770,7 +770,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             
             # --- NEW: Strict Digital Separation & Dynamic Radius ---
             anc_tt = str(anc.get('task_type', '')).lower()
-            anc_is_digital = 'digital' in anc_tt or 'service' in anc_tt or 'skykit' in anc_tt
+            anc_is_digital = 'service' in anc_tt or 'skykit' in anc_tt
             
             # Grab DB status for Isolation
             anc_status = anc.get('db_status', 'ready')
@@ -782,7 +782,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             candidates = []; rem = []
             for t in pool:
                 t_tt = str(t.get('task_type', '')).lower()
-                t_is_digital = 'digital' in t_tt or 'service' in t_tt or 'skykit' in t_tt
+                t_is_digital = 'service' in t_tt or 'skykit' in t_tt
                 t_status = t.get('db_status', 'ready')
                 t_wo = t.get('wo', 'none')
                 
@@ -919,10 +919,10 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         tt = str(t.get('task_type', '')).lower()
         
         # 1. Digital (Keywords from your request)
-        if any(x in tt for x in ["digital", "service", "skykit", "ins", "offline", "monitor"]): 
+        if any(x in tt for x in ["service", "skykit", "digital ins", "offline"]): 
             stop_metrics[addr]['digi'] += 1
         # 2. Kiosk/Install
-        elif any(x in tt for x in ["install", "setup", "assembly", "kiosk", "build"]): 
+        elif any(x in tt for x in ["kiosk install"]): 
             stop_metrics[addr]['inst'] += 1
         # 3. Removal
         elif "removal" in tt: 
