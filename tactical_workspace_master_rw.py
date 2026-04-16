@@ -699,25 +699,40 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
 
         all_tasks_raw = []
         url = f"https://onfleet.com/api/v2/tasks/all?state=0&from={int(time.time()*1000)-(80*24*3600*1000)}"
+        
         while url:
-            res = requests.get(url, headers=headers).json()
-            # --- 🚨 TEMPORARY RAW DATA DUMP 🚨 ---
-        # This will create a file on your server called 'ONFLEET_DEBUG.json'
-        # with the absolute raw response for the first 5 tasks.
-        import json
-        raw_tasks = r.json() # 'r' is your requests response variable
-        with open("ONFLEET_DEBUG.json", "w") as f:
-            json.dump(raw_tasks[:5], f, indent=4)
-        st.download_button("📥 DOWNLOAD RAW ONFLEET DATA", data=json.dumps(raw_tasks[:5]), file_name="raw_onfleet.json")
-        # ---------------------------------------
-        all_tasks_raw.extend(res.get('tasks', []))
-        url = f"https://onfleet.com/api/v2/tasks/all?state=0&from={int(time.time()*1000)-(80*24*3600*1000)}&lastId={res['lastId']}" if res.get('lastId') else None
-        # Update extraction progress (max 40% of this pod's slice)
-        update_prog(min(len(all_tasks_raw)/500 * 0.4, 0.4), "📡 Fetching task pages...")
+            response = requests.get(url, headers=headers)
+            res_json = response.json()
+            
+            # Check for API errors immediately
+            if response.status_code != 200:
+                st.error(f"Onfleet API Error: {res_json}")
+                break
+                
+            tasks_page = res_json.get('tasks', [])
+            all_tasks_raw.extend(tasks_page)
+            
+            url = f"https://onfleet.com/api/v2/tasks/all?state=0&from={int(time.time()*1000)-(80*24*3600*1000)}&lastId={res_json['lastId']}" if res_json.get('lastId') else None
+            update_prog(min(len(all_tasks_raw)/500 * 0.4, 0.4), "📡 Fetching task pages...")
+
+        # --- 🚨 FIXED RAW DATA DUMP 🚨 ---
+        # This appears ONLY ONCE after all tasks are pulled.
+        if all_tasks_raw:
+            with st.expander("🛠️ API DEBUGGER: Download Raw Data"):
+                st.info("Download this file and open it in Notepad to find the 'Task Type' field name.")
+                # We take the first 10 tasks to keep the file size small
+                debug_data = json.dumps(all_tasks_raw[:10], indent=4)
+                st.download_button(
+                    label="📥 DOWNLOAD RAW ONFLEET DATA",
+                    data=debug_data,
+                    file_name="raw_onfleet_dump.json",
+                    mime="application/json"
+                )
+        # ---------------------------------
 
         unique_tasks_dict = {t['id']: t for t in all_tasks_raw}
         all_tasks = list(unique_tasks_dict.values())
-
+        
         pool = []
         for t in all_tasks:
             container = t.get('container', {})
