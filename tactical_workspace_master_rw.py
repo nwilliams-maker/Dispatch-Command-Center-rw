@@ -1150,31 +1150,47 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 timer_placeholder.success(f"✅ Link Generated! Moving card in {sec}s...")
                 time.sleep(1)
             st.rerun()
+            
 def render_mini_summary(pod_name, target_container):
     """Calculates metrics for a pod and renders them into a specific UI container"""
     if f"clusters_{pod_name}" not in st.session_state:
         target_container.info(f"Waiting for {pod_name} sync...")
         return
 
-    cls = st.session_state[f"clusters_{pod_name}"]
-    sent_db, _ = fetch_sent_records_from_sheet()
+    cls = st.session_state.get(f"clusters_{pod_name}", [])
     
-    # Calculate Metrics
-    ready_count = 0
-    sent_count = 0
-    flag_count = 0
+    # 🌟 THE SORTING ENGINE
+    # 1. Flagged: Anything with a star OR the 'Flagged' status
+    review = [c for c in cls if c.get('esc_count', 0) > 0 or c.get('status') == 'Flagged']
+    
+    # 2. Ready: Must have NO stars AND status must be 'Ready'
+    ready = [c for c in cls if c.get('status') == 'Ready' and c.get('esc_count', 0) == 0]
+    
+    # 3. Awaiting Confirmation lists
+    sent = [c for c in cls if c.get('status') == 'Sent']
+    accepted = [c for c in cls if c.get('status') == 'Accepted']
+    declined = [c for c in cls if c.get('status') == 'Declined']
+    finalized = [c for c in cls if c.get('status') == 'Finalized']
+    
+    ready_count, sent_count, flag_count = 0, 0, 0
     
     for c in cls:
         task_ids = [str(t['id']).strip() for t in c['data']]
         match = sent_db.get(next((tid for tid in task_ids if tid in sent_db), None))
         
-        if match: sent_count += 1
-        elif c.get('status') == 'Ready': ready_count += 1
-        else: flag_count += 1
+        # 🌟 IMPROVED LOGIC: Explicitly check for Stars
+        is_flagged = c.get('esc_count', 0) > 0 or c.get('status') == 'Flagged'
+        
+        if match: 
+            sent_count += 1
+        elif is_flagged: 
+            flag_count += 1
+        else: 
+            ready_count += 1
 
-    # Push HTML to the specific slot
+    # Push metrics directly (Title removed to fix 'Double Title' issue)
     with target_container.container():
-        st.markdown(f"#### {pod_name} Pod")
+        # st.markdown(f"#### {pod_name} Pod") # 🗑️ REMOVED THIS LINE
         col1, col2, col3 = st.columns(3)
         col1.metric("Ready", ready_count)
         col2.metric("Sent", sent_count)
@@ -1273,7 +1289,6 @@ def run_pod_tab(pod_name):
     bar_space = st.empty()
 
     # Inject the dynamic color into the centered header
-    st.markdown(f"<h2 style='color: {text_color}; text-align:center;'>{pod_name} Pod Dashboard</h2>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
 
     # Check if data exists for this pod
