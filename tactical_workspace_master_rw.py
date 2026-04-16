@@ -1215,38 +1215,30 @@ def run_pod_tab(pod_name):
             st.rerun()
         return
 
-    # 🌟 NEW: THE DATA INSPECTOR (Appears only after initialization)
+    # 🌟 NEW: THE DEEP DATA INSPECTOR
     cls = st.session_state[f"clusters_{pod_name}"]
     
-    with st.expander("🕵️‍♂️ Task Data Inspector (Raw Onfleet Data)"):
-        st.info("Metadata fields have been flattened. Scroll to the right to see all custom Onfleet fields.")
-        debug_rows = []
-        for c in cls:
-            for t in c['data']:
-                # 1. Start with the standard columns
-                row = {
-                    "Address": t.get('full', ''),
-                    "Assigned Type": t.get('task_type', ''),
-                    "Escalated?": t.get('escalated', False),
-                    "Raw Notes": t.get('raw_notes', '')
-                }
-                
-                # 2. 🌟 FIX: Dynamically create columns for every Metadata field
-                # This turns a hidden list into individual columns you can sort and filter.
-                for m in t.get('raw_meta', []):
-                    m_name = m.get('name', 'Unknown')
-                    m_val = m.get('value', '')
-                    # We prefix with 'META:' so you know it's a custom field from Onfleet
-                    row[f"META: {m_name}"] = m_val
-                
-                debug_rows.append(row)
+    with st.expander("🕵️‍♂️ Task Data Inspector (Raw Onfleet X-Ray)"):
+        tab1, tab2 = st.tabs(["Table View", "Deep JSON X-Ray"])
         
-        if debug_rows:
-            # Convert to DataFrame to ensure all columns align correctly
-            df_debug = pd.DataFrame(debug_rows)
-            st.dataframe(df_debug, use_container_width=True)
-        else:
-            st.warning("No task data found to inspect.")
+        with tab1:
+            st.info("Metadata fields only appear as columns if Onfleet sends them. Currently, Metadata appears to be EMPTY.")
+            debug_rows = []
+            for c in cls:
+                for t in c['data']:
+                    row = {"Address": t.get('full', ''), "Assigned Type": t.get('task_type', ''), "Raw Notes": t.get('raw_notes', '')}
+                    for m in t.get('raw_meta', []):
+                        row[f"META: {m.get('name', 'Unknown')}"] = m.get('value', '')
+                    debug_rows.append(row)
+            if debug_rows:
+                st.dataframe(pd.DataFrame(debug_rows), use_container_width=True)
+
+        with tab2:
+            st.warning("This shows EVERYTHING the Onfleet API is sending for the very first task. Use this to find 'Task Type'.")
+            if cls and cls[0]['data']:
+                # We pull the first task to see the structure
+                first_task_raw = cls[0]['data'][0]
+                st.json(first_task_raw)
     # Load cluster data
     cls = st.session_state[f"clusters_{pod_name}"]
 
