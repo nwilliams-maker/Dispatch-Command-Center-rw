@@ -953,8 +953,8 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if metrics['oth'] > 0: pill_parts.append(f"📦 {metrics['oth']} Other")
         pill_str = " | ".join(pill_parts)
         
-        # 🌟 FIX: Inject the star after the address if escalated
-        display_addr = f"{addr} ⭐" if metrics['esc'] else addr
+        # 🌟 FIX: Inject the star before the address if escalated
+        display_addr = f" ⭐ {addr}" if metrics['esc'] else addr
         
         loc_pills[display_addr] = f"({metrics['t_count']} Tasks) {pill_str}"
         st.markdown(f"**{display_addr}** &nbsp;<span style='color: #633094; background-color: #f3e8ff; padding: 2px 6px; border-radius: 10px; font-weight: 800; font-size: 11px;'>{metrics['t_count']} Tasks</span>&nbsp; <span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", unsafe_allow_html=True)
@@ -995,9 +995,11 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         st.session_state[pay_key] = round(val * cluster['stops'], 2)
 
     def update_for_new_contractor():
-        # Reset pricing floor when a DIFFERENT contractor is selected
-        selected_label = st.session_state[sel_key]
-        if selected_label != st.session_state.get(last_sel_key):
+        # 🌟 FIX: Use .get() safely so it doesn't crash if the Memory Wipe deleted the key!
+        selected_label = st.session_state.get(sel_key)
+        
+        # Only run the math if the label actually exists
+        if selected_label and selected_label != st.session_state.get(last_sel_key):
             ic_new = ic_opts[selected_label]
             _, h, _ = get_gmaps(ic_new['Location'], list(stop_metrics.keys())[:25])
             new_pay = float(round(max(cluster['stops'] * 18.0, h * 25.0), 2))
