@@ -918,8 +918,12 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     for c in cluster['data']:
         addr = c['full']
         if addr not in stop_metrics:
-            stop_metrics[addr] = {'t_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 'inst': 0, 'remov': 0, 'digi': 0, 'oth': 0}
+            stop_metrics[addr] = {'t_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 'inst': 0, 'remov': 0, 'digi': 0, 'oth': 0, 'esc': False}
         stop_metrics[addr]['t_count'] += 1
+        
+        # 🌟 FIX: Flag this specific address if it contains an escalation
+        if c.get('escalated'):
+            stop_metrics[addr]['esc'] = True
         # Iterate through the tasks inside the cluster to calculate metrics per stop
     for t in cluster['data']:
         addr = t['full']
@@ -948,8 +952,12 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if metrics['digi'] > 0: pill_parts.append(f"🔌 {metrics['digi']} Digital Service")
         if metrics['oth'] > 0: pill_parts.append(f"📦 {metrics['oth']} Other")
         pill_str = " | ".join(pill_parts)
-        loc_pills[addr] = f"({metrics['t_count']} Tasks) {pill_str}"
-        st.markdown(f"**{addr}** &nbsp;<span style='color: #633094; background-color: #f3e8ff; padding: 2px 6px; border-radius: 10px; font-weight: 800; font-size: 11px;'>{metrics['t_count']} Tasks</span>&nbsp; <span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", unsafe_allow_html=True)
+        
+        # 🌟 FIX: Inject the star after the address if escalated
+        display_addr = f"{addr} ⭐" if metrics['esc'] else addr
+        
+        loc_pills[display_addr] = f"({metrics['t_count']} Tasks) {pill_str}"
+        st.markdown(f"**{display_addr}** &nbsp;<span style='color: #633094; background-color: #f3e8ff; padding: 2px 6px; border-radius: 10px; font-weight: 800; font-size: 11px;'>{metrics['t_count']} Tasks</span>&nbsp; <span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", unsafe_allow_html=True)
         
     st.divider()
 
@@ -1061,11 +1069,15 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         st.markdown(f"<div style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:15px; margin-bottom:10px;'><p style='font-size:11px; font-weight:800; text-transform:uppercase;'>Logistics</p><p style='margin:0; font-size:24px; font-weight:800; color:#000000;'>{t_str}</p><p style='margin:0; font-size:13px; color:#000000;'>Round Trip: {mi} mi</p></div>", unsafe_allow_html=True)
 
     # --- BUILD STOP PREVIEW & METRICS ---
-    preview_stops = cluster['data'][:2]
     stops_text = ""
-    for i, stop in enumerate(preview_stops, start=1):
-        full_addr = stop.get('full', 'Unknown Address')
-        stops_text += f"📍 Stop {i}: {full_addr}\n"
+    
+    # 🌟 FIX: Use unique locations instead of raw tasks, and inject the star!
+    for i, (addr, metrics) in enumerate(list(stop_metrics.items())[:2], start=1):
+        esc_star = "⭐ " if metrics['esc'] else ""
+        stops_text += f"📍 Stop {i}: {esc_star}{addr}\n"
+        
+    if len(stop_metrics) > 2:
+        stops_text += f"   ... and {len(stop_metrics) - 2} more stops.\n"
 
     # Calculate total kiosk installs and digital tasks across the whole route
     total_installs = sum(metrics['inst'] for metrics in stop_metrics.values())
