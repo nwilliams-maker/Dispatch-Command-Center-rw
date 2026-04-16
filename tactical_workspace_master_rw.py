@@ -987,14 +987,16 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     
     # --- 3. DYNAMIC PRICING SYNC LOGIC ---
     def sync_on_total():
-        # User edited TOTAL COMP
-        val = st.session_state[pay_key]
-        st.session_state[rate_key] = round(val / cluster['stops'], 2) if cluster['stops'] > 0 else 0
+        # 🌟 FIX: Use safely with .get() to survive memory wipes
+        val = st.session_state.get(pay_key)
+        if val is not None:
+            st.session_state[rate_key] = round(val / cluster['stops'], 2) if cluster['stops'] > 0 else 0
 
     def sync_on_rate():
-        # User edited RATE PER STOP
-        val = st.session_state[rate_key]
-        st.session_state[pay_key] = round(val * cluster['stops'], 2)
+        # 🌟 FIX: Use safely with .get() to survive memory wipes
+        val = st.session_state.get(rate_key)
+        if val is not None:
+            st.session_state[pay_key] = round(val * cluster['stops'], 2)
 
     def update_for_new_contractor():
         # 🌟 FIX: Use .get() safely so it doesn't crash if the Memory Wipe deleted the key!
