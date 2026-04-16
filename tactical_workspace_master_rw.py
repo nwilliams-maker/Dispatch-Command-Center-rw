@@ -744,32 +744,30 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
             tt_val = str(t.get('taskType', '')).strip() or str(t.get('taskDetails', '')).strip()
             
-            # 1. Loop through Onfleet Metadata
+            # --- 1. EXTRACT FROM CUSTOM FIELDS & METADATA ---
+            # We now check BOTH Custom Fields and Metadata to be bulletproof
+            official_fields = (t.get('customFields') or []) + (t.get('metadata') or [])
+            
             found_official_type = False
-            for m in (t.get('metadata') or []):
-                m_name = str(m.get('name', '')).strip().lower()
-                m_val = str(m.get('value', '')).strip()
-                m_val_lower = m_val.lower()
+            for f in official_fields:
+                f_name = str(f.get('name', '')).strip().lower()
+                f_key = str(f.get('key', '')).strip().lower()
+                f_val = str(f.get('value', '')).strip()
+                f_val_lower = f_val.lower()
                 
-                if 'escalation' in m_name and m_val_lower in ['1', '1.0', 'true', 'yes']:
-                    is_esc = True
+                # Check for Escalation (either by name or value)
+                if ('escalation' in f_name or 'escalation' in f_key):
+                    if f_val_lower in ['1', '1.0', 'true', 'yes'] or 'escalation' in f_val_lower:
+                        is_esc = True
                 
-                # 🌟 FIX: STRICT search for exactly "Task Type" or "taskType"
-                if m_name in ['task type', 'tasktype']:
-                    tt_val = m_val
+                # Check for Task Type
+                if f_name in ['task type', 'tasktype'] or f_key in ['tasktype', 'task_type']:
+                    tt_val = f_val
                     found_official_type = True
                 
-                # Fallback to 'type' ONLY if we haven't found the official Task Type yet
-                elif m_name == 'type' and not found_official_type:
-                    tt_val = m_val
-                
-                # Catch Skykit ANYWHERE in the metadata
-                if 'skykit' in m_val_lower or 'digital ins' in m_val_lower:
-                    tt_val += " skykit " 
-            
-            # 2. Catch Skykit hiding in the raw Onfleet Notes
-            if 'skykit' in str(t.get('notes', '')).lower():
-                tt_val += " skykit "
+                # Fallback to generic 'type' only if we haven't found the specific one yet
+                elif (f_name == 'type' or f_key == 'type') and not found_official_type:
+                    tt_val = f_val
                 
             # --- FIXED: Always pull fresh data before clustering ---
             t_status = 'ready'
