@@ -1230,7 +1230,24 @@ def render_pod_card(pod_name, slot):
     """, unsafe_allow_html=True)
       
 def run_pod_tab(pod_name):
-    # Grab the contractor database from session state
+    # --- 1. THE INITIALIZE BUTTON (FOR THIS POD ONLY) ---
+    c1, c2 = st.columns([3, 1])
+    with c1:
+        st.markdown(f"## {pod_name} Pod Dispatch")
+    with c2:
+        if st.button(f"🚀 Sync {pod_name}", key=f"sync_{pod_name}", use_container_width=True):
+            # This tells the app to only process THIS pod
+            st.session_state.trigger_specific = pod_name
+
+    # --- 2. RUN THE SYNC IF TRIGGERED ---
+    if st.session_state.get("trigger_specific") == pod_name:
+        p_bar = st.progress(0, text=f"📡 Initializing {pod_name} Pod...")
+        process_pod(pod_name, master_bar=p_bar, pod_idx=0, total_pods=1)
+        p_bar.empty()
+        st.session_state.trigger_specific = None
+        st.rerun()
+
+    # --- 3. REST OF THE TAB LOGIC ---
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
     
     # Grab the matching "Midnight" text color for the current pod
