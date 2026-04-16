@@ -765,8 +765,10 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                     "full": f"{addr.get('number','')} {addr.get('street','')}, {addr.get('city','')}, {stt}",
                     "lat": t['destination']['location'][1], "lon": t['destination']['location'][0],
                     "escalated": is_esc, "task_type": tt_val,
-                    "db_status": t_status, # Passes status to engine
-                    "wo": t_wo             # Passes WO to engine
+                    "db_status": t_status, 
+                    "wo": t_wo,
+                    "raw_meta": t.get('metadata', []), # 🌟 FIX: Save raw metadata for the Inspector
+                    "raw_notes": t.get('notes', '')    # 🌟 FIX: Save raw notes for the Inspector
                 })
         
         clusters = []
@@ -1209,10 +1211,29 @@ def run_pod_tab(pod_name):
     # Check if data exists for this pod
     if f"clusters_{pod_name}" not in st.session_state:
         if st.button(f"🚀 Initialize {pod_name} Data", key=f"init_{pod_name}"):
-            # We don't pass total_pods, so it defaults to a single-pod behavior
             process_pod(pod_name)
             st.rerun()
         return
+
+    # 🌟 NEW: THE DATA INSPECTOR (Appears only after initialization)
+    cls = st.session_state[f"clusters_{pod_name}"]
+    
+    with st.expander("🕵️‍♂️ Task Data Inspector (Raw Onfleet Data)"):
+        st.info("Use this table to see exactly what Onfleet is sending. Look for the 'Raw Metadata' column to find your custom fields.")
+        debug_rows = []
+        for c in cls:
+            for t in c['data']:
+                debug_rows.append({
+                    "Address": t.get('full', ''),
+                    "Assigned Type": t.get('task_type', ''),
+                    "Escalated?": t.get('escalated', False),
+                    "Raw Metadata (Onfleet)": str(t.get('raw_meta', [])),
+                    "Raw Notes (Onfleet)": t.get('raw_notes', '')
+                })
+        if debug_rows:
+            st.dataframe(debug_rows, use_container_width=True)
+        else:
+            st.warning("No task data found to inspect.")
 
     # Load cluster data
     cls = st.session_state[f"clusters_{pod_name}"]
