@@ -775,21 +775,28 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 t_status, t_wo = t.get('db_status', 'ready'), t.get('wo', 'none')
 
                 if anc_is_digital == t_is_digital:
-                    # RULE: Frozen routes (Sent/Accepted) stay together by Work Order ONLY
+                    # BLOCK 1: Frozen Routes (Match by Work Order)
                     if anc_status in ['sent', 'accepted']:
                         if t_status == anc_status and t_wo == anc_wo:
                             candidates.append((0, t))
                         else:
                             rem.append(t)
-                    # RULE: Liquid routes (Ready/Declined) use Distance
+
+                    # BLOCK 2: Liquid Routes (Match by Distance)
                     elif anc_status in ['ready', 'declined'] and t_status in ['ready', 'declined']:
                         d = haversine(anc['lat'], anc['lon'], t['lat'], t['lon'])
                         if d <= route_radius:
                             candidates.append((d, t))
                         else:
                             rem.append(t)
-                    else: rem.append(t)
-                else: rem.append(t)
+                    
+                    # BLOCK 3: Fallback for unmatched statuses
+                    else:
+                        rem.append(t)
+                
+                else:
+                    # Match by Type failed (e.g., Digital vs Standard)
+                    rem.append(t)
                             
                     # Rule 3: Ready and Declined are LIQUID (They can mix!)
                 elif anc_status in ['ready', 'declined']:
