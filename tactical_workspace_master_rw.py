@@ -717,21 +717,21 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 if 'escalation' in m_name and v_low in ['1', '1.0', 'true', 'yes']:
                     is_esc = True
                 
-                # 2. Check for Task Type labels
-                if m_name in ['task type', 'tasktype', 'type']:
-                    tt_val = m_val
-                
-                # 3. Deep Search for keywords in metadata values
-                if any(x in v_low for x in ["skykit", "digital", "ins", "offline", "service"]):
-                    tt_val += f" {m_val}"
+                # --- AGGRESSIVE TASK EXTRACTION ---
+            # Start by grabbing text from the main Task Type and Details fields
+            tt_raw = f"{t.get('taskType','')} {t.get('taskDetails','')}".lower()
 
-            # 4. Check for keywords hiding in raw Notes
-            raw_notes = str(t.get('notes', '')).lower()
-            if any(x in raw_notes for x in ["skykit", "digital", "ins", "offline"]):
-                tt_val += f" {raw_notes}"
+            # "Sponge" up every single word from the metadata values
+            for m in (t.get('metadata') or []):
+                m_val = str(m.get('value', '')).strip().lower()
+                tt_raw += f" {m_val}"
+
+            # Sponge up every word from the internal Onfleet Notes
+            notes_raw = str(t.get('notes', '')).lower()
+            tt_raw += f" {notes_raw}"
             
-            # Clean up the final string
-            t_tt_final = tt_val.strip().lower()
+            # This is the final string the categorizer will search
+            t_tt_final = tt_raw.strip()
                 
             # --- FIXED: Always pull fresh data before clustering ---
             t_status = 'ready'
@@ -904,76 +904,60 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     if hist:
         st.markdown(f"<p style='color: #94a3b8; font-size: 13px; margin-top: -10px; margin-bottom: 15px; font-weight: 600;'>↩️ Previously sent to: {', '.join(hist)}</p>", unsafe_allow_html=True)
 
-    # --- 2. STOP METRICS & PILLS ---
-    stop_metrics = {}
-    for c in cluster['data']:
-        addr = c['full']
-        if addr not in stop_metrics:
-            stop_metrics[addr] = {'t_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 'inst': 0, 'remov': 0, 'digi': 0, 'oth': 0}
-        stop_metrics[addr]['t_count'] += 1
-
-    # 1. Initialize metrics (Added 'inst' back to prevent the KeyError)
+    # 1. Initialize metrics (Added 'inst' to prevent the KeyError crash)
     stop_metrics = {}
     for t in cluster['data']:
         addr = t['full']
         if addr not in stop_metrics:
             stop_metrics[addr] = {
                 't_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 
-                'digi': 0, 'remov': 0, 'oth': 0, 'inst': 0 # 🔌 'inst' restored here
+                'digi': 0, 'remov': 0, 'oth': 0, 'inst': 0 
             }
         
         stop_metrics[addr]['t_count'] += 1
         tt = str(t.get('task_type', '')).lower()
 
-        # --- THE STRICT MAPPING ENGINE ---
-        
-        # 1. Digital Service
-        if any(x in tt for x in ["digital service", "digital offline", "digital ins", "offline", "ins"]):
+        # --- YOUR STRICT MAPPING RULES ---
+
+        # RULE A: Digital Service (Digital Service, Offline, INS)
+        if any(x in tt for x in ["digital service", "digital offline", "digital ins", "skykit"]):
             stop_metrics[addr]['digi'] += 1
 
-        # 2. Kiosk Removal
+        # RULE B: Kiosk Removal (Remove Kiosk)
         elif "remove kiosk" in tt or "removal" in tt:
             stop_metrics[addr]['remov'] += 1
 
-        # 3. New Ad & Installs 
-        # We catch "Install" keywords here to increment both the UI count and the 'inst' total
-        elif any(x in tt for x in ["top", "new ad", "art change", "ad install", "billboard install", "escalation"]):
+        # RULE C: New Ad (Top, New Ad, Art Change, Ad Install, Billboard Install)
+        elif any(x in tt for x in ["top", "new ad", "art change", "ad install", "billboard install", "install"]):
             stop_metrics[addr]['n_ad'] += 1
+            # Special check for the email warning (Heavy Lifting)
             if "install" in tt:
-                stop_metrics[addr]['inst'] += 1 # 🛠️ This feeds your 'total_installs' variable
+                stop_metrics[addr]['inst'] += 1
 
-        # 4. Continuity
-        elif any(x in tt for x in ["photo", "swap", "pull down", "ad pulldown", "ad takedown", "move kiosk", "location"]):
+        # RULE D: Continuity (Photo, Swap, Pull Down, Move Kiosk, Location, etc.)
+        elif any(x in tt for x in ["photo", "swap", "pull down", "pulldown", "takedown", "move kiosk", "move", "location"]):
             stop_metrics[addr]['c_ad'] += 1
 
-        # 5. Default
+        # RULE E: Default (Default)
         elif "default" in tt:
             stop_metrics[addr]['d_ad'] += 1
 
-        # 6. Other
+        # RULE F: Other (Plexiglass, Storage, Freezer, Decal, etc.)
         else:
             stop_metrics[addr]['oth'] += 1
 
     # --- 2. THE UI SUMMARY LINE ---
-    # This builds the string: "Address [1 Tasks] — 🆕 1 New Ad | 🔄 1 Continuity"
     for addr, metrics in stop_metrics.items():
-        pill_parts = []
-        if metrics['digi'] > 0: pill_parts.append(f"🔌 {metrics['digi']} Digital Service")
-        if metrics['remov'] > 0: pill_parts.append(f"🛑 {metrics['remov']} Kiosk Removal")
-        if metrics['n_ad'] > 0: pill_parts.append(f"🆕 {metrics['n_ad']} New Ad")
-        if metrics['c_ad'] > 0: pill_parts.append(f"🔄 {metrics['c_ad']} Continuity")
-        if metrics['d_ad'] > 0: pill_parts.append(f"⚪ {metrics['d_ad']} Default")
-        if metrics['oth'] > 0: pill_parts.append(f"📦 {metrics['oth']} Other")
+        pills = []
+        if metrics['digi'] > 0: pills.append(f"🔌 {metrics['digi']} Digital Service")
+        if metrics['remov'] > 0: pills.append(f"🛑 {metrics['remov']} Kiosk Removal")
+        if metrics['n_ad'] > 0: pills.append(f"🆕 {metrics['n_ad']} New Ad")
+        if metrics['c_ad'] > 0: pills.append(f"🔄 {metrics['c_ad']} Continuity")
+        if metrics['d_ad'] > 0: pills.append(f"⚪ {metrics['d_ad']} Default")
+        if metrics['oth'] > 0: pills.append(f"📦 {metrics['oth']} Other")
         
-        pill_str = " | ".join(pill_parts)
-        
-        st.markdown(
-            f"**{addr}** &nbsp;"
-            f"<span style='color: #633094; background-color: #f3e8ff; padding: 2px 6px; border-radius: 10px; font-weight: 800; font-size: 11px;'>"
-            f"{metrics['t_count']} Tasks</span>"
-            f"&nbsp; <span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", 
-            unsafe_allow_html=True
-        )
+        pill_str = " | ".join(pills)
+        st.markdown(f"**{addr}** &nbsp; <span style='color: #633094; font-weight: 800;'>{metrics['t_count']} Tasks</span> &nbsp; <span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", unsafe_allow_html=True)
 
     # --- 3. CONTRACTOR FILTERING (100 MILES) ---
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
