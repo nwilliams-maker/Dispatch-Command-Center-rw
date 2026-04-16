@@ -1140,7 +1140,37 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 timer_placeholder.success(f"✅ Link Generated! Moving card in {sec}s...")
                 time.sleep(1)
             st.rerun()
-            
+def render_mini_summary(pod_name, target_container):
+    """Calculates metrics for a pod and renders them into a specific UI container"""
+    if f"clusters_{pod_name}" not in st.session_state:
+        target_container.info(f"Waiting for {pod_name} sync...")
+        return
+
+    cls = st.session_state[f"clusters_{pod_name}"]
+    sent_db, _ = fetch_sent_records_from_sheet()
+    
+    # Calculate Metrics
+    ready_count = 0
+    sent_count = 0
+    flag_count = 0
+    
+    for c in cls:
+        task_ids = [str(t['id']).strip() for t in c['data']]
+        match = sent_db.get(next((tid for tid in task_ids if tid in sent_db), None))
+        
+        if match: sent_count += 1
+        elif c.get('status') == 'Ready': ready_count += 1
+        else: flag_count += 1
+
+    # Push HTML to the specific slot
+    with target_container.container():
+        st.markdown(f"#### {pod_name} Pod")
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Ready", ready_count)
+        col2.metric("Sent", sent_count)
+        col3.metric("Flagged", flag_count)
+        st.markdown("---")
+        
 def run_pod_tab(pod_name):
     # Grab the contractor database from session state
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
@@ -1582,13 +1612,30 @@ with tabs[0]:
 """, unsafe_allow_html=True)
             
     # --- 3. THE LOADING ZONE ---
+    # 1. Prepare slots for each pod
+    pod_keys = list(POD_CONFIGS.keys())
+    summary_slots = {p: st.empty() for p in pod_keys}
+
+    # 2. If not currently pulling, show current data
+    if not st.session_state.get("trigger_pull"):
+        for p in pod_keys:
+            render_mini_summary(p, summary_slots[p])
+
+    # 3. Live Sync Logic
     if st.session_state.get("trigger_pull"):
-        st.session_state.sent_db, st.session_state.ghost_db = fetch_sent_records_from_sheet()
-        p_bar = loading_placeholder.progress(0, text="🎬 Initializing Operational Data...")
+        p_bar = loading_slot.progress(0, text="🎬 Initializing Global Sync...")
+        
         for idx, p in enumerate(pod_keys):
-            st.session_state.current_loading_pod = p 
+            # Sync the pod
             process_pod(p, master_bar=p_bar, pod_idx=idx, total_pods=len(pod_keys))
-        st.session_state.current_loading_pod = None
+            
+            # 🌟 PUSH DATA TO SLOT IMMEDIATELY 🌟
+            render_mini_summary(p, summary_slots[p])
+        
+        p_bar.progress(1.0, text="✅ Global Sync Complete!")
+        import time
+        time.sleep(1)
+        p_bar.empty()
         st.session_state.trigger_pull = False
         st.rerun()
 
