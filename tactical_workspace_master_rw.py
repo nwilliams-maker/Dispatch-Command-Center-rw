@@ -1688,22 +1688,22 @@ with tabs[0]:
     for i, p in enumerate(pod_keys):
         with cols[i]:
             slots[p] = st.empty()
-    # 2. If not currently pulling, show current data
+    # 3. If not currently pulling, show current data
     if not st.session_state.get("trigger_pull"):
         for p in pod_keys:
-            render_mini_summary(p, summary_slots[p])
-
-    # 3. Live Sync Logic
-    # 1. Create a placeholder slot for every pod
-    pod_keys = list(POD_CONFIGS.keys())
-    slots = {p: st.empty() for p in pod_keys}
-
-    # 2. Fill slots with whatever data currently exists (or 'Offline' cards)
-    if not st.session_state.get("trigger_pull"):
-        for p in pod_keys:
+            # 🌟 FIX: Use 'slots' and 'render_pod_card'
             render_pod_card(p, slots[p])
 
-    # 3. The Live Syncing Loop
+    # 4. Live Syncing Loop
+    if st.session_state.get("trigger_pull"):
+        p_bar = loading_slot.progress(0.0, text="🎬 Initializing Global Sync...")
+        
+        for idx, p in enumerate(pod_keys):
+            process_pod(p, master_bar=p_bar, pod_idx=idx, total_pods=len(pod_keys))
+            
+            # 🌟 FIX: Use 'slots' and 'render_pod_card'
+            render_pod_card(p, slots[p])
+            
     # 1. Create a placeholder slot for every pod
     pod_keys = list(POD_CONFIGS.keys())
     slots = {p: st.empty() for p in pod_keys}
