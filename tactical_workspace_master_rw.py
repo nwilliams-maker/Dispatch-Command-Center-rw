@@ -699,9 +699,9 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
 
             addr = t.get('destination', {}).get('address', {})
             stt = normalize_state(addr.get('state', ''))
-            is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
             
-            # --- STRICT 'TASK TYPE' ONLY EXTRACTION ---
+            # --- THE ID DECODER & LASER ---
+            DROPDOWN_MAP = {"zavtvxcbj5cavxkbluek5ike": "new ad"}
             tt_val = ""
             is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
             
@@ -709,19 +709,21 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 m_id = str(m.get('name') or m.get('label') or '').strip().lower()
                 m_val = str(m.get('value') or '').strip().lower()
                 
-                # 1. ONLY extract the text if the column is actually called "Task Type"
-                if m_id in ['task type', 'tasktype', 'type', 'job type']:
-                    tt_val = m_val
+                # Check for ID inside the value (handles brackets/quotes from Onfleet)
+                for secret_id, real_text in DROPDOWN_MAP.items():
+                    if secret_id in m_val: m_val = real_text
                 
-                # 2. Still check for Escalation
+                # Laser focus on the 'Type' columns
+                if any(x in m_id for x in ['task type', 'tasktype', 'type', 'job']):
+                    tt_val += f" {m_val}"
+                
                 if 'escalation' in m_id and m_val in ['1', '1.0', 'true', 'yes']:
                     is_esc = True
-            
-            # If the custom Task Type column was blank, check Onfleet's native Task Details just in case
-            if not tt_val:
+
+            # Fallback to Task Details if Metadata was blank
+            if not tt_val.strip():
                 tt_val = str(t.get('taskDetails', '')).strip().lower()
                 
-            # This is the single, isolated string
             final_sponge = tt_val.strip()
 
             # (Ensure final_sponge is assigned in your pool.append below)
@@ -761,34 +763,30 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             
             anc = pool.pop(0)
             
-            # --- NEW: Strict Digital Separation & Dynamic Radius ---
             anc_tt = str(anc.get('task_type', '')).lower()
-            anc_is_digital = 'service' in anc_tt or 'skykit' in anc_tt
-            
-            # Grab DB status for Isolation
-            anc_status = anc.get('db_status', 'ready')
-            anc_wo = anc.get('wo', 'none')
-            
-            # THE FIX: If digital, limit radius to 25 miles; otherwise, 50 miles.
+            anc_is_digital = any(x in anc_tt for x in ["digital", "offline", "ins", "skykit", "service"])
+            anc_status, anc_wo = anc.get('db_status', 'ready'), anc.get('wo', 'none')
             route_radius = 25 if anc_is_digital else 50
             
-            candidates = []; rem = []
+            candidates, rem = [], []
             for t in pool:
                 t_tt = str(t.get('task_type', '')).lower()
-                t_is_digital = 'service' in t_tt or 'skykit' in t_tt
-                t_status = t.get('db_status', 'ready')
-                t_wo = t.get('wo', 'none')
-                
-                # Rule 1: Digital and Standard never mix
+                t_is_digital = any(x in t_tt for x in ["digital", "offline", "ins", "skykit", "service"])
+                t_status, t_wo = t.get('db_status', 'ready'), t.get('wo', 'none')
+
                 if anc_is_digital == t_is_digital:
-                    
-                    # Rule 2: Sent and Accepted are FROZEN
+                    # RULE: Frozen routes (Sent/Accepted) stay together by Work Order ONLY
                     if anc_status in ['sent', 'accepted']:
-                        # Bypasses distance! ONLY groups if the Work Order matches perfectly.
                         if t_status == anc_status and t_wo == anc_wo:
-                            candidates.append((0, t)) 
-                        else:
-                            rem.append(t)
+                            candidates.append((0, t))
+                        else: rem.append(t)
+                    # RULE: Liquid routes (Ready/Declined) use Distance
+                    elif anc_status in ['ready', 'declined'] and t_status in ['ready', 'declined']:
+                        d = haversine(anc['lat'], anc['lon'], t['lat'], t['lon'])
+                        if d <= route_radius: candidates.append((d, t))
+                        else: rem.append(t)
+                    else: rem.append(t)
+                else: rem.append(t)
                             
                     # Rule 3: Ready and Declined are LIQUID (They can mix!)
                     elif anc_status in ['ready', 'declined']:
@@ -1148,7 +1146,10 @@ def run_pod_tab(pod_name):
         "Purple": "#4c1d95",
         "Red": "#7f1d1d"
     }.get(pod_name, "#633094") # Defaults to TB Purple if not found
-    
+
+    # 🌟 ADD THIS: Reserved space for the bar so it doesn't jump
+    bar_space = st.empty()
+
     # Inject the dynamic color into the centered header
     st.markdown(f"<h2 style='color: {text_color}; text-align:center;'>{pod_name} Pod Dashboard</h2>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
