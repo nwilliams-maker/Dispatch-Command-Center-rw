@@ -1596,6 +1596,9 @@ tabs = st.tabs(["Global", "Blue Pod", "Green Pod", "Orange Pod", "Purple Pod", "
 with tabs[0]:
     st.markdown("<h2 style='color: #633094; text-align:center;'>🌍 Global Command Overview</h2>", unsafe_allow_html=True)
     
+    # 🌟 INITIALIZE MAP HERE so it exists for the st_folium call later
+    global_map = folium.Map(location=[39.8283, -98.5795], zoom_start=4, tiles="cartodbpositron")
+    
     # --- 1. ACTION BUTTON ---
     c_btn = st.columns([1,2,1])[1]
     if c_btn.button("🚀 Initialize All Pods", key="global_init_btn", use_container_width=True):
@@ -1619,10 +1622,22 @@ with tabs[0]:
             slots[p] = st.empty()
 
     # --- 4. DATA FILL LOGIC ---
-    # Case A: Not syncing? Just show whatever data we currently have in the slots
     if not st.session_state.get("trigger_pull"):
         for p in pod_keys:
             render_pod_card(p, slots[p])
+            
+            # 🌟 Add markers to our initialized global_map
+            if f"clusters_{p}" in st.session_state:
+                pod_color = {
+                    "Blue": "#3b82f6", "Green": "#22c55e", "Orange": "#f97316", 
+                    "Purple": "#a855f7", "Red": "#ef4444"
+                }.get(p, "purple")
+                
+                for c in st.session_state[f"clusters_{p}"]:
+                    folium.CircleMarker(
+                        c['center'], radius=5, color=pod_color, 
+                        fill=True, fill_opacity=0.4
+                    ).add_to(global_map)
 
     # Case B: Live Syncing? Update the bar and cards one-by-one
     if st.session_state.get("trigger_pull"):
