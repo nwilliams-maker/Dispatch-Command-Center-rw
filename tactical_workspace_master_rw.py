@@ -789,7 +789,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 else: rem.append(t)
                             
                     # Rule 3: Ready and Declined are LIQUID (They can mix!)
-                    elif anc_status in ['ready', 'declined']:
+                elif anc_status in ['ready', 'declined']:
                         if t_status in ['ready', 'declined']:
                             d = haversine(anc['lat'], anc['lon'], t['lat'], t['lon'])
                             if d <= route_radius: 
