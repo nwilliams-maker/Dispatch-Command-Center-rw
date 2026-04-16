@@ -710,10 +710,10 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             json.dump(raw_tasks[:5], f, indent=4)
         st.download_button("📥 DOWNLOAD RAW ONFLEET DATA", data=json.dumps(raw_tasks[:5]), file_name="raw_onfleet.json")
         # ---------------------------------------
-            all_tasks_raw.extend(res.get('tasks', []))
-            url = f"https://onfleet.com/api/v2/tasks/all?state=0&from={int(time.time()*1000)-(80*24*3600*1000)}&lastId={res['lastId']}" if res.get('lastId') else None
-            # Update extraction progress (max 40% of this pod's slice)
-            update_prog(min(len(all_tasks_raw)/500 * 0.4, 0.4), "📡 Fetching task pages...")
+        all_tasks_raw.extend(res.get('tasks', []))
+        url = f"https://onfleet.com/api/v2/tasks/all?state=0&from={int(time.time()*1000)-(80*24*3600*1000)}&lastId={res['lastId']}" if res.get('lastId') else None
+        # Update extraction progress (max 40% of this pod's slice)
+        update_prog(min(len(all_tasks_raw)/500 * 0.4, 0.4), "📡 Fetching task pages...")
 
         unique_tasks_dict = {t['id']: t for t in all_tasks_raw}
         all_tasks = list(unique_tasks_dict.values())
