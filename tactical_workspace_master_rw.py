@@ -772,7 +772,8 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             for t in pool:
                 t_tt = str(t.get('task_type', '')).lower()
                 t_is_digital = any(x in t_tt for x in ["digital", "offline", "ins", "skykit", "service"])
-                t_status, t_wo = t.get('db_status', 'ready'), t.get('wo', 'none')
+                t_status = t.get('db_status', 'ready')
+                t_wo = t.get('wo', 'none')
 
                 if anc_is_digital == t_is_digital:
                     # BLOCK 1: Frozen Routes (Match by Work Order)
@@ -781,7 +782,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                             candidates.append((0, t))
                         else:
                             rem.append(t)
-
+                    
                     # BLOCK 2: Liquid Routes (Match by Distance)
                     elif anc_status in ['ready', 'declined'] and t_status in ['ready', 'declined']:
                         d = haversine(anc['lat'], anc['lon'], t['lat'], t['lon'])
@@ -795,20 +796,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                         rem.append(t)
                 
                 else:
-                    # Match by Type failed (e.g., Digital vs Standard)
-                    rem.append(t)
-                            
-                    # Rule 3: Ready and Declined are LIQUID (They can mix!)
-                elif anc_status in ['ready', 'declined']:
-                        if t_status in ['ready', 'declined']:
-                            d = haversine(anc['lat'], anc['lon'], t['lat'], t['lon'])
-                            if d <= route_radius: 
-                                candidates.append((d, t))
-                            else: 
-                                rem.append(t)
-                        else:
-                            rem.append(t)
-                else:
+                    # Match by Type failed (Digital vs Standard)
                     rem.append(t)
             
             candidates.sort(key=lambda x: x[0])
