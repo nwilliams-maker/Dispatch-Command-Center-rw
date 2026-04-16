@@ -701,26 +701,32 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             stt = normalize_state(addr.get('state', ''))
             is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
             
-            # --- THE 'LEAVE NO STONE UNTURNED' SPONGE ---
-            dest_notes = str(t.get('destination', {}).get('notes', '')).lower()
-            recip = t.get('recipients', [{}])
-            recip_notes = str(recip[0].get('notes', '')).lower() if recip else ""
+            # --- STRICT 'TASK TYPE' ONLY EXTRACTION ---
+            tt_val = ""
+            is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
             
-            # Grab Notes, Merchant, Destination Notes, and Recipient Notes
-            raw_text = f"{t.get('notes', '')} {t.get('merchant', '')} {dest_notes} {recip_notes} {t.get('taskType', '')} {t.get('taskDetails', '')}".lower()
-            
-            # Loop through metadata
             for m in (t.get('metadata') or []):
                 m_id = str(m.get('name') or m.get('label') or '').strip().lower()
                 m_val = str(m.get('value') or '').strip().lower()
-                raw_text += f" {m_id} {m_val}"
                 
+                # 1. ONLY extract the text if the column is actually called "Task Type"
+                if m_id in ['task type', 'tasktype', 'type', 'job type']:
+                    tt_val = m_val
+                
+                # 2. Still check for Escalation
                 if 'escalation' in m_id and m_val in ['1', '1.0', 'true', 'yes']:
                     is_esc = True
             
-            # This is the final string
-            final_sponge = raw_text.strip()
+            # If the custom Task Type column was blank, check Onfleet's native Task Details just in case
+            if not tt_val:
+                tt_val = str(t.get('taskDetails', '')).strip().lower()
+                
+            # This is the single, isolated string
+            final_sponge = tt_val.strip()
 
+            # (Ensure final_sponge is assigned in your pool.append below)
+            # "task_type": final_sponge
+            
             # --- DATABASE SYNC ---
             fresh_sent_db, _ = fetch_sent_records_from_sheet()
             t_status = 'ready'
@@ -896,48 +902,29 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     stop_metrics = {}
     for t in cluster['data']:
         addr = t['full']
-        # Initialize the address bucket if it's the first time we see it
         if addr not in stop_metrics:
-            stop_metrics[addr] = {
-                't_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 
-                'digi': 0, 'remov': 0, 'oth': 0, 'inst': 0 
-            }
+            stop_metrics[addr] = {'t_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 'digi': 0, 'remov': 0, 'oth': 0, 'inst': 0}
         
-        # Increment the total count for this address
         stop_metrics[addr]['t_count'] += 1
         
-        # Pull the 'sponge' text we built in process_pod
+        # This is exactly what was pulled from the Task Type isolation
         tt = str(t.get('task_type', '')).lower()
 
-        # --- THE STRICT MAPPING ENGINE (PRIORITY ORDER) ---
-        
-        # PRIORITY 1: Digital Service (Digital Service, Offline, INS)
+        # --- THE STRICT MAPPING ENGINE ---
         if any(x in tt for x in ["digital service", "digital offline", "digital ins", "offline", "ins", "skykit"]):
             stop_metrics[addr]['digi'] += 1
-
-        # PRIORITY 2: Kiosk Removal (Remove Kiosk)
         elif any(x in tt for x in ["remove kiosk", "removal"]):
             stop_metrics[addr]['remov'] += 1
-
-        # PRIORITY 3: New Ad (Top, New Ad, Art Change, Ad Install, Billboard Install)
         elif any(x in tt for x in ["top", "new ad", "art change", "ad install", "billboard", "install", "launch"]):
             stop_metrics[addr]['n_ad'] += 1
-            # Still track 'inst' for the heavy lifting email warning
-            if "install" in tt:
-                stop_metrics[addr]['inst'] += 1
-
-        # PRIORITY 4: Continuity (Photo, Swap, Pull Down, Ad Pulldown, Ad Takedown, Move Kiosk, Location)
+            if "install" in tt: stop_metrics[addr]['inst'] += 1
         elif any(x in tt for x in ["photo", "swap", "pull down", "pulldown", "takedown", "move", "location", "audit"]):
             stop_metrics[addr]['c_ad'] += 1
-
-        # PRIORITY 5: Default (Default)
         elif "default" in tt:
             stop_metrics[addr]['d_ad'] += 1
-
-        # F. Everything else falls into 'Other'
         else:
             stop_metrics[addr]['oth'] += 1
-            # Save the raw string so we can see what Onfleet is actually sending
+            # X-RAY: Save the exact isolated text for debugging
             stop_metrics[addr]['debug_text'] = tt
 
     # --- 2. THE UI SUMMARY LINE ---
@@ -949,13 +936,21 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if metrics['c_ad'] > 0: pills.append(f"🔄 {metrics['c_ad']} Continuity")
         if metrics['d_ad'] > 0: pills.append(f"⚪ {metrics['d_ad']} Default")
         
-        # X-RAY VISION: Show exactly what text the app is seeing
+        # X-RAY UI PRINT
         if metrics['oth'] > 0: 
-            raw_str = str(metrics.get('debug_text', 'EMPTY'))[:45] # Show first 45 chars
+            raw_str = str(metrics.get('debug_text', 'EMPTY'))[:50]
+            if raw_str == "": raw_str = "BLANK" # Tell us if it's literally empty
             pills.append(f"📦 {metrics['oth']} Other (Raw: '{raw_str}')")
         
         pill_str = " | ".join(pills)
-        st.markdown(f"**{addr}** &nbsp; <span style='color: #633094; font-weight: 800;'>{metrics['t_count']} Tasks</span> &nbsp; <span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", unsafe_allow_html=True)
+        
+        st.markdown(
+            f"**{addr}** &nbsp;"
+            f"<span style='color: #633094; background-color: #f3e8ff; padding: 2px 6px; border-radius: 10px; font-weight: 800; font-size: 11px;'>"
+            f"{metrics['t_count']} Tasks</span>"
+            f"&nbsp; <span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", 
+            unsafe_allow_html=True
+        )
 
     # --- 3. CONTRACTOR FILTERING (100 MILES) ---
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
