@@ -893,51 +893,72 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     if hist:
         st.markdown(f"<p style='color: #94a3b8; font-size: 13px; margin-top: -10px; margin-bottom: 15px; font-weight: 600;'>↩️ Previously sent to: {', '.join(hist)}</p>", unsafe_allow_html=True)
 
+    # --- 1. THE UNIFIED CATEGORIZER ---
     stop_metrics = {}
     for t in cluster['data']:
         addr = t['full']
+        # Initialize the address bucket if it's the first time we see it
         if addr not in stop_metrics:
-            stop_metrics[addr] = {'t_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 'digi': 0, 'remov': 0, 'oth': 0, 'inst': 0}
+            stop_metrics[addr] = {
+                't_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 
+                'digi': 0, 'remov': 0, 'oth': 0, 'inst': 0 
+            }
         
+        # Increment the total count for this address
         stop_metrics[addr]['t_count'] += 1
-        # This is the 'final_sponge' we built in Part 1
+        
+        # Pull the 'sponge' text we built in process_pod
         tt = str(t.get('task_type', '')).lower()
 
-        # --- THE FUZZY MAPPING ENGINE ---
+        # --- THE STRICT MAPPING ENGINE (PRIORITY ORDER) ---
         
-        # 1. Digital Service (INS, Offline, Service)
-        if any(x in tt for x in ["digital", "ins", "offline", "skykit"]):
+        # PRIORITY 1: Digital Service (Digital Service, Offline, INS)
+        if any(x in tt for x in ["digital service", "digital offline", "digital ins", "offline", "ins", "skykit"]):
             stop_metrics[addr]['digi'] += 1
 
-        # 2. Kiosk Removal
+        # PRIORITY 2: Kiosk Removal (Remove Kiosk)
         elif any(x in tt for x in ["remove kiosk", "removal"]):
             stop_metrics[addr]['remov'] += 1
 
-        # 3. New Ad (Top, New Ad, Art Change, Ad Install, Billboard)
+        # PRIORITY 3: New Ad (Top, New Ad, Art Change, Ad Install, Billboard Install)
         elif any(x in tt for x in ["top", "new ad", "art change", "ad install", "billboard", "install", "launch"]):
             stop_metrics[addr]['n_ad'] += 1
-            if "install" in tt: stop_metrics[addr]['inst'] += 1
+            # Still track 'inst' for the heavy lifting email warning
+            if "install" in tt:
+                stop_metrics[addr]['inst'] += 1
 
-        # 4. Continuity (Photo, Swap, Pull Down, Move, Location, Audit)
-        elif any(x in tt for x in ["photo", "swap", "pull down", "pulldown", "takedown", "move kiosk", "move", "location", "audit"]):
+        # PRIORITY 4: Continuity (Photo, Swap, Pull Down, Ad Pulldown, Ad Takedown, Move Kiosk, Location)
+        elif any(x in tt for x in ["photo", "swap", "pull down", "pulldown", "takedown", "move", "location", "audit"]):
             stop_metrics[addr]['c_ad'] += 1
 
-        # 5. Default
+        # PRIORITY 5: Default (Default)
         elif "default" in tt:
             stop_metrics[addr]['d_ad'] += 1
 
+        # PRIORITY 6: Other (Plexiglass, Storage, Freezer, Floor Decal, etc.)
+        # If the sponge contains specific 'Other' keywords OR anything else not caught above
+        else:
+            stop_metrics[addr]['oth'] += 1
+
     # --- 2. THE UI SUMMARY LINE ---
     for addr, metrics in stop_metrics.items():
-        pills = []
-        if metrics['digi'] > 0: pills.append(f"🔌 {metrics['digi']} Digital Service")
-        if metrics['remov'] > 0: pills.append(f"🛑 {metrics['remov']} Kiosk Removal")
-        if metrics['n_ad'] > 0: pills.append(f"🆕 {metrics['n_ad']} New Ad")
-        if metrics['c_ad'] > 0: pills.append(f"🔄 {metrics['c_ad']} Continuity")
-        if metrics['d_ad'] > 0: pills.append(f"⚪ {metrics['d_ad']} Default")
-        if metrics['oth'] > 0: pills.append(f"📦 {metrics['oth']} Other")
+        pill_parts = []
+        if metrics['digi'] > 0: pill_parts.append(f"🔌 {metrics['digi']} Digital Service")
+        if metrics['remov'] > 0: pill_parts.append(f"🛑 {metrics['remov']} Kiosk Removal")
+        if metrics['n_ad'] > 0: pill_parts.append(f"🆕 {metrics['n_ad']} New Ad")
+        if metrics['c_ad'] > 0: pill_parts.append(f"🔄 {metrics['c_ad']} Continuity")
+        if metrics['d_ad'] > 0: pill_parts.append(f"⚪ {metrics['d_ad']} Default")
+        if metrics['oth'] > 0: pill_parts.append(f"📦 {metrics['oth']} Other")
         
-        pill_str = " | ".join(pills)
-        st.markdown(f"**{addr}** &nbsp; <span style='color: #633094; font-weight: 800;'>{metrics['t_count']} Tasks</span> &nbsp; <span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", unsafe_allow_html=True)
+        pill_str = " | ".join(pill_parts)
+        
+        st.markdown(
+            f"**{addr}** &nbsp;"
+            f"<span style='color: #633094; background-color: #f3e8ff; padding: 2px 6px; border-radius: 10px; font-weight: 800; font-size: 11px;'>"
+            f"{metrics['t_count']} Tasks</span>"
+            f"&nbsp; <span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", 
+            unsafe_allow_html=True
+        )
 
     # --- 3. CONTRACTOR FILTERING (100 MILES) ---
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
