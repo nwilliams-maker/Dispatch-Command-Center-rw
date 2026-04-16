@@ -701,22 +701,26 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             stt = normalize_state(addr.get('state', ''))
             is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
             
-            # --- THE SUPER SPONGE ---
-            # We grab Merchant, Notes, Task Type, and Details
+            # --- THE TRIPLE-CHECK SPONGE ---
+            # Start with the basic text fields
             raw_text = f"{t.get('merchant', '')} {t.get('notes', '')} {t.get('taskType', '')} {t.get('taskDetails', '')}".lower()
             
-            # Loop through metadata and grab both the COLUMN NAME and the VALUE
+            # Loop through metadata with a fallback for 'label'
             for m in (t.get('metadata') or []):
-                m_name = str(m.get('name', '')).lower()
-                m_val = str(m.get('value', '')).lower()
-                raw_text += f" {m_name} {m_val}"
-            
-            # This is the single variable that now contains ALL identifying data
-            final_sponge = raw_text.strip()
+                # Onfleet uses 'name' in some API versions and 'label' in others
+                # This line checks both, then defaults to an empty string
+                m_id = str(m.get('name') or m.get('label') or '').strip().lower()
+                m_val = str(m.get('value') or '').strip().lower()
                 
-                # Check for escalation while we are in here
-            if 'escalation' in m_name and m_val in ['1', '1.0', 'true', 'yes']:
+                # Add both to the searchable text
+                raw_text += f" {m_id} {m_val}"
+                
+                # While we are here, catch the Escalation flag
+                if 'escalation' in m_id and m_val in ['1', '1.0', 'true', 'yes']:
                     is_esc = True
+            
+            # Save the full combined string
+            final_sponge = raw_text.strip()
 
             # --- DATABASE SYNC ---
             fresh_sent_db, _ = fetch_sent_records_from_sheet()
@@ -734,9 +738,8 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                     "full": f"{addr.get('number','')} {addr.get('street','')}, {addr.get('city','')}, {stt}",
                     "lat": t['destination']['location'][1], 
                     "lon": t['destination']['location'][0],
-                    "task_type": final_sponge,
                     "escalated": is_esc, 
-                    "task_type": sponge.strip(), # 👈 FIXED: Using the sponge variable here
+                    "task_type": final_sponge, # 👈 THIS VARIABLE NAME MUST MATCH
                     "db_status": t_status, 
                     "wo": t_wo
                 })
