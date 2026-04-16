@@ -721,6 +721,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             tt_val = str(t.get('taskType', '')).strip() or str(t.get('taskDetails', '')).strip()
             
             # 1. Loop through Onfleet Metadata
+            found_official_type = False
             for m in (t.get('metadata') or []):
                 m_name = str(m.get('name', '')).strip().lower()
                 m_val = str(m.get('value', '')).strip()
@@ -729,12 +730,17 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 if 'escalation' in m_name and m_val_lower in ['1', '1.0', 'true', 'yes']:
                     is_esc = True
                 
-                # Broaden the search for Task Type
-                if m_name in ['task type', 'tasktype', 'type']:
+                # 🌟 FIX: STRICT search for exactly "Task Type" or "taskType"
+                if m_name in ['task type', 'tasktype']:
+                    tt_val = m_val
+                    found_official_type = True
+                
+                # Fallback to 'type' ONLY if we haven't found the official Task Type yet
+                elif m_name == 'type' and not found_official_type:
                     tt_val = m_val
                 
                 # Catch Skykit ANYWHERE in the metadata
-                if 'skykit' in m_val_lower or 'digital' in m_val_lower:
+                if 'skykit' in m_val_lower or 'digital ins' in m_val_lower:
                     tt_val += " skykit " 
             
             # 2. Catch Skykit hiding in the raw Onfleet Notes
