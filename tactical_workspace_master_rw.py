@@ -954,10 +954,12 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         pill_str = " | ".join(pill_parts)
         
         # 🌟 FIX: Inject the star before the address if escalated
-        display_addr = f" ⭐ {addr}" if metrics['esc'] else addr
+        display_addr = f"⭐ {addr}" if metrics['esc'] else addr
         
         loc_pills[display_addr] = f"({metrics['t_count']} Tasks) {pill_str}"
-        st.markdown(f"**{display_addr}** &nbsp;<span style='color: #633094; background-color: #f3e8ff; padding: 2px 6px; border-radius: 10px; font-weight: 800; font-size: 11px;'>{metrics['t_count']} Tasks</span>&nbsp; <span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", unsafe_allow_html=True)
+        
+        # 🌟 UI FIX: Replaced ** with HTML <b> tags to prevent the Markdown parsing error
+        st.markdown(f"<b>{display_addr}</b> &nbsp;<span style='color: #633094; background-color: #f3e8ff; padding: 2px 6px; border-radius: 10px; font-weight: 800; font-size: 11px;'>{metrics['t_count']} Tasks</span>&nbsp; <span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", unsafe_allow_html=True)
         
     st.divider()
 
