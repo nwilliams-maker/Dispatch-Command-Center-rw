@@ -701,17 +701,18 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             stt = normalize_state(addr.get('state', ''))
             is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
             
-            # --- THE UNIFIED SPONGE ---
-            # We combine every text field into ONE searchable variable
-            # We include native fields, metadata names, metadata values, and notes.
-            sponge = f"{t.get('taskType','')} {t.get('taskDetails','')} {t.get('notes','')} ".lower()
-
+            # --- THE SUPER SPONGE ---
+            # We grab Merchant, Notes, Task Type, and Details
+            raw_text = f"{t.get('merchant', '')} {t.get('notes', '')} {t.get('taskType', '')} {t.get('taskDetails', '')}".lower()
+            
+            # Loop through metadata and grab both the COLUMN NAME and the VALUE
             for m in (t.get('metadata') or []):
-                m_name = str(m.get('name', '')).strip().lower()
-                m_val = str(m.get('value', '')).strip().lower()
-                
-                # Update sponge with metadata
-                sponge += f" {m_name} {m_val}"
+                m_name = str(m.get('name', '')).lower()
+                m_val = str(m.get('value', '')).lower()
+                raw_text += f" {m_name} {m_val}"
+            
+            # This is the single variable that now contains ALL identifying data
+            final_sponge = raw_text.strip()
                 
                 # Check for escalation while we are in here
                 if 'escalation' in m_name and m_val in ['1', '1.0', 'true', 'yes']:
@@ -733,6 +734,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                     "full": f"{addr.get('number','')} {addr.get('street','')}, {addr.get('city','')}, {stt}",
                     "lat": t['destination']['location'][1], 
                     "lon": t['destination']['location'][0],
+                    "task_type": final_sponge,
                     "escalated": is_esc, 
                     "task_type": sponge.strip(), # 👈 FIXED: Using the sponge variable here
                     "db_status": t_status, 
@@ -892,35 +894,36 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     for t in cluster['data']:
         addr = t['full']
         if addr not in stop_metrics:
-            stop_metrics[addr] = {'t_count':0, 'n_ad':0, 'c_ad':0, 'd_ad':0, 'digi':0, 'remov':0, 'oth':0, 'inst':0}
+            stop_metrics[addr] = {'t_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 'digi': 0, 'remov': 0, 'oth': 0, 'inst': 0}
         
         stop_metrics[addr]['t_count'] += 1
-        # The searchable string we built in the Nuclear Sponge
+        # This is the 'final_sponge' we built in Part 1
         tt = str(t.get('task_type', '')).lower()
 
-        # --- THE MAPPING ENGINE ---
-        # A. Digital (Highest Priority)
-        if any(x in tt for x in ["digital", "offline", "ins", "service", "skykit"]):
+        # --- THE FUZZY MAPPING ENGINE ---
+        
+        # 1. Digital Service (INS, Offline, Service)
+        if any(x in tt for x in ["digital", "ins", "offline", "skykit"]):
             stop_metrics[addr]['digi'] += 1
 
-        # B. Kiosk Removal
-        elif any(x in tt for x in ["remove kiosk", "removal", "remove"]):
+        # 2. Kiosk Removal
+        elif any(x in tt for x in ["remove kiosk", "removal"]):
             stop_metrics[addr]['remov'] += 1
 
-        # C. New Ad (Catching 'Art Change', 'Launch', 'Install', etc.)
-        elif any(x in tt for x in ["top", "new ad", "art change", "install", "billboard", "launch", "ad install"]):
+        # 3. New Ad (Top, New Ad, Art Change, Ad Install, Billboard)
+        elif any(x in tt for x in ["top", "new ad", "art change", "ad install", "billboard", "install", "launch"]):
             stop_metrics[addr]['n_ad'] += 1
             if "install" in tt: stop_metrics[addr]['inst'] += 1
 
-        # D. Continuity (Catching 'Photo', 'Swap', 'Move', etc.)
-        elif any(x in tt for x in ["photo", "swap", "pull down", "pulldown", "takedown", "move", "location", "audit", "refresh"]):
+        # 4. Continuity (Photo, Swap, Pull Down, Move, Location, Audit)
+        elif any(x in tt for x in ["photo", "swap", "pull down", "pulldown", "takedown", "move kiosk", "move", "location", "audit"]):
             stop_metrics[addr]['c_ad'] += 1
 
-        # E. Default
+        # 5. Default
         elif "default" in tt:
             stop_metrics[addr]['d_ad'] += 1
 
-        # F. Everything else falls into 'Other'
+        # 6. Other (Catch-all for Plexi, Decals, Freezer, Floor, etc.)
         else:
             stop_metrics[addr]['oth'] += 1
 
