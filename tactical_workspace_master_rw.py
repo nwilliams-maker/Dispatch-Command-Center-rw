@@ -911,49 +911,63 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if addr not in stop_metrics:
             stop_metrics[addr] = {'t_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 'inst': 0, 'remov': 0, 'digi': 0, 'oth': 0}
         stop_metrics[addr]['t_count'] += 1
-        # Iterate through the tasks inside the cluster to calculate metrics per stop
-    # Iterate through the tasks inside the cluster to calculate metrics per stop
+
+    # 1. Reset metrics for this specific cluster render
+    stop_metrics = {}
     for t in cluster['data']:
         addr = t['full']
-        tt = str(t.get('task_type', '')).lower()
+        if addr not in stop_metrics:
+            stop_metrics[addr] = {'t_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 'digi': 0, 'remov': 0, 'oth': 0}
         
-        # 1. Digital (Keywords from your request)
-        if any(x in tt for x in ["service", "skykit", "digital ins", "offline"]): 
+        stop_metrics[addr]['t_count'] += 1
+        tt = str(t.get('task_type', '')).lower()
+
+        # --- THE STRICT MAPPING ENGINE ---
+        
+        # 1. Digital Service (Service, Offline, INS)
+        if any(x in tt for x in ["digital service", "digital offline", "digital ins", "offline", "ins"]):
             stop_metrics[addr]['digi'] += 1
-        # 2. Kiosk/Install
-        elif any(x in tt for x in ["kiosk install"]): 
-            stop_metrics[addr]['inst'] += 1
-        # 3. Removal
-        elif "removal" in tt: 
+
+        # 2. Kiosk Removal (Remove Kiosk)
+        elif "remove kiosk" in tt or "removal" in tt:
             stop_metrics[addr]['remov'] += 1
-        # 4. Continuity/Maintenance
-        elif any(x in tt for x in ["continuity", "photo", "swap", "refresh", "audit"]): 
+
+        # 3. New Ad (Top, New Ad, Art Change, Ad Install, Billboard Install)
+        elif any(x in tt for x in ["top", "new ad", "art change", "ad install", "billboard install"]):
+            stop_metrics[addr]['n_ad'] += 1
+
+        # 4. Continuity (Photo, Swap, Pull Down, Ad Pulldown, Ad Takedown, Move Kiosk, Location)
+        elif any(x in tt for x in ["photo", "swap", "pull down", "ad pulldown", "ad takedown", "move kiosk", "location"]):
             stop_metrics[addr]['c_ad'] += 1
-        # 5. Defaults
-        elif any(x in tt for x in ["default", "pull down", "strip"]): 
+
+        # 5. Default (Default)
+        elif "default" in tt:
             stop_metrics[addr]['d_ad'] += 1
-        # 6. New Ad (Fallback)
-        elif any(x in tt for x in ["new ad", "art change", "top", "launch"]): 
-            stop_metrics[addr]['n_ad'] += 1
+
+        # 6. Other (Plexiglass, Storage Units, Freezer Door, Floor Decal, or Anything Else)
         else:
-            # Everything else or blank defaults to New Ad
-            stop_metrics[addr]['n_ad'] += 1
-            
-    loc_pills = {} 
+            stop_metrics[addr]['oth'] += 1
+
+    # --- 2. THE UI SUMMARY LINE ---
+    # This builds the string: "Address [1 Tasks] — 🆕 1 New Ad | 🔄 1 Continuity"
     for addr, metrics in stop_metrics.items():
         pill_parts = []
+        if metrics['digi'] > 0: pill_parts.append(f"🔌 {metrics['digi']} Digital Service")
+        if metrics['remov'] > 0: pill_parts.append(f"🛑 {metrics['remov']} Kiosk Removal")
         if metrics['n_ad'] > 0: pill_parts.append(f"🆕 {metrics['n_ad']} New Ad")
         if metrics['c_ad'] > 0: pill_parts.append(f"🔄 {metrics['c_ad']} Continuity")
         if metrics['d_ad'] > 0: pill_parts.append(f"⚪ {metrics['d_ad']} Default")
-        if metrics['inst'] > 0: pill_parts.append(f"🛠️ {metrics['inst']} Kiosk Install")
-        if metrics['remov'] > 0: pill_parts.append(f"🛑 {metrics['remov']} Kiosk Removal")
-        if metrics['digi'] > 0: pill_parts.append(f"🔌 {metrics['digi']} Digital Service")
         if metrics['oth'] > 0: pill_parts.append(f"📦 {metrics['oth']} Other")
-        pill_str = " | ".join(pill_parts)
-        loc_pills[addr] = f"({metrics['t_count']} Tasks) {pill_str}"
-        st.markdown(f"**{addr}** &nbsp;<span style='color: #633094; background-color: #f3e8ff; padding: 2px 6px; border-radius: 10px; font-weight: 800; font-size: 11px;'>{metrics['t_count']} Tasks</span>&nbsp; <span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", unsafe_allow_html=True)
         
-    st.divider()
+        pill_str = " | ".join(pill_parts)
+        
+        st.markdown(
+            f"**{addr}** &nbsp;"
+            f"<span style='color: #633094; background-color: #f3e8ff; padding: 2px 6px; border-radius: 10px; font-weight: 800; font-size: 11px;'>"
+            f"{metrics['t_count']} Tasks</span>"
+            f"&nbsp; <span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", 
+            unsafe_allow_html=True
+        )
 
     # --- 3. CONTRACTOR FILTERING (100 MILES) ---
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
@@ -1183,26 +1197,18 @@ def run_pod_tab(pod_name):
         task_ids = [str(t['id']).strip() for t in c['data']]
         cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
         
-        # --- CALCULATE & ATTACH ICONS TO CLUSTER ---
-        # --- CALCULATE SUMMARY ICONS ---
+        # --- HEADER LOGIC: DIGITAL & ESCALATED ONLY ---
         h_icons = ""
-        combined_tt = " ".join([str(t.get('task_type', '')).lower() for t in c['data']])
         
-        # Icon logic matching the categorization above
-        if any(x in combined_tt for x in ["digital ins", "offline", "service", "skykit"]): 
+        # 1. Digital Icon (Syncs with the engine's digital separation)
+        if c.get('is_digital'): 
             h_icons += " 🔌"
-        if any(x in combined_tt for x in ["install", "kiosk"]): 
-            h_icons += " 🛠️"
-        if any(x in combined_tt for x in ["remove", "removal"]): 
-            h_icons += " 🛑"
-        if any(x in combined_tt for x in ["continuity", "photo", "swap", "refresh"]): 
-            h_icons += " 🔄"
-        if any(x in combined_tt for x in ["new ad", "art change", "top"]): 
-            h_icons += " 🆕"
+            
+        # 2. Escalation Icon (Syncs with the star flag)
         if c.get('esc_count', 0) > 0: 
             h_icons += " ⭐" 
         
-        # Attach it so c['h_icons'] works in the UI
+        # Attach the icons to the cluster for the expander headers
         c['h_icons'] = h_icons
         
         sheet_match = sent_db.get(next((tid for tid in task_ids if tid in sent_db), None))
