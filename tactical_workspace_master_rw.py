@@ -884,6 +884,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 "status": status, "has_ic": has_ic,
                 "esc_count": sum(1 for x in group if x.get('escalated')),
                 "is_digital": anc_is_digital,
+                "inst_count": sum(1 for x in group if "kiosk install" in str(x.get('task_type', '')).lower()), # 🌟 FIX: Added the install counter!
                 "wo": anc_wo
             })
             
@@ -1406,16 +1407,18 @@ def run_pod_tab(pod_name):
                         if est_rate >= 25.0 or closest_ic['d'] > 60: badges = " 🔒" + badges
 
                 esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
-                digi_pill = " 🔌" if c.get('is_digital') else ""  # 🌟 FIX: Just the plug
-                with st.expander(f"{badges} 🟢 {c['city']}, {c['state']} | {c['stops']} Stops{digi_pill}{esc_pill}"):
+                digi_pill = " 🔌" if c.get('is_digital') else ""  
+                inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else "" # 🌟 FIX
+                with st.expander(f"{badges} 🟢 {c['city']}, {c['state']} | {c['stops']} Stops{digi_pill}{inst_pill}{esc_pill}"):
                     render_dispatch(i, c, pod_name)
                     
         with t_flagged:
             if not review: st.info("No flagged tasks requiring review.")
             for i, c in enumerate(review):
                 esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
-                digi_pill = " 🔌" if c.get('is_digital') else ""  # 🌟 FIX: Added the plug
-                with st.expander(f"🔒 🔴 {c['city']}, {c['state']} | {c['stops']} Stops{digi_pill}{esc_pill}"):
+                digi_pill = " 🔌" if c.get('is_digital') else ""  
+                inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else "" # 🌟 FIX
+                with st.expander(f"🔒 🔴 {c['city']}, {c['state']} | {c['stops']} Stops{digi_pill}{inst_pill}{esc_pill}"):
                     render_dispatch(i+1000, c, pod_name)
 
     with col_right:
@@ -1430,6 +1433,8 @@ def run_pod_tab(pod_name):
             for i, c in enumerate(sent):
                 ic_name = c.get('contractor_name', 'Unknown')
                 esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
+                digi_pill = " 🔌" if c.get('is_digital') else ""  
+                inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else ""
                 
                 # Re-calculate hash for the quick-revoke button
                 task_ids = [str(t['id']).strip() for t in c['data']]
@@ -1440,8 +1445,9 @@ def run_pod_tab(pod_name):
                 
                 with exp_col:
                     ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
-                    digi_pill = " 🔌" if c.get('is_digital') else "" # 🌟 FIX: Added the plug
-                    with st.expander(f"✉️ {ic_name} | {c['city']}, {c['state']}{digi_pill}{esc_pill}{ts_suffix}"):
+                    digi_pill = " 🔌" if c.get('is_digital') else ""
+                    inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else ""
+                    with st.expander(f"✉️ {ic_name} | {c['city']}, {c['state']}{digi_pill}{inst_pill}{esc_pill}{ts_suffix}"):
                         render_dispatch(i+500, c, pod_name, is_sent=True)
                         
                 with btn_col:
@@ -1534,6 +1540,8 @@ def run_pod_tab(pod_name):
                 ic_name = c.get('contractor_name', 'Unknown')
                 ts_label = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
                 esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
+                digi_pill = " 🔌" if c.get('is_digital') else ""  
+                inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else ""
                 
                 # Re-calculate hash for the quick-action button
                 task_ids = [str(t['id']).strip() for t in c['data']]
