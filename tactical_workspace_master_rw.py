@@ -912,39 +912,45 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             stop_metrics[addr] = {'t_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 'inst': 0, 'remov': 0, 'digi': 0, 'oth': 0}
         stop_metrics[addr]['t_count'] += 1
 
-    # 1. Reset metrics for this specific cluster render
+    # 1. Initialize metrics (Added 'inst' back to prevent the KeyError)
     stop_metrics = {}
     for t in cluster['data']:
         addr = t['full']
         if addr not in stop_metrics:
-            stop_metrics[addr] = {'t_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 'digi': 0, 'remov': 0, 'oth': 0}
+            stop_metrics[addr] = {
+                't_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 
+                'digi': 0, 'remov': 0, 'oth': 0, 'inst': 0 # 🔌 'inst' restored here
+            }
         
         stop_metrics[addr]['t_count'] += 1
         tt = str(t.get('task_type', '')).lower()
 
         # --- THE STRICT MAPPING ENGINE ---
         
-        # 1. Digital Service (Service, Offline, INS)
+        # 1. Digital Service
         if any(x in tt for x in ["digital service", "digital offline", "digital ins", "offline", "ins"]):
             stop_metrics[addr]['digi'] += 1
 
-        # 2. Kiosk Removal (Remove Kiosk)
+        # 2. Kiosk Removal
         elif "remove kiosk" in tt or "removal" in tt:
             stop_metrics[addr]['remov'] += 1
 
-        # 3. New Ad (Top, New Ad, Art Change, Ad Install, Billboard Install)
+        # 3. New Ad & Installs 
+        # We catch "Install" keywords here to increment both the UI count and the 'inst' total
         elif any(x in tt for x in ["top", "new ad", "art change", "ad install", "billboard install"]):
             stop_metrics[addr]['n_ad'] += 1
+            if "install" in tt:
+                stop_metrics[addr]['inst'] += 1 # 🛠️ This feeds your 'total_installs' variable
 
-        # 4. Continuity (Photo, Swap, Pull Down, Ad Pulldown, Ad Takedown, Move Kiosk, Location)
+        # 4. Continuity
         elif any(x in tt for x in ["photo", "swap", "pull down", "ad pulldown", "ad takedown", "move kiosk", "location"]):
             stop_metrics[addr]['c_ad'] += 1
 
-        # 5. Default (Default)
+        # 5. Default
         elif "default" in tt:
             stop_metrics[addr]['d_ad'] += 1
 
-        # 6. Other (Plexiglass, Storage Units, Freezer Door, Floor Decal, or Anything Else)
+        # 6. Other
         else:
             stop_metrics[addr]['oth'] += 1
 
