@@ -529,12 +529,19 @@ def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", ch
             hist.append(f"{ic_name} ({datetime.now().strftime('%m/%d')} - {action_label})")
             st.session_state[f"history_{new_hash}"] = hist
             
+            # 🌟 FIX: THE ZOMBIE STATE MEMORY WIPE
+            ui_keys_to_kill = [
+                f"sync_{old_hash}", f"tx_{old_hash}_preview", f"last_data_{old_hash}", 
+                f"tx_ver_{old_hash}", f"pay_val_{old_hash}", f"rate_val_{old_hash}", 
+                f"sel_{old_hash}", f"last_sel_{old_hash}", f"dd_{old_hash}"
+            ]
+            for k in ui_keys_to_kill:
+                st.session_state.pop(k, None)
+            
             if old_hash != new_hash:
-                for key in [f"history_{old_hash}", f"reverted_{old_hash}", f"route_state_{old_hash}", f"sync_{old_hash}"]:
+                for key in [f"history_{old_hash}", f"reverted_{old_hash}", f"route_state_{old_hash}"]:
                     st.session_state.pop(key, None)
-            else:
-                st.session_state.pop(f"sync_{old_hash}", None)
-                
+                    
             st.toast(f"✅ Tasks released from {action_label} route and sent to Dispatch.")
             return
 
