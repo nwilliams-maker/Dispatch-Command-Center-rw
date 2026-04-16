@@ -679,8 +679,10 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             update_prog(min(len(all_tasks_raw)/500 * 0.4, 0.4), "📡 Fetching task pages...")
 
         pool = []
-        DROPDOWN_MAP = {"zavtvxcbj5cavxkbluek5ike": "new ad"}
-        fresh_sent_db, _ = fetch_sent_records_from_sheet()
+        # --- THE ID DECODER RING ---
+        DROPDOWN_MAP = {
+            "zavtvxcbj5cavxkbluek5ike": "new ad"
+        }
 
         for t in all_tasks_raw:
             container = t.get('container', {})
@@ -689,98 +691,90 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
 
             addr = t.get('destination', {}).get('address', {})
             stt = normalize_state(addr.get('state', ''))
-            if stt not in config['states']: continue
-
             is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
+            
+            # --- STRICT METADATA ISOLATION ---
             tt_val = ""
             for m in (t.get('metadata') or []):
                 m_id = str(m.get('name') or m.get('label') or '').strip().lower()
                 m_val = str(m.get('value') or '').strip().lower()
+                
+                # Check for ID translation (handles brackets/quotes)
                 for secret_id, real_text in DROPDOWN_MAP.items():
                     if secret_id in m_val: m_val = real_text
+                
+                # Target the Task Type column specifically
                 if any(x in m_id for x in ['task type', 'tasktype', 'type', 'job']):
                     tt_val += f" {m_val}"
+                
                 if 'escalation' in m_id and m_val in ['1', '1.0', 'true', 'yes']:
                     is_esc = True
 
-            if not tt_val.strip(): tt_val = str(t.get('taskDetails', '')).strip().lower()
+            if not tt_val.strip():
+                tt_val = str(t.get('taskDetails', '')).strip().lower()
 
-            db_entry = fresh_sent_db.get(t['id'], {})
-            t_status = db_entry.get('status', 'ready').lower()
-            t_wo = db_entry.get('wo', 'none')
+            fresh_sent_db, _ = fetch_sent_records_from_sheet()
+            t_status, t_wo = 'ready', 'none'
+            if t['id'] in fresh_sent_db:
+                t_status = fresh_sent_db[t['id']].get('status', 'ready').lower()
+                t_wo = fresh_sent_db[t['id']].get('wo', 'none')
 
-            pool.append({
-                "id": t['id'], "city": addr.get('city', 'Unknown'), "state": stt,
-                "full": f"{addr.get('number','')} {addr.get('street','')}, {addr.get('city','')}, {stt}",
-                "lat": t['destination']['location'][1], "lon": t['destination']['location'][0],
-                "escalated": is_esc, "task_type": tt_val.strip(),
-                "db_status": t_status, "wo": t_wo
-            })
+            if stt in config['states']:
+                pool.append({
+                    "id": t['id'], "city": addr.get('city', 'Unknown'), "state": stt,
+                    "full": f"{addr.get('number','')} {addr.get('street','')}, {addr.get('city','')}, {stt}",
+                    "lat": t['destination']['location'][1], "lon": t['destination']['location'][0],
+                    "escalated": is_esc, "task_type": tt_val.strip(),
+                    "db_status": t_status, "wo": t_wo
+                })
 
-        # --- RE-OPTIMIZED CLUSTERING ENGINE ---
+        # --- CLUSTERING ENGINE ---
         clusters = []
-        total_p = len(pool)
+        total_pool = len(pool)
         ic_df = st.session_state.get('ic_df', pd.DataFrame())
         v_ics_base = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].dropna(subset=['Lat', 'Lng']).copy() if not ic_df.empty else pd.DataFrame()
 
         while pool:
-            rel_done = 1 - (len(pool) / total_p if total_p > 0 else 1)
-            update_prog(0.4 + (rel_done * 0.6), f"🗺️ Routing {len(pool)} stops...")
-            
+            rel_prog = 0.4 + (0.6 * (1 - (len(pool) / total_pool if total_pool > 0 else 1)))
+            update_prog(rel_prog, f"🗺️ Routing {len(pool)} remaining tasks...")
             anc = pool.pop(0)
+            
+            # Anchor Header Check
             anc_tt = str(anc.get('task_type', '')).lower()
             anc_is_digital = any(x in anc_tt for x in ["digital", "offline", "ins", "skykit", "service"])
-            anc_status = anc.get('db_status', 'ready')
-            anc_wo = anc.get('wo', 'none')
-            
-            # Radius is 25 for Digital, 50 for Standard
             route_radius = 25 if anc_is_digital else 50
-            
+            anc_status, anc_wo = anc.get('db_status', 'ready'), anc.get('wo', 'none')
+
             candidates, rem = [], []
             for t in pool:
                 t_tt = str(t.get('task_type', '')).lower()
                 t_is_digital = any(x in t_tt for x in ["digital", "offline", "ins", "skykit", "service"])
-                t_status = t.get('db_status', 'ready')
-                t_wo = t.get('wo', 'none')
+                t_status, t_wo = t.get('db_status', 'ready'), t.get('wo', 'none')
 
-                # Rule 1: Type must match (Digital vs Standard)
                 if anc_is_digital == t_is_digital:
-                    # Rule 2: If Sent/Accepted, MUST match Work Order (Frozen grouping)
                     if anc_status in ['sent', 'accepted']:
-                        if t_status == anc_status and t_wo == anc_wo:
-                            candidates.append((0, t)) # 0 distance priority
-                        else:
-                            rem.append(t)
-                    # Rule 3: Ready/Declined use Distance (Liquid grouping)
+                        if t_status == anc_status and t_wo == anc_wo: candidates.append((0, t))
+                        else: rem.append(t)
                     elif anc_status in ['ready', 'declined'] and t_status in ['ready', 'declined']:
                         d = haversine(anc['lat'], anc['lon'], t['lat'], t['lon'])
-                        if d <= route_radius:
-                            candidates.append((d, t))
-                        else:
-                            rem.append(t)
-                    else:
-                        rem.append(t)
-                else:
-                    rem.append(t)
+                        if d <= route_radius: candidates.append((d, t))
+                        else: rem.append(t)
+                    else: rem.append(t)
+                else: rem.append(t)
 
             candidates.sort(key=lambda x: x[0])
             group, unique_stops = [anc], {anc['full']}
             for _, t in candidates:
-                # Rule 4: Limit to 20 unique stops
                 if len(unique_stops) < 20 or t['full'] in unique_stops:
-                    group.append(t)
-                    unique_stops.add(t['full'])
-                else:
-                    rem.append(t)
-            
-            # Viability Check (Gate Pricing)
+                    group.append(t); unique_stops.add(t['full'])
+                else: rem.append(t)
+
             has_ic, closest_ic_loc = False, f"{anc['lat']},{anc['lon']}"
             if not v_ics_base.empty:
                 dists = v_ics_base.apply(lambda x: haversine(anc['lat'], anc['lon'], x['Lat'], x['Lng']), axis=1)
                 valid_ics = v_ics_base[dists <= 100].copy()
                 if not valid_ics.empty:
-                    has_ic = True
-                    best_ic = valid_ics.sort_values(dists[dists <= 100]).iloc[0]
+                    has_ic, best_ic = True, valid_ics.sort_values(dists[dists <= 100]).iloc[0]
                     closest_ic_loc = best_ic['Location']
 
             _, hrs, _ = get_gmaps(closest_ic_loc, list(unique_stops)[:25])
@@ -797,14 +791,11 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 "esc_count": sum(1 for x in group if x.get('escalated')),
                 "is_digital": anc_is_digital, "wo": anc_wo
             })
-
+            
         st.session_state[f"clusters_{pod_name}"] = clusters
-        if not master_bar: 
-            prog_bar.progress(1.0, text=f"✅ {pod_name} Complete!")
-            time.sleep(0.5); prog_bar.empty()
-
+        if not master_bar: prog_bar.empty()
     except Exception as e:
-        st.error(f"Routing Error in {pod_name}: {e}")
+        st.error(f"Error initializing {pod_name}: {str(e)}")
 
 def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     task_ids = [str(t['id']).strip() for t in cluster['data']]
@@ -1071,14 +1062,9 @@ def run_pod_tab(pod_name):
     st.markdown(f"<h2 style='color: {text_color}; text-align:center;'>{pod_name} Pod Dashboard</h2>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # BAR PLACEHOLDER - This makes sure the bar stays at the TOP of the tab
-    bar_space = st.empty()
-    
     if f"clusters_{pod_name}" not in st.session_state:
         if st.button(f"🚀 Initialize {pod_name} Data", key=f"init_{pod_name}"):
-            with bar_space.container():
-                process_pod(pod_name)
-            st.rerun()
+            process_pod(pod_name); st.rerun()
         return
 
     cls = st.session_state[f"clusters_{pod_name}"]
@@ -1196,11 +1182,10 @@ def run_pod_tab(pod_name):
         """, unsafe_allow_html=True)
         
     # --- ACTION BUTTON ---
-    # UPDATED RE-OPTIMIZE BUTTON
+    st.markdown("<br>", unsafe_allow_html=True)
     if st.button("⚙️ Re-Optimize Routes", use_container_width=True, key=f"reopt_{pod_name}"):
-        st.session_state.pop(f"clusters_{pod_name}", None)
-        with bar_space.container(): # Forces the bar into that top empty slot
-            process_pod(pod_name)
+        st.session_state.pop(f"clusters_{pod_name}", None) # Wipes current clusters
+        process_pod(pod_name) # Re-runs Onfleet pull and clustering
         st.rerun()
 
     # --- MAP RENDERING ---
