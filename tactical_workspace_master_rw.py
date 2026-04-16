@@ -664,10 +664,9 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
     prog_bar = master_bar if master_bar else st.progress(0)
     
     def update_prog(rel_val, msg):
-        # Calculate progress and use max/min to keep it strictly between 0.0 and 1.0
-        # This prevents floating point math from pushing it to 1.00001 which crashes Streamlit
-        raw_val = start_pct + (rel_val * pod_weight)
-        global_val = float(max(0.0, min(raw_val, 1.0)))
+        # 🌟 THE FIX: Clamp the value between 0.0 and 1.0 to prevent negative crashes
+        raw_calc = start_pct + (rel_val * pod_weight)
+        global_val = float(max(0.0, min(raw_calc, 1.0)))
         prog_bar.progress(global_val, text=f"[{pod_name}] {msg}")
     try:
         update_prog(0.0, "📥 Extracting tasks...")
@@ -1170,7 +1169,33 @@ def render_mini_summary(pod_name, target_container):
         col2.metric("Sent", sent_count)
         col3.metric("Flagged", flag_count)
         st.markdown("---")
-        
+def render_pod_card(pod_name, slot):
+    """Calculates and renders the supercard for a specific pod into a slot."""
+    if f"clusters_{pod_name}" not in st.session_state:
+        # Show the 'Offline' state if no data exists
+        slot.markdown(f"<div style='border:1px solid #cbd5e1; border-radius:12px; padding:20px; text-align:center; opacity:0.5;'><h3 style='margin:0;'>{pod_name} Pod</h3><p style='color:#94a3b8; font-weight:800;'>OFFLINE</p></div>", unsafe_allow_html=True)
+        return
+
+    cls = st.session_state[f"clusters_{pod_name}"]
+    sent_db, _ = fetch_sent_records_from_sheet()
+    
+    # Simple count logic for the global view
+    ready, sent, flagged = 0, 0, 0
+    for c in cls:
+        task_ids = [str(t['id']).strip() for t in c['data']]
+        if any(tid in sent_db for tid in task_ids): sent += 1
+        elif c.get('status') == 'Ready': ready += 1
+        else: flagged += 1
+
+    # Render the actual live card into the slot
+    with slot.container():
+        st.markdown(f"**{pod_name} Pod**")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Ready", ready)
+        c2.metric("Sent", sent)
+        c3.metric("Flagged", flagged)
+        st.markdown("---")
+      
 def run_pod_tab(pod_name):
     # Grab the contractor database from session state
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
@@ -1625,15 +1650,35 @@ with tabs[0]:
             render_mini_summary(p, summary_slots[p])
 
     # 3. Live Sync Logic
+    # 1. Create a placeholder slot for every pod
+    pod_keys = list(POD_CONFIGS.keys())
+    slots = {p: st.empty() for p in pod_keys}
+
+    # 2. Fill slots with whatever data currently exists (or 'Offline' cards)
+    if not st.session_state.get("trigger_pull"):
+        for p in pod_keys:
+            render_pod_card(p, slots[p])
+
+    # 3. The Live Syncing Loop
+    # 1. Create a placeholder slot for every pod
+    pod_keys = list(POD_CONFIGS.keys())
+    slots = {p: st.empty() for p in pod_keys}
+
+    # 2. Fill slots with whatever data currently exists (or 'Offline' cards)
+    if not st.session_state.get("trigger_pull"):
+        for p in pod_keys:
+            render_pod_card(p, slots[p])
+
+    # 3. The Live Syncing Loop
     if st.session_state.get("trigger_pull"):
-        p_bar = loading_slot.progress(0, text="🎬 Initializing Global Sync...")
+        p_bar = loading_slot.progress(0.0, text="🎬 Initializing Global Sync...")
         
         for idx, p in enumerate(pod_keys):
             # Sync the pod
             process_pod(p, master_bar=p_bar, pod_idx=idx, total_pods=len(pod_keys))
             
-            # 🌟 PUSH DATA TO SLOT IMMEDIATELY 🌟
-            render_mini_summary(p, summary_slots[p])
+            # 🌟 LIVE UPDATE: Push the new data to the card as soon as the pod finishes
+            render_pod_card(p, slots[p])
         
         p_bar.progress(1.0, text="✅ Global Sync Complete!")
         import time
