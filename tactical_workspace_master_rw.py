@@ -733,14 +733,6 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             # Clean up the final string
             t_tt_final = tt_val.strip().lower()
                 
-                # Catch Skykit ANYWHERE in the metadata
-            if 'skykit' in m_val_lower or 'service' in m_val_lower:
-                    tt_val += " skykit " 
-            
-            # 2. Catch Skykit hiding in the raw Onfleet Notes
-            if 'skykit' in str(t.get('notes', '')).lower():
-                tt_val += " skykit "
-                
             # --- FIXED: Always pull fresh data before clustering ---
             t_status = 'ready'
             t_wo = 'none'
