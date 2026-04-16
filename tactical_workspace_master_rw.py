@@ -715,7 +715,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             final_sponge = raw_text.strip()
                 
                 # Check for escalation while we are in here
-                if 'escalation' in m_name and m_val in ['1', '1.0', 'true', 'yes']:
+            if 'escalation' in m_name and m_val in ['1', '1.0', 'true', 'yes']:
                     is_esc = True
 
             # --- DATABASE SYNC ---
