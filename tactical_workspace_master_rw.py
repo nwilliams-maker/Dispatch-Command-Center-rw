@@ -1067,8 +1067,10 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         full_addr = stop.get('full', 'Unknown Address')
         stops_text += f"📍 Stop {i}: {full_addr}\n"
 
-    # Calculate total kiosk installs across the whole route
+    # Calculate total kiosk installs and digital tasks across the whole route
     total_installs = sum(metrics['inst'] for metrics in stop_metrics.values())
+    total_digital = sum(metrics['digi'] for metrics in stop_metrics.values()) # 🌟 FIX: Calculate Digital Total
+    
     install_warning = "⚠️ Please Note: This route contains kiosk install(s) which will require heavy lifting of up to 50lbs.\n\n" if total_installs > 0 else ""
 
     # --- DYNAMIC EMAIL PREVIEW (Upgraded with Smart WO & Bulletproof Refresh) ---
@@ -1090,6 +1092,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         f"📅 Due Date: {due.strftime('%A, %b %d, %Y')}\n"
         f" Total Stops: {cluster['stops']}\n"
         f" Estimated Compensation: ${final_pay:.2f}\n"
+        f" 🔌 Digital Tasks: {total_digital}\n\n"  # 🌟 FIX: Added to the summary!
         f"{install_warning}"
         f"To view the complete route details—including total stops, estimated mileage, and time—please click the secure link below to access your Route Summary.\n\n"
         f"⚠️ ACTION REQUIRED:\n"
