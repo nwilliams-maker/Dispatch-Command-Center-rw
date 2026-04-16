@@ -715,21 +715,6 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             url = f"https://onfleet.com/api/v2/tasks/all?state=0&from={int(time.time()*1000)-(80*24*3600*1000)}&lastId={res_json['lastId']}" if res_json.get('lastId') else None
             update_prog(min(len(all_tasks_raw)/500 * 0.4, 0.4), "📡 Fetching task pages...")
 
-        # --- 🚨 FIXED RAW DATA DUMP 🚨 ---
-        # This appears ONLY ONCE after all tasks are pulled.
-        if all_tasks_raw:
-            with st.expander("🛠️ API DEBUGGER: Download Raw Data"):
-                st.info("Download this file and open it in Notepad to find the 'Task Type' field name.")
-                # We take the first 10 tasks to keep the file size small
-                debug_data = json.dumps(all_tasks_raw[:10], indent=4)
-                st.download_button(
-                    label="📥 DOWNLOAD RAW ONFLEET DATA",
-                    data=debug_data,
-                    file_name="raw_onfleet_dump.json",
-                    mime="application/json"
-                )
-        # ---------------------------------
-
         unique_tasks_dict = {t['id']: t for t in all_tasks_raw}
         all_tasks = list(unique_tasks_dict.values())
         
@@ -789,8 +774,6 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                     "escalated": is_esc, "task_type": tt_val,
                     "db_status": t_status, 
                     "wo": t_wo,
-                    "raw_meta": t.get('metadata', []), # 🌟 FIX: Save raw metadata for the Inspector
-                    "raw_notes": t.get('notes', '')    # 🌟 FIX: Save raw notes for the Inspector
                 })
         
         clusters = []
@@ -1236,31 +1219,7 @@ def run_pod_tab(pod_name):
             process_pod(pod_name)
             st.rerun()
         return
-
-    # 🌟 NEW: THE DEEP DATA INSPECTOR
-    cls = st.session_state[f"clusters_{pod_name}"]
-    
-    with st.expander("🕵️‍♂️ Task Data Inspector (Raw Onfleet X-Ray)"):
-        tab1, tab2 = st.tabs(["Table View", "Deep JSON X-Ray"])
         
-        with tab1:
-            st.info("Metadata fields only appear as columns if Onfleet sends them. Currently, Metadata appears to be EMPTY.")
-            debug_rows = []
-            for c in cls:
-                for t in c['data']:
-                    row = {"Address": t.get('full', ''), "Assigned Type": t.get('task_type', ''), "Raw Notes": t.get('raw_notes', '')}
-                    for m in t.get('raw_meta', []):
-                        row[f"META: {m.get('name', 'Unknown')}"] = m.get('value', '')
-                    debug_rows.append(row)
-            if debug_rows:
-                st.dataframe(pd.DataFrame(debug_rows), use_container_width=True)
-
-        with tab2:
-            st.warning("This shows EVERYTHING the Onfleet API is sending for the very first task. Use this to find 'Task Type'.")
-            if cls and cls[0]['data']:
-                # We pull the first task to see the structure
-                first_task_raw = cls[0]['data'][0]
-                st.json(first_task_raw)
     # Load cluster data
     cls = st.session_state[f"clusters_{pod_name}"]
 
