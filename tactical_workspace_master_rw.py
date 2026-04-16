@@ -622,6 +622,10 @@ def fetch_sent_records_from_sheet():
                                         break
                                 
                                 if pod_name != "UNKNOWN":
+                                    # 🌟 FIX: Calculate the hash so the checklist can finalize this route
+                                    clean_tids = [str(t).strip() for t in tids if str(t).strip()]
+                                    ghost_hash = hashlib.md5("".join(sorted(clean_tids)).encode()).hexdigest()
+
                                     ghost_routes[pod_name].append({
                                         "contractor_name": c_name,
                                         "route_ts": ts_display,
@@ -630,7 +634,8 @@ def fetch_sent_records_from_sheet():
                                         "stops": p.get('lCnt', 0),
                                         "tasks": p.get('tCnt', len(tids)),
                                         "pay": p.get('comp', 0),
-                                        "wo": p.get('wo', c_name)
+                                        "wo": p.get('wo', c_name),
+                                        "hash": ghost_hash # Pass the hash to the UI
                                     })
                                     
                         except: continue
@@ -1446,6 +1451,7 @@ def run_pod_tab(pod_name):
             for i, g in enumerate(pod_ghosts):
                 wo_display = g.get('wo', g.get('contractor_name', 'Unknown'))
                 ts_suffix = f" | {g.get('route_ts', '')}"
+                ghost_hash = g.get('hash', f"ghost_{i}") # Grab the hash we created
                 
                 with st.expander(f"✅ {wo_display} | {g.get('city', 'Unknown')}, {g.get('state', 'Unknown')}{ts_suffix}"):
                     st.success("Route accepted and tasks successfully assigned in OnFleet.")
@@ -1459,6 +1465,17 @@ def run_pod_tab(pod_name):
                             </div>
                         </div>
                     """, unsafe_allow_html=True)
+                    
+                    # 🌟 FIX: Inject Operational Readiness Checklist for Ghost Routes
+                    st.divider()
+                    st.markdown("<p style='font-weight:800; color:#16a34a;'>📋 Operational Readiness</p>", unsafe_allow_html=True)
+                    
+                    s1 = st.checkbox("1. **Onfleet**: Optimized route?", key=f"g_s1_{ghost_hash}")
+                    s2 = st.checkbox("2. **Plan**: Fields & Backend Dispatch?", key=f"g_s2_{ghost_hash}", disabled=not s1)
+                    
+                    if st.checkbox("3. **Pack**: Packing list uploaded?", key=f"g_s3_{ghost_hash}", disabled=not s2):
+                        finalize_route_handler(ghost_hash)
+                        st.rerun()
                     
         with t_dec:
             if not declined: st.info("No declined routes.")
