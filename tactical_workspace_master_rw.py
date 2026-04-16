@@ -802,13 +802,19 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             candidates.sort(key=lambda x: x[0])
             
             group, u_stops = [anc], {anc['full']}
+            spillover = [] # 👈 This defines the missing variable
+            
             for _, t in candidates:
                 # Rule 4: Limit to 20 unique stops
                 if len(u_stops) < 20 or t['full'] in u_stops:
                     group.append(t)
                     u_stops.add(t['full'])
                 else:
-                    rem.append(t)
+                    # Collect tasks that exceeded the 20-stop limit
+                    spillover.append(t)
+            
+            # Put the spillover tasks back into the main pool for the next route
+            rem.extend(spillover)
             
             # Put the spillover tasks back into the main pool
             rem.extend(spillover)
