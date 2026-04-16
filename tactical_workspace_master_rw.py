@@ -1051,16 +1051,18 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     total_installs = sum(metrics['inst'] for metrics in stop_metrics.values())
     install_warning = "⚠️ Please Note: This route contains kiosk install(s) which will require heavy lifting of up to 50lbs.\n\n" if total_installs > 0 else ""
 
-    # --- DYNAMIC EMAIL PREVIEW (Upgraded Flow) ---
+    # --- DYNAMIC EMAIL PREVIEW (Fixed to Capture Edits) ---
     due = st.session_state.get(f"dd_{cluster_hash}", datetime.now().date()+timedelta(14))
-    wo_val = f"{ic['Name']} - {datetime.now().strftime('%m%d%Y')}"
+    
+    # Use existing Work Order if available, otherwise generate new
+    wo_val = cluster.get('wo') if cluster.get('wo') != 'none' else f"{ic['Name']} - {datetime.now().strftime('%m%d%Y')}"
     
     sig_preview = (
         f"Hello {ic['Name']},\n\n"
         f"We have a new route available for you to review.\n\n"
         f" Work Order: {wo_val}\n"
         f"📅 Due Date: {due.strftime('%A, %b %d, %Y')}\n"
-        f" Total Stops: {cluster['stops']}\n" # ⬅️ NEW LINE ADDED HERE
+        f" Total Stops: {cluster['stops']}\n"
         f" Estimated Compensation: ${final_pay:.2f}\n"
         f" Kiosk Installs: {total_installs}\n\n"
         f"{install_warning}"
@@ -1068,60 +1070,63 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         f"⚠️ ACTION REQUIRED:\n"
         f"You must confirm by selecting 'Accept' or 'Decline' directly through the portal link. Your response updates our dispatch board in real-time so we can finalize the schedule.\n\n"
         f"In order to accept/decline a route you must follow the LINK and simply submit your response via the weblink:\n"
-        f"{PORTAL_BASE_URL}?route={link_id}&v2=true"
+        f"{PORTAL_BASE_URL}?route=LINK_PENDING&v2=true"
     )
     
-    # This forces Streamlit to wipe the old text and inject the fresh math/dates instantly
     tx_key = f"tx_{cluster_hash}_preview"
-    st.session_state[tx_key] = sig_preview 
     
-    st.text_area("Email Content Preview", height=180, key=tx_key, disabled=not is_unlocked)
+    # Only reset the text area if the Contractor, Price, or Date actually changes
+    last_data_key = f"last_data_{cluster_hash}"
+    current_data_fingerprint = f"{ic['Name']}_{final_pay}_{due}"
+    
+    if st.session_state.get(last_data_key) != current_data_fingerprint:
+        st.session_state[tx_key] = sig_preview
+        st.session_state[last_data_key] = current_data_fingerprint
+    
+    # Render the text area (this captures your manual typing)
+    email_body_content = st.text_area("Email Content Preview", height=180, key=tx_key, disabled=not is_unlocked)
 
     # --- 7. BUTTON LAYOUT ---
-    btn_label = "🚀 GENERATE LINK & OPEN GMAIL" if (not real_id or is_declined) else "🚀 OPEN IN GMAIL (RESEND)"
+    btn_label = "🚀 GENERATE LINK & OPEN GMAIL"
 
     with st.container():
         if st.button(btn_label, type="primary", key=f"gbtn_{cluster_hash}", disabled=not is_unlocked, use_container_width=True):
-            final_route_id = real_id
-            with st.spinner("Generating secure link..."):
-                if not final_route_id or is_declined:
-                    home = ic['Location']
-                    payload = {
-                        "icn": ic['Name'], "ice": ic['Email'], "wo": wo_val, 
-                        "due": str(due), "comp": final_pay, "lCnt": cluster['stops'], "mi": mi, "time": t_str, "phone": str(ic['Phone']),
-                        "locs": " | ".join([home] + list(stop_metrics.keys()) + [home]),
-                        "taskIds": ",".join(task_ids),
-                        "tCnt": len(task_ids),
-                        "jobOnly": " | ".join([f"{a} {pill}" for a, pill in loc_pills.items()])
-                    }
-                    res = requests.post(GAS_WEB_APP_URL, json={"action": "saveRoute", "payload": payload}).json()
-                    if res.get("success"):
-                        final_route_id = res.get("routeId")
-                        st.session_state[sync_key] = final_route_id
-                    else:
-                        st.error("Failed to generate link."); st.stop()
+            with st.spinner("Syncing latest data & generating link..."):
+                # ALWAYS save the route to ensure the latest Comp/Due Date is in the Database
+                home = ic['Location']
+                payload = {
+                    "icn": ic['Name'], "ice": ic['Email'], "wo": wo_val, 
+                    "due": str(due), "comp": final_pay, "lCnt": cluster['stops'], "mi": mi, "time": t_str, "phone": str(ic['Phone']),
+                    "locs": " | ".join([home] + list(stop_metrics.keys()) + [home]),
+                    "taskIds": ",".join(task_ids),
+                    "tCnt": len(task_ids),
+                    "jobOnly": " | ".join([f"{a} {pill}" for a, pill in loc_pills.items()])
+                }
+                res = requests.post(GAS_WEB_APP_URL, json={"action": "saveRoute", "payload": payload}).json()
+                
+                if res.get("success"):
+                    final_route_id = res.get("routeId")
+                    st.session_state[sync_key] = final_route_id
+                else:
+                    st.error("Failed to sync data to link database."); st.stop()
 
-            # Build final signature with final_route_id
-            final_sig = sig_preview.replace("LINK_PENDING", final_route_id)
+            # 🌟 THE CRITICAL FIX: Use 'email_body_content' so your edits are preserved!
+            final_sig = email_body_content.replace("LINK_PENDING", final_route_id)
             
-            # Upgraded Subject Line using your format
             subject_line = f"Route Request | {wo_val}"
-            
             gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={ic['Email']}&su={requests.utils.quote(subject_line)}&body={requests.utils.quote(final_sig)}"
             
+            # Open Gmail in a new tab
             st.components.v1.html(f"<script>window.open('{gmail_url}', '_blank');</script>", height=0)
             
-            # State updates for UI
-            now_ts = datetime.now().strftime('%m/%d %I:%M %p')
-            st.session_state[f"sent_ts_{cluster_hash}"] = now_ts
+            # Update UI state
+            st.session_state[f"sent_ts_{cluster_hash}"] = datetime.now().strftime('%m/%d %I:%M %p')
             st.session_state[f"contractor_{cluster_hash}"] = ic['Name']
             st.session_state[f"route_state_{cluster_hash}"] = "email_sent"
-            st.session_state[f"reverted_{cluster_hash}"] = False # Clear the revert flag since it's sent again
+            st.session_state[f"reverted_{cluster_hash}"] = False
             
-            timer_placeholder = st.empty()
-            for sec in range(10, 0, -1):
-                timer_placeholder.success(f"✅ Link Generated! Moving card in {sec}s...")
-                time.sleep(1)
+            st.toast("✅ Link Updated & Gmail Opened!")
+            time.sleep(1)
             st.rerun()
             
 def run_pod_tab(pod_name):
