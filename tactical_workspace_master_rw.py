@@ -859,12 +859,14 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             
             pool = rem
             clusters.append({
-                "data": group, "center": [anc['lat'], anc['lon']], 
-                "stops": len(set(x['full'] for x in group)), 
-                "city": anc['city'], "state": anc['state'],
-                "status": status, "has_ic": has_ic,
-                "esc_count": sum(1 for x in group if x.get('escalated')),
-                "is_digital": anc_is_digital,
+                "data": group, 
+                "center": [anc['lat'], anc['lon']], 
+                "stops": len(u_stops),
+                "city": anc['city'], 
+                "state": anc['state'], 
+                "status": anc_status.capitalize() if anc_status in ['sent', 'accepted'] else "Ready",
+                "esc_count": sum(1 for x in group if x.get('escalated')), # Captures the Star
+                "is_digital": anc_is_digital,                            # Captures the Plug
                 "wo": anc_wo
             })
             
@@ -1179,18 +1181,13 @@ def run_pod_tab(pod_name):
         task_ids = [str(t['id']).strip() for t in c['data']]
         cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
         
-        # --- HEADER LOGIC: DIGITAL & ESCALATED ONLY ---
+        # --- HEADER ICONS (DIGITAL & ESCALATED ONLY) ---
         h_icons = ""
-        
-        # 1. Digital Icon (Syncs with the engine's digital separation)
         if c.get('is_digital'): 
             h_icons += " 🔌"
-            
-        # 2. Escalation Icon (Syncs with the star flag)
         if c.get('esc_count', 0) > 0: 
             h_icons += " ⭐" 
         
-        # Attach the icons to the cluster for the expander headers
         c['h_icons'] = h_icons
         
         sheet_match = sent_db.get(next((tid for tid in task_ids if tid in sent_db), None))
