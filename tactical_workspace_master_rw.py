@@ -703,12 +703,21 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             
             # --- STRICT 'TASK TYPE' ONLY EXTRACTION ---
             tt_val = ""
+            # --- THE ID TRANSLATOR & SUPER SPONGE ---
+            # Onfleet custom dropdowns send internal IDs instead of text. We translate them here!
+            DROPDOWN_MAP = {
+                "zavtvxcbj5cavxkbluek5ike": "new ad",
+                # As you see other gibberish IDs in the app, add them here!
+                # Example: "abc123xyz": "continuity",
+            }
             is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
             
             for m in (t.get('metadata') or []):
                 m_id = str(m.get('name') or m.get('label') or '').strip().lower()
                 m_val = str(m.get('value') or '').strip().lower()
-                
+                # 🌟 TRANSLATE THE DROPDOWN ID TO REAL TEXT 🌟
+                if m_val in DROPDOWN_MAP:
+                    m_val = DROPDOWN_MAP[m_val]
                 # 1. ONLY extract the text if the column is actually called "Task Type"
                 if m_id in ['task type', 'tasktype', 'type', 'job type']:
                     tt_val = m_val
