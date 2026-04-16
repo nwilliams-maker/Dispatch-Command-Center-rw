@@ -1169,32 +1169,71 @@ def render_mini_summary(pod_name, target_container):
         col2.metric("Sent", sent_count)
         col3.metric("Flagged", flag_count)
         st.markdown("---")
+        
 def render_pod_card(pod_name, slot):
-    """Calculates and renders the supercard for a specific pod into a slot."""
+    """Calculates metrics and renders the data directly into the custom supercard HTML."""
+    # Define colors to match your UI
+    colors = {
+        "Blue": {"border": "#3b82f6", "bg": "#eff6ff", "text": "#1e3a8a"},
+        "Green": {"border": "#22c55e", "bg": "#f0fdf4", "text": "#14532d"},
+        "Orange": {"border": "#f97316", "bg": "#fff7ed", "text": "#7c2d12"},
+        "Purple": {"border": "#a855f7", "bg": "#faf5ff", "text": "#581c87"},
+        "Red": {"border": "#ef4444", "bg": "#fef2f2", "text": "#7f1d1d"}
+    }.get(pod_name, {"border": "#cbd5e1", "bg": "#ffffff", "text": "#1e293b"})
+
     if f"clusters_{pod_name}" not in st.session_state:
-        # Show the 'Offline' state if no data exists
-        slot.markdown(f"<div style='border:1px solid #cbd5e1; border-radius:12px; padding:20px; text-align:center; opacity:0.5;'><h3 style='margin:0;'>{pod_name} Pod</h3><p style='color:#94a3b8; font-weight:800;'>OFFLINE</p></div>", unsafe_allow_html=True)
+        # RENDER OFFLINE STATE
+        slot.markdown(f"""
+            <div style='border: 2px solid {colors["border"]}; border-radius: 20px; padding: 25px; text-align: center; background-color: {colors["bg"]}; opacity: 0.6; min-height: 200px; display: flex; flex-direction: column; justify-content: center;'>
+                <h3 style='margin: 0; color: {colors["text"]};'>{pod_name} Pod</h3>
+                <p style='color: {colors["text"]}; font-weight: 800; font-size: 1.2rem; margin-top: 15px;'>OFFLINE</p>
+            </div>
+        """, unsafe_allow_html=True)
         return
 
+    # --- CALCULATION LOGIC ---
     cls = st.session_state[f"clusters_{pod_name}"]
     sent_db, _ = fetch_sent_records_from_sheet()
     
-    # Simple count logic for the global view
-    ready, sent, flagged = 0, 0, 0
+    total_tasks = sum(len(c['data']) for c in cls)
+    total_stops = sum(c['stops'] for c in cls)
+    sent_routes = 0
+    accepted = 0
+    declined = 0
+    
     for c in cls:
         task_ids = [str(t['id']).strip() for t in c['data']]
-        if any(tid in sent_db for tid in task_ids): sent += 1
-        elif c.get('status') == 'Ready': ready += 1
-        else: flagged += 1
+        match = sent_db.get(next((tid for tid in task_ids if tid in sent_db), None))
+        if match:
+            sent_routes += 1
+            stt = str(match.get('status', '')).lower()
+            if stt == 'accepted': accepted += 1
+            elif stt == 'declined': declined += 1
 
-    # Render the actual live card into the slot
-    with slot.container():
-        st.markdown(f"**{pod_name} Pod**")
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Ready", ready)
-        c2.metric("Sent", sent)
-        c3.metric("Flagged", flagged)
-        st.markdown("---")
+    # --- RENDER LIVE STATE ---
+    # This HTML mimics your 'Blue Pod' supercard layout exactly
+    slot.markdown(f"""
+        <div style='border: 3px solid {colors["border"]}; border-radius: 20px; padding: 15px; text-align: center; background-color: {colors["bg"]}; min-height: 200px;'>
+            <h3 style='margin: 0; color: {colors["text"]}; font-size: 1.1rem;'>{pod_name} Pod</h3>
+            <div style='margin: 10px 0;'>
+                <span style='font-size: 1.8rem; font-weight: 900; color: {colors["text"]};'>{sent_routes} / {len(cls)}</span>
+                <p style='margin: 0; font-size: 0.7rem; font-weight: 700; color: {colors["text"]}; text-transform: uppercase;'>Routes Sent</p>
+                <p style='margin: 5px 0 0 0; font-size: 0.6rem; font-weight: 800; color: {colors["text"]}; opacity: 0.8;'>{accepted} ACCEPTED | {declined} DECLINED</p>
+            </div>
+            <hr style='margin: 10px 0; border: 0; border-top: 1px solid {colors["border"]}; opacity: 0.3;'>
+            <div style='display: flex; justify-content: space-around;'>
+                <div>
+                    <p style='margin: 0; font-size: 0.6rem; font-weight: 800; color: {colors["text"]}; opacity: 0.6;'>TASKS</p>
+                    <p style='margin: 0; font-size: 1.1rem; font-weight: 800; color: {colors["text"]};'>{total_tasks}</p>
+                </div>
+                <div style='border-left: 1px solid {colors["border"]}; opacity: 0.2;'></div>
+                <div>
+                    <p style='margin: 0; font-size: 0.6rem; font-weight: 800; color: {colors["text"]}; opacity: 0.6;'>STOPS</p>
+                    <p style='margin: 0; font-size: 1.1rem; font-weight: 800; color: {colors["text"]};'>{total_stops}</p>
+                </div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
       
 def run_pod_tab(pod_name):
     # Grab the contractor database from session state
@@ -1640,10 +1679,15 @@ with tabs[0]:
 """, unsafe_allow_html=True)
             
     # --- 3. THE LOADING ZONE ---
-    # 1. Prepare slots for each pod
+    # 1. Create 5 columns to hold the supercards
     pod_keys = list(POD_CONFIGS.keys())
-    summary_slots = {p: st.empty() for p in pod_keys}
-
+    cols = st.columns(len(pod_keys))
+    
+    # 2. Map each pod to an empty slot inside its column
+    slots = {}
+    for i, p in enumerate(pod_keys):
+        with cols[i]:
+            slots[p] = st.empty()
     # 2. If not currently pulling, show current data
     if not st.session_state.get("trigger_pull"):
         for p in pod_keys:
