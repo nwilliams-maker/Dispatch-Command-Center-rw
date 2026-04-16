@@ -801,19 +801,14 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             
             candidates.sort(key=lambda x: x[0])
             
-            # --- PRESERVED: 20 STOP LIMIT LOGIC ---
-            group = [anc]
-            unique_stops = {anc['full']}
-            spillover = []
-            
+            group, u_stops = [anc], {anc['full']}
             for _, t in candidates:
-                # Only add the task if we're under 20 stops OR the task is at an address we already have
-                if len(unique_stops) < 20 or t['full'] in unique_stops:
+                # Rule 4: Limit to 20 unique stops
+                if len(u_stops) < 20 or t['full'] in u_stops:
                     group.append(t)
-                    unique_stops.add(t['full'])
+                    u_stops.add(t['full'])
                 else:
-                    # If the route is "full" at 20 stops, save this for the next route
-                    spillover.append(t)
+                    rem.append(t)
             
             # Put the spillover tasks back into the main pool
             rem.extend(spillover)
