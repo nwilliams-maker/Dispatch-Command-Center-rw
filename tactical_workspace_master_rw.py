@@ -1496,10 +1496,11 @@ def run_pod_tab(pod_name):
                     st.divider()
                     st.markdown("<p style='font-weight:800; color:#16a34a;'>📋 Operational Readiness</p>", unsafe_allow_html=True)
                     
-                    s1 = st.checkbox("1. **Onfleet**: Optimized route?", key=f"g_s1_{ghost_hash}")
-                    s2 = st.checkbox("2. **Plan**: Fields & Backend Dispatch?", key=f"g_s2_{ghost_hash}", disabled=not s1)
+                    # Added '_{i}' to the end of each key to guarantee they are 100% unique!
+                    s1 = st.checkbox("1. **Onfleet**: Optimized route?", key=f"g_s1_{ghost_hash}_{i}")
+                    s2 = st.checkbox("2. **Plan**: Fields & Backend Dispatch?", key=f"g_s2_{ghost_hash}_{i}", disabled=not s1)
                     
-                    if st.checkbox("3. **Pack**: Packing list uploaded?", key=f"g_s3_{ghost_hash}", disabled=not s2):
+                    if st.checkbox("3. **Pack**: Packing list uploaded?", key=f"g_s3_{ghost_hash}_{i}", disabled=not s2):
                         finalize_route_handler(ghost_hash)
                         st.rerun()
                     
