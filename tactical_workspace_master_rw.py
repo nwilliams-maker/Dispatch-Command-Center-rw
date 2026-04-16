@@ -655,17 +655,26 @@ def load_ic_database(sheet_url):
 # --- CORE LOGIC ---
 def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
     config = POD_CONFIGS[pod_name]
+    
+    # Logic to handle if we are doing a single pod or a global pull
     pod_weight = 1.0 / total_pods
     start_pct = pod_idx * pod_weight
+    
+    # Use the master bar if provided, otherwise create a local one
     prog_bar = master_bar if master_bar else st.progress(0)
     
     def update_prog(rel_val, msg):
+        # Maps a 0.0-1.0 internal progress to the global start/end points
         global_val = min(start_pct + (rel_val * pod_weight), 0.99)
         prog_bar.progress(global_val, text=f"[{pod_name}] {msg}")
 
     try:
         update_prog(0.0, "📥 Extracting tasks...")
-        APPROVED_TEAMS = ["a - escalation", "b - boosted campaigns", "b - local campaigns", "c - priority nationals", "cvs kiosk removal", "n - national campaigns"]
+        APPROVED_TEAMS = [
+            "a - escalation", "b - boosted campaigns", "b - local campaigns", 
+            "c - priority nationals", "cvs kiosk removal", "n - national campaigns"
+        ]
+
         teams_res = requests.get("https://onfleet.com/api/v2/teams", headers=headers).json()
         target_team_ids = [t['id'] for t in teams_res if any(appr in str(t.get('name', '')).lower() for appr in APPROVED_TEAMS)]
         esc_team_ids = [t['id'] for t in teams_res if 'escalation' in str(t.get('name', '')).lower()]
@@ -676,15 +685,14 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             res = requests.get(url, headers=headers).json()
             all_tasks_raw.extend(res.get('tasks', []))
             url = f"https://onfleet.com/api/v2/tasks/all?state=0&from={int(time.time()*1000)-(80*24*3600*1000)}&lastId={res['lastId']}" if res.get('lastId') else None
+            # Update extraction progress (max 40% of this pod's slice)
             update_prog(min(len(all_tasks_raw)/500 * 0.4, 0.4), "📡 Fetching task pages...")
 
-        pool = []
-        # --- THE ID DECODER RING ---
-        DROPDOWN_MAP = {
-            "zavtvxcbj5cavxkbluek5ike": "new ad"
-        }
+        unique_tasks_dict = {t['id']: t for t in all_tasks_raw}
+        all_tasks = list(unique_tasks_dict.values())
 
-        for t in all_tasks_raw:
+        pool = []
+        for t in all_tasks:
             container = t.get('container', {})
             c_type = str(container.get('type', '')).upper()
             if c_type == 'TEAM' and container.get('team') not in target_team_ids: continue
@@ -693,107 +701,180 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             stt = normalize_state(addr.get('state', ''))
             is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
             
-            # --- STRICT METADATA ISOLATION ---
+            # --- STRICT 'TASK TYPE' ONLY EXTRACTION ---
             tt_val = ""
+            is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
+            
             for m in (t.get('metadata') or []):
                 m_id = str(m.get('name') or m.get('label') or '').strip().lower()
                 m_val = str(m.get('value') or '').strip().lower()
                 
-                # Check for ID translation (handles brackets/quotes)
-                for secret_id, real_text in DROPDOWN_MAP.items():
-                    if secret_id in m_val: m_val = real_text
+                # 1. ONLY extract the text if the column is actually called "Task Type"
+                if m_id in ['task type', 'tasktype', 'type', 'job type']:
+                    tt_val = m_val
                 
-                # Target the Task Type column specifically
-                if any(x in m_id for x in ['task type', 'tasktype', 'type', 'job']):
-                    tt_val += f" {m_val}"
-                
+                # 2. Still check for Escalation
                 if 'escalation' in m_id and m_val in ['1', '1.0', 'true', 'yes']:
                     is_esc = True
-
-            if not tt_val.strip():
+            
+            # If the custom Task Type column was blank, check Onfleet's native Task Details just in case
+            if not tt_val:
                 tt_val = str(t.get('taskDetails', '')).strip().lower()
+                
+            # This is the single, isolated string
+            final_sponge = tt_val.strip()
 
+            # (Ensure final_sponge is assigned in your pool.append below)
+            # "task_type": final_sponge
+            
+            # --- DATABASE SYNC ---
             fresh_sent_db, _ = fetch_sent_records_from_sheet()
-            t_status, t_wo = 'ready', 'none'
+            t_status = 'ready'
+            t_wo = 'none'
             if t['id'] in fresh_sent_db:
                 t_status = fresh_sent_db[t['id']].get('status', 'ready').lower()
                 t_wo = fresh_sent_db[t['id']].get('wo', 'none')
 
             if stt in config['states']:
                 pool.append({
-                    "id": t['id'], "city": addr.get('city', 'Unknown'), "state": stt,
+                    "id": t['id'], 
+                    "city": addr.get('city', 'Unknown'), 
+                    "state": stt,
                     "full": f"{addr.get('number','')} {addr.get('street','')}, {addr.get('city','')}, {stt}",
-                    "lat": t['destination']['location'][1], "lon": t['destination']['location'][0],
-                    "escalated": is_esc, "task_type": tt_val.strip(),
-                    "db_status": t_status, "wo": t_wo
+                    "lat": t['destination']['location'][1], 
+                    "lon": t['destination']['location'][0],
+                    "escalated": is_esc, 
+                    "task_type": final_sponge, # 👈 THIS VARIABLE NAME MUST MATCH
+                    "db_status": t_status, 
+                    "wo": t_wo
                 })
-
-        # --- CLUSTERING ENGINE ---
+        
         clusters = []
         total_pool = len(pool)
         ic_df = st.session_state.get('ic_df', pd.DataFrame())
         v_ics_base = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].dropna(subset=['Lat', 'Lng']).copy() if not ic_df.empty else pd.DataFrame()
 
         while pool:
+            # Routing progress calculation
             rel_prog = 0.4 + (0.6 * (1 - (len(pool) / total_pool if total_pool > 0 else 1)))
             update_prog(rel_prog, f"🗺️ Routing {len(pool)} remaining tasks...")
+            
             anc = pool.pop(0)
             
-            # Anchor Header Check
+            # --- NEW: Strict Digital Separation & Dynamic Radius ---
             anc_tt = str(anc.get('task_type', '')).lower()
-            anc_is_digital = any(x in anc_tt for x in ["digital", "offline", "ins", "skykit", "service"])
+            anc_is_digital = 'service' in anc_tt or 'skykit' in anc_tt
+            
+            # Grab DB status for Isolation
+            anc_status = anc.get('db_status', 'ready')
+            anc_wo = anc.get('wo', 'none')
+            
+            # THE FIX: If digital, limit radius to 25 miles; otherwise, 50 miles.
             route_radius = 25 if anc_is_digital else 50
-            anc_status, anc_wo = anc.get('db_status', 'ready'), anc.get('wo', 'none')
-
-            candidates, rem = [], []
+            
+            candidates = []; rem = []
             for t in pool:
                 t_tt = str(t.get('task_type', '')).lower()
-                t_is_digital = any(x in t_tt for x in ["digital", "offline", "ins", "skykit", "service"])
-                t_status, t_wo = t.get('db_status', 'ready'), t.get('wo', 'none')
-
+                t_is_digital = 'service' in t_tt or 'skykit' in t_tt
+                t_status = t.get('db_status', 'ready')
+                t_wo = t.get('wo', 'none')
+                
+                # Rule 1: Digital and Standard never mix
                 if anc_is_digital == t_is_digital:
+                    
+                    # Rule 2: Sent and Accepted are FROZEN
                     if anc_status in ['sent', 'accepted']:
-                        if t_status == anc_status and t_wo == anc_wo: candidates.append((0, t))
-                        else: rem.append(t)
-                    elif anc_status in ['ready', 'declined'] and t_status in ['ready', 'declined']:
-                        d = haversine(anc['lat'], anc['lon'], t['lat'], t['lon'])
-                        if d <= route_radius: candidates.append((d, t))
-                        else: rem.append(t)
-                    else: rem.append(t)
-                else: rem.append(t)
-
+                        # Bypasses distance! ONLY groups if the Work Order matches perfectly.
+                        if t_status == anc_status and t_wo == anc_wo:
+                            candidates.append((0, t)) 
+                        else:
+                            rem.append(t)
+                            
+                    # Rule 3: Ready and Declined are LIQUID (They can mix!)
+                    elif anc_status in ['ready', 'declined']:
+                        if t_status in ['ready', 'declined']:
+                            d = haversine(anc['lat'], anc['lon'], t['lat'], t['lon'])
+                            if d <= route_radius: 
+                                candidates.append((d, t))
+                            else: 
+                                rem.append(t)
+                        else:
+                            rem.append(t)
+                else:
+                    rem.append(t)
+            
             candidates.sort(key=lambda x: x[0])
-            group, unique_stops = [anc], {anc['full']}
+            
+            # --- PRESERVED: 20 STOP LIMIT LOGIC ---
+            group = [anc]
+            unique_stops = {anc['full']}
+            spillover = []
+            
             for _, t in candidates:
+                # Only add the task if we're under 20 stops OR the task is at an address we already have
                 if len(unique_stops) < 20 or t['full'] in unique_stops:
-                    group.append(t); unique_stops.add(t['full'])
-                else: rem.append(t)
-
-            has_ic, closest_ic_loc = False, f"{anc['lat']},{anc['lon']}"
+                    group.append(t)
+                    unique_stops.add(t['full'])
+                else:
+                    # If the route is "full" at 20 stops, save this for the next route
+                    spillover.append(t)
+            
+            # Put the spillover tasks back into the main pool
+            rem.extend(spillover)
+            # --------------------------------
+            
+            has_ic = False; closest_ic_loc = f"{anc['lat']},{anc['lon']}" 
             if not v_ics_base.empty:
                 dists = v_ics_base.apply(lambda x: haversine(anc['lat'], anc['lon'], x['Lat'], x['Lng']), axis=1)
                 valid_ics = v_ics_base[dists <= 100].copy()
                 if not valid_ics.empty:
-                    has_ic, best_ic = True, valid_ics.sort_values(dists[dists <= 100]).iloc[0]
+                    has_ic = True
+                    valid_ics['d'] = dists[dists <= 100]
+                    best_ic = valid_ics.sort_values('d').iloc[0]
                     closest_ic_loc = best_ic['Location']
 
-            _, hrs, _ = get_gmaps(closest_ic_loc, list(unique_stops)[:25])
-            gate_avg = round(max(len(unique_stops) * 18.0, hrs * 25.0) / len(unique_stops), 2)
+            def check_viability(grp):
+                seen = set(); unique_locs = []
+                for x in grp:
+                    if x['full'] not in seen: seen.add(x['full']); unique_locs.append(x['full'])
+                if not unique_locs: return 0, 0
+                _, hrs, _ = get_gmaps(closest_ic_loc, unique_locs[:25])
+                pay = round(max(len(unique_locs) * 18.0, hrs * 25.0), 2)
+                return round(pay / len(unique_locs), 2), len(unique_locs)
             
-            status = anc_status.capitalize() if anc_status in ['sent', 'accepted'] else "Ready"
-            if gate_avg > 23.00 and status not in ['Sent', 'Accepted']: status = "Flagged"
+            gate_avg, _ = check_viability(group)
+            
+            # Frozen Sent/Accepted stay put. Declined and Ready become 'Ready' for re-optimization.
+            if anc_status in ['sent', 'accepted']:
+                status = anc_status.capitalize()
+            else:
+                status = "Ready"
+            
+            # If the price is too high, we still attempt to "shave off" the last stop added
+            if gate_avg > 23.00 and status not in ['Sent', 'Accepted']:
+                if len(group) > 1:
+                    removed = group.pop()
+                    new_avg, _ = check_viability(group)
+                    if new_avg <= 23.00: rem.append(removed)
+                    else: group.append(removed); status = "Flagged"
+                else: status = "Flagged"
+            
             if not has_ic and status not in ['Sent', 'Accepted']: status = "Flagged"
-
+            
             pool = rem
             clusters.append({
-                "data": group, "center": [anc['lat'], anc['lon']], "stops": len(unique_stops),
-                "city": anc['city'], "state": anc['state'], "status": status, "has_ic": has_ic,
+                "data": group, "center": [anc['lat'], anc['lon']], 
+                "stops": len(set(x['full'] for x in group)), 
+                "city": anc['city'], "state": anc['state'],
+                "status": status, "has_ic": has_ic,
                 "esc_count": sum(1 for x in group if x.get('escalated')),
-                "is_digital": anc_is_digital, "wo": anc_wo
+                "is_digital": anc_is_digital,
+                "wo": anc_wo
             })
             
         st.session_state[f"clusters_{pod_name}"] = clusters
-        if not master_bar: prog_bar.empty()
+        if not master_bar: prog_bar.empty() # Only clear if it was a single pod pull
+
     except Exception as e:
         st.error(f"Error initializing {pod_name}: {str(e)}")
 
@@ -1056,26 +1137,43 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             st.rerun()
             
 def run_pod_tab(pod_name):
+    # Grab the contractor database from session state
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
-    text_color = {"Blue": "#1e3a8a", "Green": "#064e3b", "Orange": "#7c2d12", "Purple": "#4c1d95", "Red": "#7f1d1d"}.get(pod_name, "#633094")
     
+    # Grab the matching "Midnight" text color for the current pod
+    text_color = {
+        "Blue": "#1e3a8a",
+        "Green": "#064e3b",
+        "Orange": "#7c2d12",
+        "Purple": "#4c1d95",
+        "Red": "#7f1d1d"
+    }.get(pod_name, "#633094") # Defaults to TB Purple if not found
+    
+    # Inject the dynamic color into the centered header
     st.markdown(f"<h2 style='color: {text_color}; text-align:center;'>{pod_name} Pod Dashboard</h2>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
 
+    # Check if data exists for this pod
     if f"clusters_{pod_name}" not in st.session_state:
         if st.button(f"🚀 Initialize {pod_name} Data", key=f"init_{pod_name}"):
-            process_pod(pod_name); st.rerun()
+            process_pod(pod_name)
+            st.rerun()
         return
 
+    # Load cluster data
     cls = st.session_state[f"clusters_{pod_name}"]
+
     if not cls:
         st.info(f"No tasks pending in the {pod_name} region.")
         if st.button("🔄 Check Again", key=f"empty_ref_{pod_name}"):
             process_pod(pod_name); st.rerun()
         return
 
+    # --- KEEPING THE CLEAN AUTO-SYNC LOGIC ---
     sent_db, ghost_db = fetch_sent_records_from_sheet()
     pod_ghosts = ghost_db.get(pod_name, [])
+
+    # 🌟 FIXED: Added 'finalized' to the list to prevent NameError
     ready, review, sent, accepted, declined, finalized = [], [], [], [], [], []
 
     for c in cls:
@@ -1084,14 +1182,24 @@ def run_pod_tab(pod_name):
         
         # --- HEADER LOGIC: DIGITAL & ESCALATED ONLY ---
         h_icons = ""
-        if c.get('is_digital'): h_icons += " 🔌"
-        if c.get('esc_count', 0) > 0: h_icons += " ⭐" 
+        
+        # 1. Digital Icon (Syncs with the engine's digital separation)
+        if c.get('is_digital'): 
+            h_icons += " 🔌"
+            
+        # 2. Escalation Icon (Syncs with the star flag)
+        if c.get('esc_count', 0) > 0: 
+            h_icons += " ⭐" 
+        
+        # Attach the icons to the cluster for the expander headers
         c['h_icons'] = h_icons
         
         sheet_match = sent_db.get(next((tid for tid in task_ids if tid in sent_db), None))
         route_state = st.session_state.get(f"route_state_{cluster_hash}")
         local_ts = st.session_state.get(f"sent_ts_{cluster_hash}", "")
         local_contractor = st.session_state.get(f"contractor_{cluster_hash}", "Unknown")
+        
+        # Check if the dispatcher manually revoked this route
         is_reverted = st.session_state.get(f"reverted_{cluster_hash}", False)
         
         if sheet_match and not is_reverted:
@@ -1099,21 +1207,34 @@ def run_pod_tab(pod_name):
             c['route_ts'] = sheet_match.get('time', '') or local_ts
             c['wo'] = sheet_match.get('wo', c['contractor_name'])
         else:
-            c['contractor_name'], c['route_ts'] = local_contractor, local_ts
+            c['contractor_name'] = local_contractor
+            c['route_ts'] = local_ts
         
+        # --- NEW PRIORITY: LIVE DATABASE OVERRIDES LOCAL STATE ---
         if sheet_match and not is_reverted:
             raw_status = str(sheet_match.get('status', '')).lower()
-            if raw_status == 'declined': declined.append(c)
-            elif raw_status == 'accepted': accepted.append(c)
-            elif raw_status == 'finalized': finalized.append(c)
-            else: sent.append(c)
-        elif route_state == "email_sent" and not is_reverted: sent.append(c)
+            if raw_status == 'declined':
+                declined.append(c)
+            elif raw_status == 'accepted':
+                accepted.append(c)
+            elif raw_status == 'finalized': # NEW: Catch finalized status
+                finalized.append(c)
+            else:
+                sent.append(c)
+        elif route_state == "email_sent" and not is_reverted:
+            sent.append(c)
         elif route_state == "link_generated" and not is_reverted:
-            if st.session_state.get(f"orig_status_{cluster_hash}") == "declined": declined.append(c)
-            else: ready.append(c)
+            orig = st.session_state.get(f"orig_status_{cluster_hash}")
+            if orig == "declined":
+                declined.append(c)
+            else:
+                ready.append(c)
         else:
-            if c.get('status') == 'Ready': ready.append(c)
-            else: review.append(c)
+            # Falls back into standard Dispatching
+            if c.get('status') == 'Ready': 
+                ready.append(c)
+            else: 
+                review.append(c)
 
     total_tasks = sum(len(c['data']) for c in cls)
     total_stops = sum(c['stops'] for c in cls)
