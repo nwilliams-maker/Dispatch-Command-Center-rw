@@ -701,25 +701,24 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             stt = normalize_state(addr.get('state', ''))
             is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
             
-            # --- THE TRIPLE-CHECK SPONGE ---
-            # Start with the basic text fields
-            raw_text = f"{t.get('merchant', '')} {t.get('notes', '')} {t.get('taskType', '')} {t.get('taskDetails', '')}".lower()
+            # --- THE 'LEAVE NO STONE UNTURNED' SPONGE ---
+            dest_notes = str(t.get('destination', {}).get('notes', '')).lower()
+            recip = t.get('recipients', [{}])
+            recip_notes = str(recip[0].get('notes', '')).lower() if recip else ""
             
-            # Loop through metadata with a fallback for 'label'
+            # Grab Notes, Merchant, Destination Notes, and Recipient Notes
+            raw_text = f"{t.get('notes', '')} {t.get('merchant', '')} {dest_notes} {recip_notes} {t.get('taskType', '')} {t.get('taskDetails', '')}".lower()
+            
+            # Loop through metadata
             for m in (t.get('metadata') or []):
-                # Onfleet uses 'name' in some API versions and 'label' in others
-                # This line checks both, then defaults to an empty string
                 m_id = str(m.get('name') or m.get('label') or '').strip().lower()
                 m_val = str(m.get('value') or '').strip().lower()
-                
-                # Add both to the searchable text
                 raw_text += f" {m_id} {m_val}"
                 
-                # While we are here, catch the Escalation flag
                 if 'escalation' in m_id and m_val in ['1', '1.0', 'true', 'yes']:
                     is_esc = True
             
-            # Save the full combined string
+            # This is the final string
             final_sponge = raw_text.strip()
 
             # --- DATABASE SYNC ---
@@ -935,30 +934,28 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         elif "default" in tt:
             stop_metrics[addr]['d_ad'] += 1
 
-        # PRIORITY 6: Other (Plexiglass, Storage, Freezer, Floor Decal, etc.)
-        # If the sponge contains specific 'Other' keywords OR anything else not caught above
+        # F. Everything else falls into 'Other'
         else:
             stop_metrics[addr]['oth'] += 1
+            # Save the raw string so we can see what Onfleet is actually sending
+            stop_metrics[addr]['debug_text'] = tt
 
     # --- 2. THE UI SUMMARY LINE ---
     for addr, metrics in stop_metrics.items():
-        pill_parts = []
-        if metrics['digi'] > 0: pill_parts.append(f"🔌 {metrics['digi']} Digital Service")
-        if metrics['remov'] > 0: pill_parts.append(f"🛑 {metrics['remov']} Kiosk Removal")
-        if metrics['n_ad'] > 0: pill_parts.append(f"🆕 {metrics['n_ad']} New Ad")
-        if metrics['c_ad'] > 0: pill_parts.append(f"🔄 {metrics['c_ad']} Continuity")
-        if metrics['d_ad'] > 0: pill_parts.append(f"⚪ {metrics['d_ad']} Default")
-        if metrics['oth'] > 0: pill_parts.append(f"📦 {metrics['oth']} Other")
+        pills = []
+        if metrics['digi'] > 0: pills.append(f"🔌 {metrics['digi']} Digital Service")
+        if metrics['remov'] > 0: pills.append(f"🛑 {metrics['remov']} Kiosk Removal")
+        if metrics['n_ad'] > 0: pills.append(f"🆕 {metrics['n_ad']} New Ad")
+        if metrics['c_ad'] > 0: pills.append(f"🔄 {metrics['c_ad']} Continuity")
+        if metrics['d_ad'] > 0: pills.append(f"⚪ {metrics['d_ad']} Default")
         
-        pill_str = " | ".join(pill_parts)
+        # X-RAY VISION: Show exactly what text the app is seeing
+        if metrics['oth'] > 0: 
+            raw_str = str(metrics.get('debug_text', 'EMPTY'))[:45] # Show first 45 chars
+            pills.append(f"📦 {metrics['oth']} Other (Raw: '{raw_str}')")
         
-        st.markdown(
-            f"**{addr}** &nbsp;"
-            f"<span style='color: #633094; background-color: #f3e8ff; padding: 2px 6px; border-radius: 10px; font-weight: 800; font-size: 11px;'>"
-            f"{metrics['t_count']} Tasks</span>"
-            f"&nbsp; <span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", 
-            unsafe_allow_html=True
-        )
+        pill_str = " | ".join(pills)
+        st.markdown(f"**{addr}** &nbsp; <span style='color: #633094; font-weight: 800;'>{metrics['t_count']} Tasks</span> &nbsp; <span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", unsafe_allow_html=True)
 
     # --- 3. CONTRACTOR FILTERING (100 MILES) ---
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
