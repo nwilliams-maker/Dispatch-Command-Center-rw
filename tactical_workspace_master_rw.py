@@ -1219,22 +1219,34 @@ def run_pod_tab(pod_name):
     cls = st.session_state[f"clusters_{pod_name}"]
     
     with st.expander("🕵️‍♂️ Task Data Inspector (Raw Onfleet Data)"):
-        st.info("Use this table to see exactly what Onfleet is sending. Look for the 'Raw Metadata' column to find your custom fields.")
+        st.info("Metadata fields have been flattened. Scroll to the right to see all custom Onfleet fields.")
         debug_rows = []
         for c in cls:
             for t in c['data']:
-                debug_rows.append({
+                # 1. Start with the standard columns
+                row = {
                     "Address": t.get('full', ''),
                     "Assigned Type": t.get('task_type', ''),
                     "Escalated?": t.get('escalated', False),
-                    "Raw Metadata (Onfleet)": str(t.get('raw_meta', [])),
-                    "Raw Notes (Onfleet)": t.get('raw_notes', '')
-                })
+                    "Raw Notes": t.get('raw_notes', '')
+                }
+                
+                # 2. 🌟 FIX: Dynamically create columns for every Metadata field
+                # This turns a hidden list into individual columns you can sort and filter.
+                for m in t.get('raw_meta', []):
+                    m_name = m.get('name', 'Unknown')
+                    m_val = m.get('value', '')
+                    # We prefix with 'META:' so you know it's a custom field from Onfleet
+                    row[f"META: {m_name}"] = m_val
+                
+                debug_rows.append(row)
+        
         if debug_rows:
-            st.dataframe(debug_rows, use_container_width=True)
+            # Convert to DataFrame to ensure all columns align correctly
+            df_debug = pd.DataFrame(debug_rows)
+            st.dataframe(df_debug, use_container_width=True)
         else:
             st.warning("No task data found to inspect.")
-
     # Load cluster data
     cls = st.session_state[f"clusters_{pod_name}"]
 
