@@ -664,10 +664,11 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
     prog_bar = master_bar if master_bar else st.progress(0)
     
     def update_prog(rel_val, msg):
-        # Maps a 0.0-1.0 internal progress to the global start/end points
-        global_val = min(start_pct + (rel_val * pod_weight), 0.99)
+        # Calculate progress and use max/min to keep it strictly between 0.0 and 1.0
+        # This prevents floating point math from pushing it to 1.00001 which crashes Streamlit
+        raw_val = start_pct + (rel_val * pod_weight)
+        global_val = float(max(0.0, min(raw_val, 1.0)))
         prog_bar.progress(global_val, text=f"[{pod_name}] {msg}")
-
     try:
         update_prog(0.0, "📥 Extracting tasks...")
         APPROVED_TEAMS = [
@@ -815,9 +816,6 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             
             # Put the spillover tasks back into the main pool for the next route
             rem.extend(spillover)
-            
-            # Put the spillover tasks back into the main pool
-            rem.extend(spillover)
             # --------------------------------
             
             has_ic = False; closest_ic_loc = f"{anc['lat']},{anc['lon']}" 
@@ -872,8 +870,16 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             })
             
         st.session_state[f"clusters_{pod_name}"] = clusters
-        if not master_bar: prog_bar.empty() # Only clear if it was a single pod pull
-
+        if not master_bar: 
+            # If loading a single pod, we can safely hit 100%
+            prog_bar.progress(1.0, text=f"✅ {pod_name} Loaded!")
+            time.sleep(0.5)
+            prog_bar.empty()
+        else:
+            # If part of a Global Load, we MUST NOT hit 1.0 until the very last pod is done
+            # We just update this pod's specific slice to finished
+            update_prog(1.0, f"✅ {pod_name} Syncing complete")
+            
     except Exception as e:
         st.error(f"Error initializing {pod_name}: {str(e)}")
 
