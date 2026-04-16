@@ -701,6 +701,15 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
         url = f"https://onfleet.com/api/v2/tasks/all?state=0&from={int(time.time()*1000)-(80*24*3600*1000)}"
         while url:
             res = requests.get(url, headers=headers).json()
+            # --- 🚨 TEMPORARY RAW DATA DUMP 🚨 ---
+        # This will create a file on your server called 'ONFLEET_DEBUG.json'
+        # with the absolute raw response for the first 5 tasks.
+        import json
+        raw_tasks = r.json() # 'r' is your requests response variable
+        with open("ONFLEET_DEBUG.json", "w") as f:
+            json.dump(raw_tasks[:5], f, indent=4)
+        st.download_button("📥 DOWNLOAD RAW ONFLEET DATA", data=json.dumps(raw_tasks[:5]), file_name="raw_onfleet.json")
+        # ---------------------------------------
             all_tasks_raw.extend(res.get('tasks', []))
             url = f"https://onfleet.com/api/v2/tasks/all?state=0&from={int(time.time()*1000)-(80*24*3600*1000)}&lastId={res['lastId']}" if res.get('lastId') else None
             # Update extraction progress (max 40% of this pod's slice)
