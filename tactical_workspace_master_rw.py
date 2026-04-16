@@ -1194,7 +1194,7 @@ def run_pod_tab(pod_name):
             h_icons += " 🔌"
         if any(x in combined_tt for x in ["install", "kiosk"]): 
             h_icons += " 🛠️"
-        if "removal" in combined_tt: ["remove", "removal"]): 
+        if any(x in combined_tt: for x in ["remove", "removal"]): 
             h_icons += " 🛑"
         if any(x in combined_tt for x in ["continuity", "photo", "swap", "refresh"]): 
             h_icons += " 🔄"
