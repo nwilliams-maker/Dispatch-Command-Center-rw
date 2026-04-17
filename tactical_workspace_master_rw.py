@@ -823,7 +823,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             anc_wo = anc.get('wo', 'none')
             
             # Set radius strictly based on the whitelist result
-            route_radius = 25 if anc_is_digital else 50
+            route_radius = 30 if anc_is_digital else 25
             
             candidates = []; rem = []
             for t in pool:
