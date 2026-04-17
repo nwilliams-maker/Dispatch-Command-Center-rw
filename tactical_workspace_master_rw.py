@@ -1167,6 +1167,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 # ALWAYS save the route to ensure the latest Comp/Due Date is in the Database
                 home = ic['Location']
                 payload = {
+                    "cluster_hash": cluster_hash,
                     "icn": ic['Name'], "ice": ic['Email'], "wo": wo_val, 
                     "due": str(due), "comp": final_pay, "lCnt": cluster['stops'], "mi": mi, "time": t_str, "phone": str(ic['Phone']),
                     "locs": " | ".join([home] + list(stop_metrics.keys()) + [home]),
