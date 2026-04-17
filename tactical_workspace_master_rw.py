@@ -1122,24 +1122,40 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         st.session_state[sel_key] = default_label
         st.session_state[last_sel_key] = default_label
 
-    # --- 5. THE UI ROW ---
+    # --- 🌟 UNIFIED CONTRACTOR SELECTION (100 MILE LIMIT) ---
+    ic_df = st.session_state.get('ic_df', pd.DataFrame())
+    ic_data_map = {}
+    ic_labels = []
+
+    if not ic_df.empty:
+        # 1. Filter and Calculate Distances
+        v_ics = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].dropna(subset=['Lat', 'Lng']).copy()
+        v_ics['d'] = v_ics.apply(lambda x: haversine(cluster['center'][0], cluster['center'][1], x['Lat'], x['Lng']), axis=1)
+        
+        # 2. Limit to 100 Miles and Sort
+        v_ics = v_ics[v_ics['d'] <= 100].sort_values('d')
+        
+        for _, r in v_ics.iterrows():
+            cert_icon = " 🔌" if str(r.get('Digital Certified', '')).strip().upper() in ['YES', 'Y', 'TRUE', '1'] else ""
+            label = f"{r['Name']}{cert_icon} ({round(r['d'], 1)} mi)"
+            ic_labels.append(label)
+            ic_data_map[label] = r
+
     col_a, col_b, col_c, col_d = st.columns([1.5, 1, 1, 1])
     
     with col_a:
-        # Step 1: Dropdown for mileage/location logic
-        st.selectbox("Select IC for Mileage", list(ic_opts.keys()), key=sel_key, on_change=update_for_new_contractor)
+        # 3. Searchable Dropdown
+        selected_label = st.selectbox("Pick Contractor (100mi)", ic_labels, key=sel_key, on_change=update_for_new_contractor)
         
-        # Step 2: Manual Name Override
-        manual_name = st.text_input("Edit Contractor Name", placeholder="Type name to override...", key=f"edit_name_{cluster_hash}")
+        # 4. Unified Name Field: Defaults to selection but allows "Erasing" and Typing
+        ic_base = ic_data_map.get(selected_label, {"Name": "Manual Entry", "Location": f"{cluster['center'][0]},{cluster['center'][1]}"})
+        final_name = st.text_input("Contractor Name (Editable)", value=ic_base['Name'], key=f"edit_name_{cluster_hash}")
         
-        # Step 3: Apply the logic correctly
-        ic_selected = ic_opts[st.session_state[sel_key]]
-        ic = ic_selected.copy() # Start with the dropdown data
-        
-        if manual_name.strip():
-            ic['Name'] = manual_name.strip() # Override the name if something is typed
-    
-    # --- 🌟 FIX: Use the 'ic' we just built above (Don't overwrite it!) ---
+        # Create final IC object for the route
+        ic = ic_base.copy()
+        ic['Name'] = final_name
+
+    # Logistics math stays tied to the location of the selected person
     mi, hrs, t_str = get_gmaps(ic['Location'], list(stop_metrics.keys())[:25])
     
     # LOCK CHECK
