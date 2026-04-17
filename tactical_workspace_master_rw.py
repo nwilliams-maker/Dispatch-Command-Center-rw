@@ -1198,6 +1198,10 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if "install" in str(t.get('task_type','')).lower() and "🛠️" not in loc_pills[addr]: loc_pills[addr] += "🛠️"
         if "removal" in str(t.get('task_type','')).lower() and "🗑️" not in loc_pills[addr]: loc_pills[addr] += "🗑️"
 
+    # --- 🌟 FIX 1: USE THE CORRECT LINK ID ---
+    real_id = st.session_state.get(sync_key)
+    link_id = real_id if real_id else "LINK_PENDING"
+
     # --- DYNAMIC EMAIL PREVIEW ---
     due = st.session_state.get(f"dd_{cluster_hash}", datetime.now().date()+timedelta(14))
     
@@ -1208,6 +1212,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     else:
         wo_val = f"{ic['Name']} - {datetime.now().strftime('%m%d%Y')}"
     
+    # 🌟 FIX 2: Inject link_id directly into the template
     sig_preview = (
         f"Hello {ic['Name']},\n\n"
         f"We have a new route available for you to review.\n\n"
@@ -1219,12 +1224,12 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         f"{install_warning}"
         f"To view the complete route details—including total stops, estimated mileage, and time—please click the secure link below to access your Route Summary.\n\n"
         f"⚠️ ACTION REQUIRED:\n"
-        f"You must confirm by selecting 'Accept' or 'Decline' directly through the portal link. Your response updates our dispatch board in real-time so we can finalize the schedule.\n\n"
-        f"In order to accept/decline a route you must follow the LINK and simply submit your response via the weblink:\n"
-        f"{PORTAL_BASE_URL}?route={link_id}&v2=true" # 👈 Changed from LINK_PENDING to {link_id}
+        f"You must confirm by selecting 'Accept' or 'Decline' directly through the portal link.\n\n"
+        f"Route Summary Link:\n"
+        f"{PORTAL_BASE_URL}?route={link_id}&v2=true"
     )
     
-    # Bulletproof Key Versioning
+    # Versioning logic
     last_data_key = f"last_data_{cluster_hash}"
     version_key = f"tx_ver_{cluster_hash}"
     current_data_fingerprint = f"{ic['Name']}_{final_pay}_{due}_{wo_val}"
@@ -1235,8 +1240,18 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     if st.session_state.get(last_data_key) != current_data_fingerprint:
         st.session_state[version_key] += 1
         st.session_state[last_data_key] = current_data_fingerprint
+        # Initialize the new version with the preview
+        st.session_state[f"tx_{cluster_hash}_{st.session_state[version_key]}"] = sig_preview
     
     active_tx_key = f"tx_{cluster_hash}_{st.session_state[version_key]}"
+
+    # 🌟 FIX 3: ENSURE THE BOX IS NEVER BLANK
+    # If the user edited the text, but then we generated a real ID, swap the placeholder
+    if active_tx_key not in st.session_state:
+        st.session_state[active_tx_key] = sig_preview
+    elif real_id and "LINK_PENDING" in st.session_state[active_tx_key]:
+        st.session_state[active_tx_key] = st.session_state[active_tx_key].replace("LINK_PENDING", real_id)
+    
     email_body_content = st.text_area("Email Content Preview", height=180, key=active_tx_key, disabled=not is_unlocked)
 
     # --- 7. BUTTON LAYOUT ---
