@@ -724,51 +724,63 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
         unique_tasks_dict = {t['id']: t for t in all_tasks_raw}
         all_tasks = list(unique_tasks_dict.values())
         
-        # 🌟 UNIVERSAL WHITELIST: Only these three trigger the plug and 25-mile radius
-        DIGITAL_WHITELIST = ["service", "ins/remove", "offline", "site survey"]
+        # --- 🌟 1. DEFINE CORE TRIGGER KEYWORDS ---
+        DIGITAL_WHITELIST = ["service", "ins/remove", "offline"]
 
-        # --- 🔍 2. TARGETED CUSTOM FIELDS SCAN ---
-            # Prioritize customFields; fallback to metadata if necessary
-            custom_fields = t.get('customFields') or []
-            metadata = t.get('metadata') or []
-            official_fields = custom_fields + metadata 
+        # PERFORMANCE FIX: Fetch Google Sheets data once before the loop
+        fresh_sent_db, _ = fetch_sent_records_from_sheet()
+        st.session_state.sent_db = fresh_sent_db
+
+        pool = []
+        for t in all_tasks:
+            container = t.get('container', {})
+            c_type = str(container.get('type', '')).upper()
             
+            if c_type == 'TEAM' and container.get('team') not in target_team_ids: 
+                continue
+
+            addr = t.get('destination', {}).get('address', {})
+            stt = normalize_state(addr.get('state', ''))
+            is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
+            
+            # Base display name
+            tt_val = str(t.get('taskType', '')).strip() or str(t.get('taskDetails', '')).strip()
+            
+            # --- 🔍 2. TARGETED CUSTOM FIELDS SCAN ---
+            # We look directly in customFields as requested
+            custom_fields = t.get('customFields') or []
             is_digital_task = False 
             found_official_type = False
             
-            # Baseline: Check Native Onfleet Type first
-            native_tt = tt_val.lower()
-            if any(trigger in native_tt for trigger in DIGITAL_WHITELIST):
+            # Check native Onfleet name as a baseline
+            if any(trigger in tt_val.lower() for trigger in DIGITAL_WHITELIST):
                 is_digital_task = True
 
-            # Deep Dive into Custom Fields
-            for f in official_fields:
-                # Standardize field attributes
+            for f in custom_fields:
                 f_name = str(f.get('name', '')).strip().lower()
                 f_key = str(f.get('key', '')).strip().lower()
                 f_val = str(f.get('value', '')).strip()
                 f_val_lower = f_val.lower()
                 
-                # Check for "Task Type" or "TaskType" within Custom Fields
+                # Check for "Task Type" field
                 if f_name in ['task type', 'tasktype'] or f_key in ['tasktype', 'task_type']:
-                    tt_val = f_val # Set display name to the value in the custom field
+                    tt_val = f_val 
                     found_official_type = True
-                    
-                    # 🔌 TRIGGER: Check for our 3 keywords in this specific field
                     if any(trigger in f_val_lower for trigger in DIGITAL_WHITELIST):
                         is_digital_task = True
                 
-                # Check for "Escalation" within Custom Fields
+                # Check for Escalation
                 if 'escalation' in f_name or 'escalation' in f_key:
                     if f_val_lower in ['1', '1.0', 'true', 'yes'] or 'escalation' in f_val_lower:
                         is_esc = True
                 
-                # Fallback: Catch generic 'type' if official Task Type hasn't been set yet
+                # Fallback for generic 'type' field
                 elif (f_name == 'type' or f_key == 'type') and not found_official_type:
                     if any(trigger in f_val_lower for trigger in DIGITAL_WHITELIST):
                         is_digital_task = True
                         tt_val = f_val
-            # --- 3. ASSIGN STATUS ---
+
+            # --- 3. ASSIGN STATUS & POOL ---
             t_status = 'ready'
             t_wo = 'none'
             if t['id'] in fresh_sent_db:
@@ -785,7 +797,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                     "lon": t['destination']['location'][0],
                     "escalated": is_esc, 
                     "task_type": tt_val,
-                    "is_digital": is_digital_task, # 🔌 Flagged for Service, Ins/Rem, or Offline
+                    "is_digital": is_digital_task, # 🔌 Flagged!
                     "db_status": t_status, 
                     "wo": t_wo,
                 })
