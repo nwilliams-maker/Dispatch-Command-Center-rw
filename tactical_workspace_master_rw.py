@@ -1221,7 +1221,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         f"⚠️ ACTION REQUIRED:\n"
         f"You must confirm by selecting 'Accept' or 'Decline' directly through the portal link. Your response updates our dispatch board in real-time so we can finalize the schedule.\n\n"
         f"In order to accept/decline a route you must follow the LINK and simply submit your response via the weblink:\n"
-        f"{PORTAL_BASE_URL}?route=LINK_PENDING&v2=true"
+        f"{PORTAL_BASE_URL}?route={link_id}&v2=true" # 👈 Changed from LINK_PENDING to {link_id}
     )
     
     # Bulletproof Key Versioning
@@ -1235,7 +1235,6 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     if st.session_state.get(last_data_key) != current_data_fingerprint:
         st.session_state[version_key] += 1
         st.session_state[last_data_key] = current_data_fingerprint
-        st.session_state[f"tx_{cluster_hash}_{st.session_state[version_key]}"] = sig_preview
     
     active_tx_key = f"tx_{cluster_hash}_{st.session_state[version_key]}"
     email_body_content = st.text_area("Email Content Preview", height=180, key=active_tx_key, disabled=not is_unlocked)
