@@ -836,42 +836,38 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     pay_key = f"pay_val_{cluster_hash}"
     rate_key = f"rate_val_{cluster_hash}"
     sel_key = f"sel_{cluster_hash}"
-    last_sel_key = f"last_sel_{cluster_hash}" # Tracks the "previous" selection
+    last_sel_key = f"last_sel_{cluster_hash}"
 
     st.write("### Route Stops")
 
-    # --- NEW: HISTORY LOG ---
+    # --- HISTORY LOG ---
     hist = st.session_state.get(f"history_{cluster_hash}", [])
     if hist:
         st.markdown(f"<p style='color: #94a3b8; font-size: 13px; margin-top: -10px; margin-bottom: 15px; font-weight: 600;'>↩️ Previously sent to: {', '.join(hist)}</p>", unsafe_allow_html=True)
 
-    # --- 2. STOP METRICS & PILLS ---
+    # --- 2. STOP METRICS & PILLS (CONSOLIDATED) ---
     stop_metrics = {}
-    for c in cluster['data']:
-        addr = c['full']
-        if addr not in stop_metrics:
-            stop_metrics[addr] = {'t_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 'inst': 0, 'remov': 0, 'digi': 0, 'oth': 0, 'esc': False}
-        stop_metrics[addr]['t_count'] += 1
-        
-        # 🌟 FIX: Flag this specific address if it contains an escalation
-        if c.get('escalated'):
-            stop_metrics[addr]['esc'] = True
-        # Iterate through the tasks inside the cluster to calculate metrics per stop
     for t in cluster['data']:
         addr = t['full']
-        # 👇 CRITICAL FIX: Use 't' (the task), NOT 'c' (the cluster)
+        if addr not in stop_metrics:
+            stop_metrics[addr] = {'t_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 'inst': 0, 'remov': 0, 'digi': 0, 'oth': 0, 'esc': False}
+        
+        stop_metrics[addr]['t_count'] += 1
+        if t.get('escalated'): 
+            stop_metrics[addr]['esc'] = True
+        
         tt = str(t.get('task_type', '')).strip().lower()
         
-        # Priority 1: Check Digital/Skykit FIRST
+        # 🌟 FIXED: Independent identification (No elif chain)
         if any(x in tt for x in ["service", "digital", "skykit"]): stop_metrics[addr]['digi'] += 1
-        elif "install" in tt: stop_metrics[addr]['inst'] += 1
-        elif "removal" in tt: stop_metrics[addr]['remov'] += 1
-        elif any(x in tt for x in ["continuity", "photo", "swap"]): stop_metrics[addr]['c_ad'] += 1
-        elif any(x in tt for x in ["default", "pull down"]): stop_metrics[addr]['d_ad'] += 1
-        elif any(x in tt for x in ["new ad", "art change", "top"]): stop_metrics[addr]['n_ad'] += 1
-        # If task type is completely blank, fallback to New Ad
-        elif not tt: stop_metrics[addr]['n_ad'] += 1 
-        else: stop_metrics[addr]['oth'] += 1
+        if "install" in tt: stop_metrics[addr]['inst'] += 1
+        if "removal" in tt: stop_metrics[addr]['remov'] += 1
+        if any(x in tt for x in ["continuity", "photo", "swap"]): stop_metrics[addr]['c_ad'] += 1
+        if any(x in tt for x in ["default", "pull down"]): stop_metrics[addr]['d_ad'] += 1
+        
+        # Fallback for New Ad / Art Change
+        if any(x in tt for x in ["new ad", "art change", "top"]) or not tt:
+            stop_metrics[addr]['n_ad'] += 1
             
     loc_pills = {} 
     for addr, metrics in stop_metrics.items():
@@ -879,22 +875,17 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if metrics['n_ad'] > 0: pill_parts.append(f"🆕 {metrics['n_ad']} New Ad")
         if metrics['c_ad'] > 0: pill_parts.append(f"🔄 {metrics['c_ad']} Continuity")
         if metrics['d_ad'] > 0: pill_parts.append(f"⚪ {metrics['d_ad']} Default")
-        if metrics['inst'] > 0: pill_parts.append(f"🛠️ {metrics['inst']} Kiosk Install")
-        if metrics['remov'] > 0: pill_parts.append(f"🛑 {metrics['remov']} Kiosk Removal")
-        if metrics['digi'] > 0: pill_parts.append(f"🔌 {metrics['digi']} Digital Service")
-        if metrics['oth'] > 0: pill_parts.append(f"📦 {metrics['oth']} Other")
+        if metrics['inst'] > 0: pill_parts.append(f"🛠️ {metrics['inst']} Install")
+        if metrics['remov'] > 0: pill_parts.append(f"🛑 {metrics['remov']} Removal")
+        if metrics['digi'] > 0: pill_parts.append(f"🔌 {metrics['digi']} Digital")
+        
         pill_str = " | ".join(pill_parts)
-        
-        # 🌟 FIX: Inject the star before the address if escalated
         display_addr = f"⭐ {addr}" if metrics['esc'] else addr
-        
         loc_pills[display_addr] = f"({metrics['t_count']} Tasks) {pill_str}"
         
-        # 🌟 UI FIX: Replaced ** with HTML <b> tags to prevent the Markdown parsing error
         st.markdown(f"<b>{display_addr}</b> &nbsp;<span style='color: #633094; background-color: #f3e8ff; padding: 2px 6px; border-radius: 10px; font-weight: 800; font-size: 11px;'>{metrics['t_count']} Tasks</span>&nbsp; <span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", unsafe_allow_html=True)
         
     st.divider()
-
     # --- 3. CONTRACTOR FILTERING (100 MILES) ---
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
     v_ics = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].dropna(subset=['Lat', 'Lng']).copy()
