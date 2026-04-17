@@ -849,39 +849,33 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                     group.append(t)
                     unique_stops.add(t['full'])
                 else:
-                    # If the route is "full" at 20 stops, save this for the next route
                     spillover.append(t)
             
-            # Put the spillover tasks back into the main pool
-            # Put the spillover tasks back into the main pool
+            # 🌟 BRIDGE: Put spillover back and run viability
             rem.extend(spillover)
             
-            # --- 📡 1. IC SEARCH & VIABILITY ---
-            has_ic = False
-            closest_ic_loc = f"{anc['lat']},{anc['lon']}" 
+            has_ic = False; closest_ic_loc = f"{anc['lat']},{anc['lon']}" 
             if not v_ics_base.empty:
                 dists = v_ics_base.apply(lambda x: haversine(anc['lat'], anc['lon'], x['Lat'], x['Lng']), axis=1)
                 valid_ics = v_ics_base[dists <= 100].copy()
                 if not valid_ics.empty:
                     has_ic = True
-                    valid_ics['d'] = dists[dists <= 100]
                     best_ic = valid_ics.sort_values('d').iloc[0]
                     closest_ic_loc = best_ic['Location']
 
             def check_viability(grp):
                 seen = set(); u_locs = []
                 for x in grp:
-                    if x['full'] not in seen: 
-                        seen.add(x['full']); u_locs.append(x['full'])
+                    if x['full'] not in seen: seen.add(x['full']); u_locs.append(x['full'])
                 if not u_locs: return 0, 0
                 _, hrs, _ = get_gmaps(closest_ic_loc, u_locs[:25])
                 pay = round(max(len(u_locs) * 18.0, hrs * 25.0), 2)
-                return round(pay / len(u_locs)), len(u_locs)
+                return round(pay / len(u_locs), 2), len(u_locs)
             
             gate_avg, _ = check_viability(group)
             status = anc_status.capitalize() if anc_status in ['sent', 'accepted'] else "Ready"
             
-            # 🌟 Engine Badge Counters (Independent)
+            # Independent Counters for Badges
             g_data = group
             e_count = sum(1 for x in g_data if x.get('escalated'))
             i_count = sum(1 for x in g_data if "install" in str(x.get('task_type', '')).lower())
@@ -904,64 +898,8 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
 
     except Exception as e:
         st.error(f"Error initializing {pod_name}: {str(e)}")
-            
-            has_ic = False; closest_ic_loc = f"{anc['lat']},{anc['lon']}" 
-            if not v_ics_base.empty:
-                dists = v_ics_base.apply(lambda x: haversine(anc['lat'], anc['lon'], x['Lat'], x['Lng']), axis=1)
-                valid_ics = v_ics_base[dists <= 100].copy()
-                if not valid_ics.empty:
-                    has_ic = True
-                    valid_ics['d'] = dists[dists <= 100]
-                    best_ic = valid_ics.sort_values('d').iloc[0]
-                    closest_ic_loc = best_ic['Location']
 
-            def check_viability(grp):
-                seen = set(); unique_locs = []
-                for x in grp:
-                    if x['full'] not in seen: seen.add(x['full']); unique_locs.append(x['full'])
-                if not unique_locs: return 0, 0
-                _, hrs, _ = get_gmaps(closest_ic_loc, unique_locs[:25])
-                pay = round(max(len(unique_locs) * 18.0, hrs * 25.0), 2)
-                return round(pay / len(unique_locs), 2), len(unique_locs)
-            
-            gate_avg, _ = check_viability(group)
-            
-            # NEW: Sent/Accepted stay frozen. Ready and Declined both become 'Ready'
-            # This forces Declined routes to merge back into Dispatch
-            if anc_status in ['sent', 'accepted']:
-                status = anc_status.capitalize()
-            else:
-                status = "Ready"
-            
-            # If the price is too high, we still attempt to "shave off" the last stop added
-            if gate_avg > 23.00 and status not in ['Sent', 'Accepted']:
-                if len(group) > 1:
-                    removed = group.pop()
-                    new_avg, _ = check_viability(group)
-                    if new_avg <= 23.00: rem.append(removed)
-                    else: group.append(removed); status = "Flagged"
-                else: status = "Flagged"
-            
-            if not has_ic and status not in ['Sent', 'Accepted']: status = "Flagged"
-            
-            pool = rem
-            clusters.append({
-                "data": group, "center": [anc['lat'], anc['lon']], 
-                "stops": len(set(x['full'] for x in group)), 
-                "city": anc['city'], "state": anc['state'],
-                "status": status, "has_ic": has_ic,
-                "esc_count": sum(1 for x in group if x.get('escalated')),
-                "is_digital": anc_is_digital,
-                "inst_count": sum(1 for x in group if "kiosk install" in str(x.get('task_type', '')).lower()), # 🌟 FIX: Added the install counter!
-                "wo": anc_wo
-            })
-            
-        st.session_state[f"clusters_{pod_name}"] = clusters
-        if not master_bar: prog_bar.empty() # Only clear if it was a single pod pull
-
-    except Exception as e:
-        st.error(f"Error initializing {pod_name}: {str(e)}")
-
+# --- DISPATCH RENDERING ---
 def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     task_ids = [str(t['id']).strip() for t in cluster['data']]
     cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
