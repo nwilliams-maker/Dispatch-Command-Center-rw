@@ -983,7 +983,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
 
         # 4. Classification (Independent Ifs for accurate workload)
         found_category = False
-        if any(x in tt for x in ["service", "digital", "skykit"]): 
+        if any(x in tt for x in ["service", "offline", "skykit", "ins/re"]): 
             stop_metrics[addr]['digi'] += 1
             found_category = True
         if "install" in tt: 
