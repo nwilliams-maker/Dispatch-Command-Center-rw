@@ -727,30 +727,29 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
         # Define this once at the top of extraction
         DIGITAL_WHITELIST = ["digital offline", "digital ins/remove", "digital service", "digital sit survey"]
 
+        # 🌟 PERFORMANCE FIX: Fetch Google Sheets data ONCE before the loop starts
+        fresh_sent_db, _ = fetch_sent_records_from_sheet()
+        st.session_state.sent_db = fresh_sent_db
+
         pool = []
         for t in all_tasks:
             container = t.get('container', {})
             c_type = str(container.get('type', '')).upper()
-            if c_type == 'TEAM' and container.get('team') not in target_team_ids: continue
+            
+            # 1. TEAM FILTER
+            if c_type == 'TEAM' and container.get('team') not in target_team_ids: 
+                continue
 
             addr = t.get('destination', {}).get('address', {})
             stt = normalize_state(addr.get('state', ''))
             is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
+            
+            # 2. BASE TASK TYPE EXTRACTION
             tt_val = str(t.get('taskType', '')).strip() or str(t.get('taskDetails', '')).strip()
             
-           # --- 1. EXTRACT DATA ---
+            # --- 🔍 3. DEEP SCAN: CUSTOM FIELDS & METADATA ---
             official_fields = (t.get('customFields') or []) + (t.get('metadata') or [])
-            is_digital_task = False # Reset
-
-            # 🌟 NEW: Define the ONLY allowed triggers for the plug icon
-            DIGITAL_WHITELIST = [
-                "digital offline", 
-                "digital ins/remove", 
-                "digital service", 
-                "digital sit survey"
-            ]
-
-            is_digital_task = False # Reset for each task
+            is_digital_task = False 
             found_official_type = False
             
             for f in official_fields:
@@ -759,36 +758,31 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 f_val = str(f.get('value', '')).strip()
                 f_val_lower = f_val.lower()
                 
-                # Check for Escalation (either by name or value)
+                # Check for Escalation
                 if ('escalation' in f_name or 'escalation' in f_key):
                     if f_val_lower in ['1', '1.0', 'true', 'yes'] or 'escalation' in f_val_lower:
                         is_esc = True
                 
-                # Check for Task Type
+                # Check for Whitelisted Task Types
                 if f_name in ['task type', 'tasktype'] or f_key in ['tasktype', 'task_type']:
                     tt_val = f_val
                     found_official_type = True
-                    
-                    # 🌟 FIX: Use the whitelist to set the boolean
                     if any(trigger in f_val_lower for trigger in DIGITAL_WHITELIST):
                         is_digital_task = True
                 
-                # Fallback to generic 'type' only if we haven't found the specific one yet
                 elif (f_name == 'type' or f_key == 'type') and not found_official_type:
                     tt_val = f_val
-                
-            # --- FIXED: Always pull fresh data before clustering ---
+            
+            # --- 4. ASSIGN STATUS & WORK ORDER ---
             t_status = 'ready'
             t_wo = 'none'
             
-            # Fetch fresh records and update session state
-            fresh_sent_db, _ = fetch_sent_records_from_sheet()
-            st.session_state.sent_db = fresh_sent_db
-            
+            # Using the fresh_sent_db we fetched outside the loop
             if t['id'] in fresh_sent_db:
                 t_status = fresh_sent_db[t['id']].get('status', 'ready').lower()
                 t_wo = fresh_sent_db[t['id']].get('wo', 'none')
             
+            # 5. POOL THE DATA
             if stt in config['states']:
                 pool.append({
                     "id": t['id'], 
@@ -799,7 +793,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                     "lon": t['destination']['location'][0],
                     "escalated": is_esc, 
                     "task_type": tt_val,
-                    "is_digital": is_digital_task, # 👈 🌟 SAVE THE FLAG HERE
+                    "is_digital": is_digital_task,
                     "db_status": t_status, 
                     "wo": t_wo,
                 })
