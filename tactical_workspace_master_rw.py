@@ -824,8 +824,6 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 else:
                     # If the route is "full" at 20 stops, save this for the next route
                     spillover.append(t)
-            
-            st.error(f"Error initializing {pod_
 
 def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     task_ids = [str(t['id']).strip() for t in cluster['data']]
