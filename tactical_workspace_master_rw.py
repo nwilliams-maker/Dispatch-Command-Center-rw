@@ -992,7 +992,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if "removal" in tt: 
             stop_metrics[addr]['remov'] += 1
             found_category = True
-        if any(x in tt for x in ["continuity", "photo", "swap"]): 
+        if any(x in tt for x in ["continuity", "photo retake", "swap"]): 
             stop_metrics[addr]['c_ad'] += 1
             found_category = True
         if any(x in tt for x in ["default", "pull down"]): 
