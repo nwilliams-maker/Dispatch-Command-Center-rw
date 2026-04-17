@@ -854,7 +854,53 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             
             # Put the spillover tasks back into the main pool
             rem.extend(spillover)
-            # --------------------------------
+            
+            # --- 📡 IC SEARCH & VIABILITY ---
+            has_ic = False
+            closest_ic_loc = f"{anc['lat']},{anc['lon']}" 
+            if not v_ics_base.empty:
+                dists = v_ics_base.apply(lambda x: haversine(anc['lat'], anc['lon'], x['Lat'], x['Lng']), axis=1)
+                valid_ics = v_ics_base[dists <= 100].copy()
+                if not valid_ics.empty:
+                    has_ic = True
+                    best_ic = valid_ics.sort_values('d').iloc[0]
+                    closest_ic_loc = best_ic['Location']
+
+            def check_viability(grp):
+                seen = set(); u_locs = []
+                for x in grp:
+                    if x['full'] not in seen: seen.add(x['full']); u_locs.append(x['full'])
+                if not u_locs: return 0, 0
+                _, hrs, _ = get_gmaps(closest_ic_loc, u_locs[:25])
+                pay = round(max(len(u_locs) * 18.0, hrs * 25.0), 2)
+                return round(pay / len(u_locs), 2), len(u_locs)
+            
+            gate_avg, _ = check_viability(group)
+            status = anc_status.capitalize() if anc_status in ['sent', 'accepted'] else "Ready"
+            
+            # 🌟 Independent Engine Counters
+            g_data = group
+            e_count = sum(1 for x in g_data if x.get('escalated'))
+            i_count = sum(1 for x in g_data if "install" in str(x.get('task_type', '')).lower())
+            r_count = sum(1 for x in g_data if "removal" in str(x.get('task_type', '')).lower())
+            is_digi = any(d in str(x.get('task_type', '')).lower() for x in g_data for d in ['digital', 'skykit'])
+
+            clusters.append({
+                "data": g_data, "center": [anc['lat'], anc['lon']], 
+                "stops": len(set(x['full'] for x in g_data)), 
+                "city": anc['city'], "state": anc['state'],
+                "status": status, "has_ic": has_ic,
+                "esc_count": e_count, "is_digital": is_digi,
+                "inst_count": i_count, "remov_count": r_count,
+                "wo": anc_wo
+            })
+            pool = rem # 🌟 CRITICAL: Iterate the loop
+
+        st.session_state[f"clusters_{pod_name}"] = clusters
+        if not master_bar: prog_bar.empty()
+
+    except Exception as e:
+        st.error(f"Error initializing {pod_name}: {str(e)}")
             
             has_ic = False; closest_ic_loc = f"{anc['lat']},{anc['lon']}" 
             if not v_ics_base.empty:
@@ -944,11 +990,36 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         # 🌟 FIX: Flag this specific address if it contains an escalation
         if c.get('escalated'):
             stop_metrics[addr]['esc'] = True
+            
         # Iterate through the tasks inside the cluster to calculate metrics per stop
     for t in cluster['data']:
         addr = t['full']
-        # 👇 CRITICAL FIX: Use 't' (the task), NOT 'c' (the cluster)
-        tt = str(t.get('task_type', '')).strip().lower()
+        if addr not in stop_metrics:
+            stop_metrics[addr] = {'t_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 'inst': 0, 'remov': 0, 'digi': 0, 'oth': 0, 'esc': False}
+        
+        stop_metrics[addr]['t_count'] += 1
+        if t.get('escalated'): stop_metrics[addr]['esc'] = True
+        
+        # 🌟 SURGERY: Task Type Text Cleaning
+        raw_tt = str(t.get('task_type', '')).strip()
+        parts = [p.strip().lower() for p in raw_tt.split(',') if p.strip()]
+        
+        if "escalation" in parts:
+            if len(parts) > 1:
+                parts.remove("escalation") # Remove clutter
+            else:
+                parts = ["new ad"] # Logic: lone escalations are new ads
+        
+        tt = ", ".join(parts)
+
+        # Independent Counters for Pills
+        if any(x in tt for x in ["service", "digital", "skykit"]): stop_metrics[addr]['digi'] += 1
+        if "install" in tt: stop_metrics[addr]['inst'] += 1
+        if "removal" in tt: stop_metrics[addr]['remov'] += 1
+        if any(x in tt for x in ["continuity", "photo", "swap"]): stop_metrics[addr]['c_ad'] += 1
+        if any(x in tt for x in ["default", "pull down"]): stop_metrics[addr]['d_ad'] += 1
+        if any(x in tt for x in ["new ad", "art change", "top"]) or not tt:
+            stop_metrics[addr]['n_ad'] += 1
         
         # Priority 1: Check Digital/Skykit FIRST
         if any(x in tt for x in ["service", "digital", "skykit"]): stop_metrics[addr]['digi'] += 1
