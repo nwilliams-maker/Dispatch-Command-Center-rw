@@ -724,6 +724,9 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
         unique_tasks_dict = {t['id']: t for t in all_tasks_raw}
         all_tasks = list(unique_tasks_dict.values())
         
+        # 🌟 SURGERY: Fetch database first so we can tag tasks with their current status
+        current_sent_db, _ = fetch_sent_records_from_sheet()
+
         pool = []
         for t in all_tasks:
             container = t.get('container', {})
@@ -732,40 +735,27 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
 
             addr = t.get('destination', {}).get('address', {})
             stt = normalize_state(addr.get('state', ''))
-            is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
-            tt_val = str(t.get('taskType', '')).strip() or str(t.get('taskDetails', '')).strip()
             
-            # --- 1. EXTRACT FROM CUSTOM FIELDS & METADATA ---
-            official_fields = (t.get('customFields') or []) + (t.get('metadata') or [])
-            
-            tt_parts = [] # 🌟 Collect all type labels found
-            is_esc = False
-            
-            for f in official_fields:
-                f_name = str(f.get('name', '')).strip().lower()
-                f_key = str(f.get('key', '')).strip().lower()
-                f_val = str(f.get('value', '')).strip()
-                f_val_lower = f_val.lower()
-                
-                # A. Check for Escalation (Independent)
-                if 'escalation' in f_name or 'escalation' in f_key or 'escalation' in f_val_lower:
-                    if f_val_lower in ['1', '1.0', 'true', 'yes'] or 'escalation' in f_val_lower:
-                        is_esc = True
-                        if f_val not in tt_parts: tt_parts.append(f_val)
-                
-                # B. Check for Task Types (Independent - No elif!)
-                # We look for "Task Type", "Type", or anything containing "Removal" or "Install"
-                type_triggers = ['task type', 'tasktype', 'task_type', 'type']
-                content_triggers = ['removal', 'install', 'digital', 'skykit']
-                
-                if any(x in f_name or x in f_key for x in type_triggers) or any(x in f_val_lower for x in content_triggers):
-                    if f_val and f_val not in tt_parts:
-                        tt_parts.append(f_val)
-
-            # Combine everything found into one string for the label
+            # ... (Your existing Metadata extraction logic here) ...
             tt_val = ", ".join(tt_parts) if tt_parts else "General Task"
+
+            # 🌟 SURGERY: Check database status and actually ADD to the pool
+            t_status, t_wo = 'ready', 'none'
+            if t['id'] in current_sent_db:
+                t_status = current_sent_db[t['id']].get('status', 'ready').lower()
+                t_wo = current_sent_db[t['id']].get('wo', 'none')
+
+            if stt in config['states']:
+                pool.append({
+                    "id": t['id'], "city": addr.get('city', 'Unknown'), "state": stt,
+                    "full": f"{addr.get('number','')} {addr.get('street','')}, {addr.get('city','')}, {stt}",
+                    "lat": t['destination']['location'][1], "lon": t['destination']['location'][0],
+                    "escalated": is_esc, "task_type": tt_val,
+                    "db_status": t_status, "wo": t_wo
+                })
         
         clusters = []
+        
         total_pool = len(pool)
         ic_df = st.session_state.get('ic_df', pd.DataFrame())
         v_ics_base = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].dropna(subset=['Lat', 'Lng']).copy() if not ic_df.empty else pd.DataFrame()
@@ -835,81 +825,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                     # If the route is "full" at 20 stops, save this for the next route
                     spillover.append(t)
             
-            # Put the spillover tasks back into the main pool
-            rem.extend(spillover)
-            # --------------------------------
-            
-            has_ic = False; closest_ic_loc = f"{anc['lat']},{anc['lon']}" 
-            if not v_ics_base.empty:
-                dists = v_ics_base.apply(lambda x: haversine(anc['lat'], anc['lon'], x['Lat'], x['Lng']), axis=1)
-                valid_ics = v_ics_base[dists <= 100].copy()
-                if not valid_ics.empty:
-                    has_ic = True
-                    valid_ics['d'] = dists[dists <= 100]
-                    best_ic = valid_ics.sort_values('d').iloc[0]
-                    closest_ic_loc = best_ic['Location']
-
-            def check_viability(grp):
-                seen = set(); unique_locs = []
-                for x in grp:
-                    if x['full'] not in seen: seen.add(x['full']); unique_locs.append(x['full'])
-                if not unique_locs: return 0, 0
-                _, hrs, _ = get_gmaps(closest_ic_loc, unique_locs[:25])
-                pay = round(max(len(unique_locs) * 18.0, hrs * 25.0), 2)
-                return round(pay / len(unique_locs), 2), len(unique_locs)
-            
-            gate_avg, _ = check_viability(group)
-            
-            # NEW: Sent/Accepted stay frozen. Ready and Declined both become 'Ready'
-            # This forces Declined routes to merge back into Dispatch
-            if anc_status in ['sent', 'accepted']:
-                status = anc_status.capitalize()
-            else:
-                status = "Ready"
-            
-            # If the price is too high, we still attempt to "shave off" the last stop added
-            if gate_avg > 23.00 and status not in ['Sent', 'Accepted']:
-                if len(group) > 1:
-                    removed = group.pop()
-                    new_avg, _ = check_viability(group)
-                    if new_avg <= 23.00: rem.append(removed)
-                    else: group.append(removed); status = "Flagged"
-                else: status = "Flagged"
-            
-            if not has_ic and status not in ['Sent', 'Accepted']: status = "Flagged"
-            
-            pool = rem
-            
-            # 🌟 FIX: Independent counts (No elifs!)
-            # This ensures a single task can trigger multiple badges if it matches multiple types
-            g_data = group
-            e_count = sum(1 for x in g_data if x.get('escalated'))
-            i_count = sum(1 for x in g_data if "install" in str(x.get('task_type', '')).lower())
-            r_count = sum(1 for x in g_data if "removal" in str(x.get('task_type', '')).lower())
-            
-            # Check for digital tasks across the whole group
-            is_digi = any(d in str(x.get('task_type', '')).lower() for x in g_data for d in ['digital', 'skykit'])
-
-            clusters.append({
-                "data": g_data, 
-                "center": [anc['lat'], anc['lon']], 
-                "stops": len(set(x['full'] for x in g_data)), 
-                "city": anc['city'], 
-                "state": anc['state'],
-                "status": status, 
-                "has_ic": has_ic,
-                "esc_count": e_count,
-                "is_digital": is_digi,
-                "inst_count": i_count,
-                "remov_count": r_count, # 🌟 NEW: Track Removals independently
-                "wo": anc_wo
-            })
-            
-        st.session_state[f"clusters_{pod_name}"] = clusters
-        if not master_bar: prog_bar.empty() # Only clear if it was a single pod pull
-
-    except Exception as e:
-        st.error(f"Error initializing {pod_name}: {str(e)}")
+            st.error(f"Error initializing {pod_
 
 def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     task_ids = [str(t['id']).strip() for t in cluster['data']]
