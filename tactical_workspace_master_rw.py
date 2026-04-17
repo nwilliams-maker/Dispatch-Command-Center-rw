@@ -817,15 +817,69 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             spillover = []
             
             for _, t in candidates:
-                # Only add the task if we're under 20 stops OR the task is at an address we already have
                 if len(unique_stops) < 20 or t['full'] in unique_stops:
                     group.append(t)
                     unique_stops.add(t['full'])
                 else:
-                    # If the route is "full" at 20 stops, save this for the next route
                     spillover.append(t)
+            
+            # --- 🌟 THE MISSING BRIDGE START 🌟 ---
+            # Put the spillover tasks back into the main pool
+            rem.extend(spillover)
+            
+            has_ic = False
+            closest_ic_loc = f"{anc['lat']},{anc['lon']}" 
+            if not v_ics_base.empty:
+                dists = v_ics_base.apply(lambda x: haversine(anc['lat'], anc['lon'], x['Lat'], x['Lng']), axis=1)
+                valid_ics = v_ics_base[dists <= 100].copy()
+                if not valid_ics.empty:
+                    has_ic = True
+                    valid_ics['d'] = dists[dists <= 100]
+                    best_ic = valid_ics.sort_values('d').iloc[0]
+                    closest_ic_loc = best_ic['Location']
 
+            def check_viability(grp):
+                seen = set(); u_locs = []
+                for x in grp:
+                    if x['full'] not in seen: seen.add(x['full']); u_locs.append(x['full'])
+                if not u_locs: return 0, 0
+                _, hrs, _ = get_gmaps(closest_ic_loc, u_locs[:25])
+                pay = round(max(len(u_locs) * 18.0, hrs * 25.0), 2)
+                return round(pay / len(u_locs), 2), len(u_locs)
+            
+            gate_avg, _ = check_viability(group)
+            status = anc_status.capitalize() if anc_status in ['sent', 'accepted'] else "Ready"
+            
+            # Count equipment for the dashboard icons
+            g_data = group
+            e_count = sum(1 for x in g_data if x.get('escalated'))
+            i_count = sum(1 for x in g_data if "install" in str(x.get('task_type', '')).lower())
+            r_count = sum(1 for x in g_data if "removal" in str(x.get('task_type', '')).lower())
+            is_digi = any(d in str(x.get('task_type', '')).lower() for x in g_data for d in ['digital', 'skykit'])
+
+            clusters.append({
+                "data": g_data, "center": [anc['lat'], anc['lon']], 
+                "stops": len(set(x['full'] for x in g_data)), 
+                "city": anc['city'], "state": anc['state'],
+                "status": status, "has_ic": has_ic,
+                "esc_count": e_count, "is_digital": is_digi,
+                "inst_count": i_count, "remov_count": r_count,
+                "wo": anc_wo
+            })
+            pool = rem # Update main pool with remaining tasks
+
+        st.session_state[f"clusters_{pod_name}"] = clusters
+        if not master_bar: prog_bar.empty()
+
+    except Exception as e:
+        st.error(f"Error initializing {pod_name}: {str(e)}")
+
+# --- DISPATCH RENDERING ---
 def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
+    # --- 🌟 THE MISSING BRIDGE END 🌟 ---
+    task_ids = [str(t['id']).strip() for t in cluster['data']]
+    cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+    sync_key = f"sync_{cluster_hash}"
     task_ids = [str(t['id']).strip() for t in cluster['data']]
     cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
     sync_key = f"sync_{cluster_hash}"
