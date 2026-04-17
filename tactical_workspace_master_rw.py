@@ -724,6 +724,9 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
         unique_tasks_dict = {t['id']: t for t in all_tasks_raw}
         all_tasks = list(unique_tasks_dict.values())
         
+        # Define this once at the top of extraction
+        DIGITAL_WHITELIST = ["digital offline", "digital ins/remove", "digital service", "digital sit survey"]
+
         pool = []
         for t in all_tasks:
             container = t.get('container', {})
@@ -735,9 +738,9 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
             tt_val = str(t.get('taskType', '')).strip() or str(t.get('taskDetails', '')).strip()
             
-            # --- 1. EXTRACT FROM CUSTOM FIELDS & METADATA ---
-            # We now check BOTH Custom Fields and Metadata to be bulletproof
+           # --- 1. EXTRACT DATA ---
             official_fields = (t.get('customFields') or []) + (t.get('metadata') or [])
+            is_digital_task = False # Reset
 
             # 🌟 NEW: Define the ONLY allowed triggers for the plug icon
             DIGITAL_WHITELIST = [
@@ -765,6 +768,10 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 if f_name in ['task type', 'tasktype'] or f_key in ['tasktype', 'task_type']:
                     tt_val = f_val
                     found_official_type = True
+                    
+                    # 🌟 FIX: Use the whitelist to set the boolean
+                    if any(trigger in f_val_lower for trigger in DIGITAL_WHITELIST):
+                        is_digital_task = True
                 
                 # Fallback to generic 'type' only if we haven't found the specific one yet
                 elif (f_name == 'type' or f_key == 'type') and not found_official_type:
@@ -784,10 +791,15 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             
             if stt in config['states']:
                 pool.append({
-                    "id": t['id'], "city": addr.get('city', 'Unknown'), "state": stt,
+                    "id": t['id'], 
+                    "city": addr.get('city', 'Unknown'), 
+                    "state": stt,
                     "full": f"{addr.get('number','')} {addr.get('street','')}, {addr.get('city','')}, {stt}",
-                    "lat": t['destination']['location'][1], "lon": t['destination']['location'][0],
-                    "escalated": is_esc, "task_type": tt_val,
+                    "lat": t['destination']['location'][1], 
+                    "lon": t['destination']['location'][0],
+                    "escalated": is_esc, 
+                    "task_type": tt_val,
+                    "is_digital": is_digital_task, # 👈 🌟 SAVE THE FLAG HERE
                     "db_status": t_status, 
                     "wo": t_wo,
                 })
@@ -806,19 +818,17 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             
             # --- NEW: Strict Digital Separation & Dynamic Radius ---
             anc_tt = str(anc.get('task_type', '')).lower()
-            anc_is_digital = 'digital' in anc_tt or 'service' in anc_tt or 'skykit' in anc_tt
-            
-            # Grab DB status for Isolation
+            anc_is_digital = anc.get('is_digital', False)
             anc_status = anc.get('db_status', 'ready')
             anc_wo = anc.get('wo', 'none')
             
-            # THE FIX: If digital, limit radius to 25 miles; otherwise, 50 miles.
+            # Set radius strictly based on the whitelist result
             route_radius = 25 if anc_is_digital else 50
             
             candidates = []; rem = []
             for t in pool:
                 t_tt = str(t.get('task_type', '')).lower()
-                t_is_digital = 'digital' in t_tt or 'service' in t_tt or 'skykit' in t_tt
+                t_is_digital = t.get('is_digital', False)
                 t_status = t.get('db_status', 'ready')
                 t_wo = t.get('wo', 'none')
                 
@@ -917,15 +927,19 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
 
             # --- 📊 3. COUNTERS & SAVE TO SESSION ---
             g_data = group
+
+            # 🌟 CLEANUP: No need to loop again; the anchor already knows!
+            route_is_digital = anc_is_digital
+            
             clusters.append({
                 "data": g_data, 
                 "center": [anc['lat'], anc['lon']], 
                 "stops": len(set(x['full'] for x in g_data)), 
                 "city": anc['city'], "state": anc['state'],
-                "status": status, # 🌟 This lands them in 'Review' if Flagged
+                "status": status,
                 "has_ic": has_ic,
                 "esc_count": sum(1 for x in g_data if x.get('escalated')),
-                "is_digital": anc_is_digital,
+                "is_digital": route_is_digital, # 🔌 Driven by the anchor's verified flag
                 "inst_count": sum(1 for x in g_data if "install" in str(x.get('task_type', '')).lower()),
                 "remov_count": sum(1 for x in g_data if "removal" in str(x.get('task_type', '')).lower()),
                 "wo": anc_wo
