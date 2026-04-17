@@ -1283,30 +1283,34 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 if res.get("success"):
                     final_route_id = res.get("routeId")
                     
-                    # 🌟 2. PREPARE THE EMAIL (Inject the real ID)
+                    # 🌟 1. PREPARE THE EMAIL (Inject the real ID for Gmail)
+                    # We use email_body_content to preserve any manual edits you made
                     final_sig = email_body_content.replace("LINK_PENDING", final_route_id)
                     subject_line = f"Route Request | {wo_val}"
                     gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={ic['Email']}&su={requests.utils.quote(subject_line)}&body={requests.utils.quote(final_sig)}"
                     
-                    # 🌟 3. OPEN GMAIL (Do this BEFORE rerunning)
+                    # 🌟 2. OPEN GMAIL
                     st.components.v1.html(f"<script>window.open('{gmail_url}', '_blank');</script>", height=0)
                     
-                    # 🌟 4. UPDATE SESSION STATE
+                    # 🌟 3. UPDATE SESSION STATE (Moving the card to 'Sent')
                     st.session_state[sync_key] = final_route_id
                     st.session_state[f"sent_ts_{cluster_hash}"] = datetime.now().strftime('%m/%d %I:%M %p')
                     st.session_state[f"contractor_{cluster_hash}"] = ic['Name']
                     st.session_state[f"route_state_{cluster_hash}"] = "email_sent"
                     st.session_state[f"reverted_{cluster_hash}"] = False
                     
-                    # Update the preview text area for the current session
-                    st.session_state[f"tx_{cluster_hash}_{st.session_state[version_key]}"] = final_sig
+                    # 🚀 FIX: Removed the line that causes the StreamlitAPIException crash.
+                    # Your 'Fix 3' at the top will handle the text area refresh on rerun!
                     
-                    st.toast("✅ Link Generated & Gmail Opened!")
-                    time.sleep(1.5) # Give the JS time to fire
-                    st.rerun() # 🌟 5. FINALLY RERUN
-                else:
-                    st.error(f"Google Sheets Error: {res.get('error', 'Unknown Error')}")
-                    st.stop()
+                    # 🌟 4. THE VISUAL TIMER
+                    timer_placeholder = st.empty()
+                    for seconds in range(3, 0, -1):
+                        timer_placeholder.success(f"✅ Link Live! Moving to 'Sent' in {seconds}s...")
+                        time.sleep(1)
+                    timer_placeholder.empty()
+                    
+                    # 🌟 5. FINALLY RERUN
+                    st.rerun()
             
 def run_pod_tab(pod_name):
     # Grab the contractor database from session state
