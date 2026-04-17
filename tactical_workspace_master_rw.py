@@ -1126,20 +1126,20 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     col_a, col_b, col_c, col_d = st.columns([1.5, 1, 1, 1])
     
     with col_a:
-        # The callback is attached here to force the background math to run
-        st.selectbox("Contractor", list(ic_opts.keys()), key=sel_key, on_change=update_for_new_contractor)
+        # Step 1: Dropdown for mileage/location logic
+        st.selectbox("Select IC for Mileage", list(ic_opts.keys()), key=sel_key, on_change=update_for_new_contractor)
         
-        # 🌟 NEW: Manual Name Override
-        # If you type here, it uses this name. If blank, it uses the dropdown selection.
+        # Step 2: Manual Name Override
         manual_name = st.text_input("Edit Contractor Name", placeholder="Type name to override...", key=f"edit_name_{cluster_hash}")
         
+        # Step 3: Apply the logic correctly
         ic_selected = ic_opts[st.session_state[sel_key]]
-        ic = ic_selected.copy()
+        ic = ic_selected.copy() # Start with the dropdown data
+        
         if manual_name.strip():
-            ic['Name'] = manual_name.strip()
+            ic['Name'] = manual_name.strip() # Override the name if something is typed
     
-    # Get current state values
-    ic = ic_opts[st.session_state[sel_key]]
+    # --- 🌟 FIX: Use the 'ic' we just built above (Don't overwrite it!) ---
     mi, hrs, t_str = get_gmaps(ic['Location'], list(stop_metrics.keys())[:25])
     
     # LOCK CHECK
