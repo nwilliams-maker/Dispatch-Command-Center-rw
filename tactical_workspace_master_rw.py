@@ -981,58 +981,60 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
 
     # --- 2. STOP METRICS & PILLS ---
     stop_metrics = {}
-    for c in cluster['data']:
-        addr = c['full']
-        if addr not in stop_metrics:
-            stop_metrics[addr] = {'t_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 'inst': 0, 'remov': 0, 'digi': 0, 'oth': 0, 'esc': False}
-        stop_metrics[addr]['t_count'] += 1
-        
-        # 🌟 FIX: Flag this specific address if it contains an escalation
-        if c.get('escalated'):
-            stop_metrics[addr]['esc'] = True
-            
-        # Iterate through the tasks inside the cluster to calculate metrics per stop
+    
+    # Unified Master Loop: One pass for accuracy
     for t in cluster['data']:
         addr = t['full']
+        
+        # 1. Initialize stop if seen for the first time
         if addr not in stop_metrics:
-            stop_metrics[addr] = {'t_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 'inst': 0, 'remov': 0, 'digi': 0, 'oth': 0, 'esc': False}
+            stop_metrics[addr] = {
+                't_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 
+                'inst': 0, 'remov': 0, 'digi': 0, 'oth': 0, 'esc': False
+            }
         
+        # 2. Basic Metrics
         stop_metrics[addr]['t_count'] += 1
-        if t.get('escalated'): stop_metrics[addr]['esc'] = True
-        
-        # 🌟 SURGERY: Task Type Text Cleaning
+        if t.get('escalated'): 
+            stop_metrics[addr]['esc'] = True
+            
+        # 3. Task Type Text Cleaning (Omit "Escalation" if others exist)
         raw_tt = str(t.get('task_type', '')).strip()
         parts = [p.strip().lower() for p in raw_tt.split(',') if p.strip()]
         
         if "escalation" in parts:
             if len(parts) > 1:
-                parts.remove("escalation") # Remove clutter
+                parts.remove("escalation") 
             else:
-                parts = ["new ad"] # Logic: lone escalations are new ads
+                parts = ["new ad"] 
         
         tt = ", ".join(parts)
 
-        # Independent Counters for Pills
-        if any(x in tt for x in ["service", "digital", "skykit"]): stop_metrics[addr]['digi'] += 1
-        if "install" in tt: stop_metrics[addr]['inst'] += 1
-        if "removal" in tt: stop_metrics[addr]['remov'] += 1
-        if any(x in tt for x in ["continuity", "photo", "swap"]): stop_metrics[addr]['c_ad'] += 1
-        if any(x in tt for x in ["default", "pull down"]): stop_metrics[addr]['d_ad'] += 1
+        # 4. Classification (Independent Ifs for accurate workload)
+        found_category = False
+        if any(x in tt for x in ["service", "digital", "skykit"]): 
+            stop_metrics[addr]['digi'] += 1
+            found_category = True
+        if "install" in tt: 
+            stop_metrics[addr]['inst'] += 1
+            found_category = True
+        if "removal" in tt: 
+            stop_metrics[addr]['remov'] += 1
+            found_category = True
+        if any(x in tt for x in ["continuity", "photo", "swap"]): 
+            stop_metrics[addr]['c_ad'] += 1
+            found_category = True
+        if any(x in tt for x in ["default", "pull down"]): 
+            stop_metrics[addr]['d_ad'] += 1
+            found_category = True
+        
+        # Fallback Logic
         if any(x in tt for x in ["new ad", "art change", "top"]) or not tt:
             stop_metrics[addr]['n_ad'] += 1
-        
-        # Priority 1: Check Digital/Skykit FIRST
-        if any(x in tt for x in ["service", "digital", "skykit"]): stop_metrics[addr]['digi'] += 1
-        elif "install" in tt: stop_metrics[addr]['inst'] += 1
-        elif "removal" in tt: stop_metrics[addr]['remov'] += 1
-        elif any(x in tt for x in ["continuity", "photo", "swap"]): stop_metrics[addr]['c_ad'] += 1
-        elif any(x in tt for x in ["default", "pull down"]): stop_metrics[addr]['d_ad'] += 1
-        elif any(x in tt for x in ["new ad", "art change", "top"]): stop_metrics[addr]['n_ad'] += 1
-        # If task type is completely blank, fallback to New Ad
-        elif not tt: stop_metrics[addr]['n_ad'] += 1 
-        else: stop_metrics[addr]['oth'] += 1
+        elif not found_category:
+            stop_metrics[addr]['oth'] += 1
             
-    loc_pills = {} 
+    # --- UI RENDERING ---
     for addr, metrics in stop_metrics.items():
         pill_parts = []
         if metrics['n_ad'] > 0: pill_parts.append(f"🆕 {metrics['n_ad']} New Ad")
@@ -1042,15 +1044,18 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if metrics['remov'] > 0: pill_parts.append(f"🛑 {metrics['remov']} Kiosk Removal")
         if metrics['digi'] > 0: pill_parts.append(f"🔌 {metrics['digi']} Digital Service")
         if metrics['oth'] > 0: pill_parts.append(f"📦 {metrics['oth']} Other")
-        pill_str = " | ".join(pill_parts)
         
-        # 🌟 FIX: Inject the star before the address if escalated
+        pill_str = " | ".join(pill_parts)
         display_addr = f"⭐ {addr}" if metrics['esc'] else addr
         
-        loc_pills[display_addr] = f"({metrics['t_count']} Tasks) {pill_str}"
-        
-        # 🌟 UI FIX: Replaced ** with HTML <b> tags to prevent the Markdown parsing error
-        st.markdown(f"<b>{display_addr}</b> &nbsp;<span style='color: #633094; background-color: #f3e8ff; padding: 2px 6px; border-radius: 10px; font-weight: 800; font-size: 11px;'>{metrics['t_count']} Tasks</span>&nbsp; <span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", unsafe_allow_html=True)
+        # 🌟 UI FIX: Use <b> for address and colored badges for task counts
+        st.markdown(
+            f"<b>{display_addr}</b> &nbsp;"
+            f"<span style='color: #633094; background-color: #f3e8ff; padding: 2px 6px; border-radius: 10px; font-weight: 800; font-size: 11px;'>"
+            f"{metrics['t_count']} Tasks</span>&nbsp; "
+            f"<span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", 
+            unsafe_allow_html=True
+        )
         
     st.divider()
 
