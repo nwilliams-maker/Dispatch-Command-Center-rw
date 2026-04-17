@@ -855,7 +855,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             # Put the spillover tasks back into the main pool
             rem.extend(spillover)
             
-            # --- 📡 IC SEARCH & VIABILITY ---
+            # --- 📡 1. IC SEARCH & VIABILITY ---
             has_ic = False
             closest_ic_loc = f"{anc['lat']},{anc['lon']}" 
             if not v_ics_base.empty:
@@ -863,41 +863,68 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 valid_ics = v_ics_base[dists <= 100].copy()
                 if not valid_ics.empty:
                     has_ic = True
+                    valid_ics['d'] = dists[dists <= 100]
                     best_ic = valid_ics.sort_values('d').iloc[0]
                     closest_ic_loc = best_ic['Location']
 
             def check_viability(grp):
-                seen = set(); u_locs = []
+                seen = set(); unique_locs = []
                 for x in grp:
-                    if x['full'] not in seen: seen.add(x['full']); u_locs.append(x['full'])
-                if not u_locs: return 0, 0
-                _, hrs, _ = get_gmaps(closest_ic_loc, u_locs[:25])
-                pay = round(max(len(u_locs) * 18.0, hrs * 25.0), 2)
-                return round(pay / len(u_locs), 2), len(u_locs)
+                    if x['full'] not in seen: 
+                        seen.add(x['full'])
+                        unique_locs.append(x['full'])
+                if not unique_locs: return 0, 0
+                _, hrs, _ = get_gmaps(closest_ic_loc, unique_locs[:25])
+                pay = round(max(len(unique_locs) * 18.0, hrs * 25.0), 2)
+                return round(pay / len(unique_locs), 2), len(unique_locs)
             
             gate_avg, _ = check_viability(group)
-            status = anc_status.capitalize() if anc_status in ['sent', 'accepted'] else "Ready"
             
-            # 🌟 Independent Engine Counters
+            # --- 🚦 2. STATUS ASSIGNMENT ---
+            if anc_status in ['sent', 'accepted']:
+                status = anc_status.capitalize()
+            else:
+                status = "Ready"
+            
+            # Price Shaving Logic
+            if gate_avg > 23.00 and status not in ['Sent', 'Accepted']:
+                if len(group) > 1:
+                    removed = group.pop()
+                    new_avg, _ = check_viability(group)
+                    if new_avg <= 23.00: rem.append(removed)
+                    else: group.append(removed); status = "Flagged"
+                else: status = "Flagged"
+            
+            if not has_ic and status not in ['Sent', 'Accepted']: 
+                status = "Flagged"
+
+            # --- 🌟 3. INDEPENDENT ENGINE COUNTERS ---
             g_data = group
             e_count = sum(1 for x in g_data if x.get('escalated'))
+            # 🛠️ Corrected logic for Installs & Removals
             i_count = sum(1 for x in g_data if "install" in str(x.get('task_type', '')).lower())
             r_count = sum(1 for x in g_data if "removal" in str(x.get('task_type', '')).lower())
-            is_digi = any(d in str(x.get('task_type', '')).lower() for x in g_data for d in ['digital', 'skykit'])
+            is_digi = any(d in str(x.get('task_type', '')).lower() for x in g_data for d in ['digital', 'skykit', 'service'])
 
+            # --- 📦 4. SAVE TO SESSION ---
             clusters.append({
-                "data": g_data, "center": [anc['lat'], anc['lon']], 
+                "data": g_data, 
+                "center": [anc['lat'], anc['lon']], 
                 "stops": len(set(x['full'] for x in g_data)), 
                 "city": anc['city'], "state": anc['state'],
                 "status": status, "has_ic": has_ic,
-                "esc_count": e_count, "is_digital": is_digi,
-                "inst_count": i_count, "remov_count": r_count,
+                "esc_count": e_count, 
+                "is_digital": is_digi,
+                "inst_count": i_count, 
+                "remov_count": r_count, # 🌟 FIX: Now passed correctly to the UI
                 "wo": anc_wo
             })
-            pool = rem # 🌟 CRITICAL: Iterate the loop
+            
+            pool = rem # 🌟 CRITICAL: Update the main pool to continue the while loop
 
         st.session_state[f"clusters_{pod_name}"] = clusters
-        if not master_bar: prog_bar.empty()
+        if not master_bar: 
+            prog_bar.empty()
 
     except Exception as e:
         st.error(f"Error initializing {pod_name}: {str(e)}")
