@@ -939,7 +939,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 "esc_count": sum(1 for x in g_data if x.get('escalated')),
                 "is_digital": route_is_digital, # 🔌 Driven by the anchor's verified flag
                 "inst_count": sum(1 for x in g_data if "install" in str(x.get('task_type', '')).lower()),
-                "remov_count": sum(1 for x in g_data if "remov" in str(x.get('task_type', '')).lower()),
+                "remov_count": sum(1 for x in g_data if str(x.get('task_type', '')).lower() in ["kiosk removal", "remove kiosk"]),
                 "wo": anc_wo
             })
             pool = rem
@@ -1011,7 +1011,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if "install" in tt: 
             stop_metrics[addr]['inst'] += 1
             found_category = True
-        if "removal" in tt: 
+        if any(trigger in tt for trigger in ["kiosk removal", "remove kiosk"]):
             stop_metrics[addr]['remov'] += 1
             found_category = True
         if any(x in tt for x in ["continuity", "photo retake", "swap"]): 
@@ -1174,17 +1174,13 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     if len(stop_metrics) > 2:
         stops_text += f"   ... and {len(stop_metrics) - 2} more stops.\n"
 
-    # Calculate total kiosk installs and digital tasks across the whole route
-    total_installs = sum(metrics['inst'] for metrics in stop_metrics.values())
-    total_digital = sum(metrics['digi'] for metrics in stop_metrics.values()) # 🌟 FIX: Calculate Digital Total
-    
-    install_warning = "⚠️ Please Note: This route contains kiosk install(s) which will require heavy lifting of up to 50lbs.\n\n" if total_installs > 0 else ""
-
-    
-    
-    # --- 🌟 FIX: PRE-CALCULATE DATA FOR EMAIL & BUTTON ---
+    # --- 🌟 FINAL POLISH: CONSOLIDATED COUNTERS ---
+    # We define these once using the verified extraction flag
     total_digital = sum(1 for t in cluster['data'] if t.get('is_digital'))
-    install_warning = "⚠️ NOTE: This route contains Kiosk Installs. Please ensure you have adequate vehicle space.\n\n" if any("install" in str(t.get('task_type','')).lower() for t in cluster['data']) else ""
+    total_installs = sum(1 for t in cluster['data'] if "install" in str(t.get('task_type','')).lower())
+    
+    # Standardize the warning
+    install_warning = "⚠️ NOTE: This route contains Kiosk Installs. Please ensure you have adequate vehicle space.\n\n" if total_installs > 0 else ""
 
     # Build the Location Pills (The icons for each address)
     loc_pills = {}
@@ -1194,14 +1190,15 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if t.get('escalated') and "⭐" not in loc_pills[addr]: loc_pills[addr] += "⭐"
         if t.get('is_digital') and "🔌" not in loc_pills[addr]: loc_pills[addr] += "🔌"
         if "install" in str(t.get('task_type','')).lower() and "🛠️" not in loc_pills[addr]: loc_pills[addr] += "🛠️"
-        if "removal" in str(t.get('task_type','')).lower() and "🗑️" not in loc_pills[addr]: loc_pills[addr] += "🗑️"
+        if str(t.get('task_type','')).lower() in ["kiosk removal", "remove kiosk"] and "🗑️" not in loc_pills[addr]: 
+            loc_pills[addr] += "🗑️"
 
-    # --- 🌟 FIX 1: USE THE CORRECT LINK ID ---
-    real_id = st.session_state.get(sync_key)
-    link_id = real_id if real_id else "LINK_PENDING"
-
-    # --- DYNAMIC EMAIL PREVIEW ---
+    # Dynamic Email Preview
     due = st.session_state.get(f"dd_{cluster_hash}", datetime.now().date()+timedelta(14))
+    
+    # Logic to lock the UI if already sent
+    # 🌟 NEW: Disable the button if the route is already in the 'Sent' or 'Accepted' tab
+    is_already_sent = is_sent or is_declined or st.session_state.get(f"route_state_{cluster_hash}") == "email_sent"
     
     # Smart Work Order Logic
     prev_ic_name = cluster.get('contractor_name', 'Unknown')
@@ -1253,10 +1250,13 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     email_body_content = st.text_area("Email Content Preview", height=180, key=active_tx_key, disabled=not is_unlocked)
 
     # --- 7. BUTTON LAYOUT ---
-    btn_label = "🚀 GENERATE LINK & OPEN GMAIL"
+    # Change the label based on whether it's already been sent
+    btn_label = "✉️ RESEND LINK & OPEN GMAIL" if is_already_sent else "🚀 GENERATE LINK & OPEN GMAIL"
 
     with st.container():
+        # 🌟 NEW: The button is now always available but changes flavor if it's a resend
         if st.button(btn_label, type="primary", key=f"gbtn_{cluster_hash}", disabled=not is_unlocked, use_container_width=True):
+            # ... (keep the rest of your save logic exactly as it is) ...
             with st.spinner("Syncing latest data & generating link..."):
                 home = ic['Location']
                 
