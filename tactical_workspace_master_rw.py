@@ -473,11 +473,17 @@ def finalize_route_handler(cluster_hash):
     except Exception as e:
         st.error(f"Finalization Error: {e}")
         
-def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=False, cluster_data=None):
-    # 1. 🚀 DATABASE ARCHIVE
-    # We send the action to Google Sheets to move the row to the Archive tab
+def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=True, cluster_data=None):
+    """
+    Handles moving a route back to Dispatch.
+    1. Archives the route in Google Sheets.
+    2. Scrubs tasks to ensure only 'Unassigned' tasks return to the pool.
+    3. Wipes session state memory.
+    4. Immediately refreshes the UI.
+    """
+    # --- 1. 🚀 DATABASE ARCHIVE ---
+    # Sends the command to move the record to the 'Archive' tab in your Google Sheet
     try:
-        # If we have the cluster_data, we send it as a payload to ensure the Archive tab gets the full info
         requests.post(GAS_WEB_APP_URL, json={
             "action": "archiveRoute", 
             "cluster_hash": cluster_hash,
@@ -489,60 +495,70 @@ def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", ch
     clusters = st.session_state.get(f"clusters_{pod_name}", [])
     for c in clusters:
         task_ids = [str(t['id']).strip() for t in c['data']]
-        old_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+        # Re-verify the current cluster by hash
+        current_loop_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
         
-        if old_hash == cluster_hash:
+        if current_loop_hash == cluster_hash:
             valid_tasks = []
             
-            # 2. 📡 RELEASE TASKS
+            # --- 2. 📡 LIVE TASK SCRUBBING ---
+            # Checks Onfleet to remove tasks that are assigned (1), active (2), or completed (3)
             if check_onfleet:
-                for t in c['data']:
-                    try:
-                        res = requests.get(f"https://onfleet.com/api/v2/tasks/{t['id']}", headers=headers, timeout=5).json()
-                        if res.get('state') != 3:  
+                with st.spinner("Checking live task status..."):
+                    for t in c['data']:
+                        try:
+                            # State 0 = Unassigned. Only State 0 tasks are allowed back in Dispatch.
+                            res = requests.get(f"https://onfleet.com/api/v2/tasks/{t['id']}", headers=headers, timeout=5).json()
+                            if res.get('state') == 0:  
+                                valid_tasks.append(t)
+                        except:
+                            # Fallback: if API fails, assume it's still unassigned to avoid data loss
                             valid_tasks.append(t)
-                    except:
-                        valid_tasks.append(t)
             else:
                 valid_tasks = c['data']
             
+            # If no tasks are left (all assigned/completed), remove the cluster from local view
             if not valid_tasks:
                 clusters.remove(c)
-                st.toast("✅ Route cleared.")
+                st.toast("✅ Route cleared (All tasks were completed or assigned elsewhere).")
                 st.rerun()
                 return
             
+            # Update the cluster with remaining unassigned tasks
             c['data'] = valid_tasks
             c['stops'] = len(set(x['full'] for x in valid_tasks))
-            new_hash = hashlib.md5("".join([str(t['id']).strip() for t in c['data']]).encode()).hexdigest()
             
-            # 3. 🧠 MEMORY WIPE
+            # Generate the new hash for the modified task set
+            new_task_ids = [str(t['id']).strip() for t in valid_tasks]
+            new_hash = hashlib.md5("".join(sorted(new_task_ids)).encode()).hexdigest()
+            
+            # --- 3. 🧠 MEMORY WIPE ---
+            # Clear all assignment-related session state keys for the old hash
             ui_keys_to_kill = [
-                f"sync_{old_hash}", f"tx_{old_hash}_preview", f"last_data_{old_hash}", 
-                f"tx_ver_{old_hash}", f"pay_val_{old_hash}", f"rate_val_{old_hash}", 
-                f"sel_{old_hash}", f"last_sel_{old_hash}", f"dd_{old_hash}",
-                f"is_ghost_{old_hash}", f"route_ts_{old_hash}"
+                f"sync_{cluster_hash}", f"tx_{cluster_hash}_preview", f"last_data_{cluster_hash}", 
+                f"tx_ver_{cluster_hash}", f"pay_val_{cluster_hash}", f"rate_val_{cluster_hash}", 
+                f"sel_{cluster_hash}", f"last_sel_{cluster_hash}", f"dd_{cluster_hash}",
+                f"is_ghost_{cluster_hash}", f"route_ts_{cluster_hash}"
             ]
             for k in ui_keys_to_kill:
                 st.session_state.pop(k, None)
             
-            # 4. 🔄 REDIRECT
+            # --- 4. 🔄 IMMEDIATE UI REDIRECT ---
             st.session_state[f"reverted_{new_hash}"] = True
             st.session_state[f"route_state_{new_hash}"] = "ready"
             
-            hist = st.session_state.get(f"history_{old_hash}", [])
+            # Update history logs
+            hist = st.session_state.get(f"history_{cluster_hash}", [])
             hist.append(f"{ic_name} ({datetime.now().strftime('%m/%d')} - {action_label})")
             st.session_state[f"history_{new_hash}"] = hist
             
-            st.toast(f"✅ Route {action_label}. Tasks back in Dispatch.")
-            st.rerun()
+            st.toast(f"✅ Route {action_label}. Live tasks moved back to Dispatch.")
+            st.rerun() # Forces immediate reflection on the page
             return
 
 def instant_revoke_handler(cluster_hash, ic_name, payload_json, pod_name):
-    # This specifically handles the SENT tab
-    threading.Thread(target=background_sheet_move, args=(cluster_hash, payload_json)).start()
-    # Sent tab doesn't need OnFleet scrub!
-    move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=False)
+    # We now enable Onfleet scrubbing (State 0 check) immediately
+    move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=True, cluster_data=payload_json)
     
 # --- UTILITIES ---
 def haversine(lat1, lon1, lat2, lon2):
@@ -1671,8 +1687,9 @@ def run_pod_tab(pod_name):
                         render_dispatch(i+3000, c, pod_name, is_declined=True)
                         
                 with btn_col:
-                    if st.button("↩️ Re-Route", key=f"quick_reroute_{cluster_hash}", use_container_width=True):
-                        move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Declined", check_onfleet=False, cluster_data=c)
+                    # In the Declined or Finalized Tab loop:
+                    if st.button("↩️ Re-Route", key=f"quick_reroute_{cluster_hash}"):
+                        move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Re-Routed", check_onfleet=True, cluster_data=c)
                         st.rerun()
                     
         with t_fin:
@@ -1693,9 +1710,8 @@ def run_pod_tab(pod_name):
                         render_dispatch(i+4000, c, pod_name, is_sent=True)
                 
                 with btn_col:
-                    # Allows moving work back to Dispatch if a mistake was made
-                    if st.button("↩️ Re-Route", key=f"fin_rr_{cluster_hash}", use_container_width=True):
-                        move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Finalized", check_onfleet=False, cluster_data=c)
+                    if st.button("↩️ Re-Route", key=f"quick_reroute_{cluster_hash}"):
+                        move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Re-Routed", check_onfleet=True, cluster_data=c)
                         st.rerun()
                         
 # --- START ---
