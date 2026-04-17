@@ -935,7 +935,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 "esc_count": sum(1 for x in g_data if x.get('escalated')),
                 "is_digital": route_is_digital, # 🔌 Driven by the anchor's verified flag
                 "inst_count": sum(1 for x in g_data if "install" in str(x.get('task_type', '')).lower()),
-                "remov_count": sum(1 for x in g_data if "removal" in str(x.get('task_type', '')).lower()),
+                "remov_count": sum(1 for x in g_data if "remov" in str(x.get('task_type', '')).lower()),
                 "wo": anc_wo
             })
             pool = rem
