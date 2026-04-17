@@ -724,10 +724,10 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
         unique_tasks_dict = {t['id']: t for t in all_tasks_raw}
         all_tasks = list(unique_tasks_dict.values())
         
-        # Define this once at the top of extraction
-        DIGITAL_WHITELIST = ["digital offline", "digital ins/remove", "digital service", "digital sit survey"]
+        # 🌟 UNIVERSAL WHITELIST: Only these three trigger the plug and 25-mile radius
+        DIGITAL_WHITELIST = ["digital service", "digital ins/remove", "digital offline", "site survey"]
 
-        # 🌟 PERFORMANCE FIX: Fetch Google Sheets data ONCE before the loop starts
+        # PERFORMANCE FIX: Fetch Google Sheets data once before the loop
         fresh_sent_db, _ = fetch_sent_records_from_sheet()
         st.session_state.sent_db = fresh_sent_db
 
@@ -736,7 +736,6 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             container = t.get('container', {})
             c_type = str(container.get('type', '')).upper()
             
-            # 1. TEAM FILTER
             if c_type == 'TEAM' and container.get('team') not in target_team_ids: 
                 continue
 
@@ -744,45 +743,49 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             stt = normalize_state(addr.get('state', ''))
             is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
             
-            # 2. BASE TASK TYPE EXTRACTION
+            # 1. BASE TASK TYPE EXTRACTION
             tt_val = str(t.get('taskType', '')).strip() or str(t.get('taskDetails', '')).strip()
             
-            # --- 🔍 3. DEEP SCAN: CUSTOM FIELDS & METADATA ---
+            # --- 🔍 2. DEEP SCAN ---
             official_fields = (t.get('customFields') or []) + (t.get('metadata') or [])
             is_digital_task = False 
             found_official_type = False
             
+            # Check Native Onfleet Type first
+            native_tt = tt_val.lower()
+            if any(trigger in native_tt for trigger in DIGITAL_WHITELIST):
+                is_digital_task = True
+
             for f in official_fields:
                 f_name = str(f.get('name', '')).strip().lower()
                 f_key = str(f.get('key', '')).strip().lower()
                 f_val = str(f.get('value', '')).strip()
                 f_val_lower = f_val.lower()
                 
+                # Check for Task Type in Custom Fields
+                if f_name in ['task type', 'tasktype'] or f_key in ['tasktype', 'task_type']:
+                    tt_val = f_val
+                    found_official_type = True
+                    # Set Digital Flag only if it matches the refined whitelist
+                    if any(trigger in f_val_lower for trigger in DIGITAL_WHITELIST):
+                        is_digital_task = True
+                
                 # Check for Escalation
                 if ('escalation' in f_name or 'escalation' in f_key):
                     if f_val_lower in ['1', '1.0', 'true', 'yes'] or 'escalation' in f_val_lower:
                         is_esc = True
                 
-                # Check for Whitelisted Task Types
-                if f_name in ['task type', 'tasktype'] or f_key in ['tasktype', 'task_type']:
-                    tt_val = f_val
-                    found_official_type = True
-                    if any(trigger in f_val_lower for trigger in DIGITAL_WHITELIST):
-                        is_digital_task = True
-                
+                # Fallback for generic 'type'
                 elif (f_name == 'type' or f_key == 'type') and not found_official_type:
                     tt_val = f_val
-            
-            # --- 4. ASSIGN STATUS & WORK ORDER ---
+
+            # --- 3. ASSIGN STATUS ---
             t_status = 'ready'
             t_wo = 'none'
-            
-            # Using the fresh_sent_db we fetched outside the loop
             if t['id'] in fresh_sent_db:
                 t_status = fresh_sent_db[t['id']].get('status', 'ready').lower()
                 t_wo = fresh_sent_db[t['id']].get('wo', 'none')
             
-            # 5. POOL THE DATA
             if stt in config['states']:
                 pool.append({
                     "id": t['id'], 
@@ -793,11 +796,11 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                     "lon": t['destination']['location'][0],
                     "escalated": is_esc, 
                     "task_type": tt_val,
-                    "is_digital": is_digital_task,
+                    "is_digital": is_digital_task, # 🔌 Flagged for Service, Ins/Rem, or Offline
                     "db_status": t_status, 
                     "wo": t_wo,
                 })
-        
+                
         clusters = []
         total_pool = len(pool)
         ic_df = st.session_state.get('ic_df', pd.DataFrame())
