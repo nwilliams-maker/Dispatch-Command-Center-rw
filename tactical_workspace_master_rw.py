@@ -474,16 +474,15 @@ def finalize_route_handler(cluster_hash):
         st.error(f"Finalization Error: {e}")
         
 def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=False):
-    # --- 🌟 FIX: UNIVERSAL ARCHIVE LOGIC ---
-    # Always tell Google Sheets to move this route to the Archive tab, 
-    # regardless of whether it was Revoked, Declined, or Finalized.
+    # 1. 🚀 DATABASE ARCHIVE
+    # Tell Google Sheets to move the row to Archive so the portal link dies.
     try:
         requests.post(GAS_WEB_APP_URL, json={
             "action": "archiveRoute", 
             "cluster_hash": cluster_hash
-        })
-    except:
-        pass
+        }, timeout=5)
+    except Exception as e:
+        st.error(f"Archive Failed: {e}")
 
     clusters = st.session_state.get(f"clusters_{pod_name}", [])
     for c in clusters:
@@ -493,7 +492,7 @@ def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", ch
         if old_hash == cluster_hash:
             valid_tasks = []
             
-            # --- LIVE ONFLEET SCRUB (ONLY TRIGGERED FOR ACCEPTED ROUTES) ---
+            # 2. 📡 RELEASE TASKS
             if check_onfleet:
                 for t in c['data']:
                     try:
@@ -501,47 +500,54 @@ def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", ch
                         if res.get('state') != 3:  
                             valid_tasks.append(t)
                     except:
-                        valid_tasks.append(t) # Failsafe
+                        valid_tasks.append(t)
             else:
-                # If Sent or Declined, skip the OnFleet API call and keep all tasks
                 valid_tasks = c['data']
             
             if not valid_tasks:
                 clusters.remove(c)
-                st.toast("✅ Route cleared (All tasks were already assigned/completed).")
+                st.toast("✅ Route cleared (Tasks completed or assigned elsewhere).")
+                st.rerun()
                 return
             
+            # Update the cluster object
             c['data'] = valid_tasks
             c['stops'] = len(set(x['full'] for x in valid_tasks))
             
             new_task_ids = [str(t['id']).strip() for t in c['data']]
             new_hash = hashlib.md5("".join(sorted(new_task_ids)).encode()).hexdigest()
             
-            if f"is_ghost_{old_hash}" in st.session_state:
-                st.session_state.pop(f"is_ghost_{old_hash}", None)
-
-            # Set the memory flags so the card jumps to Dispatch
-            st.session_state[f"reverted_{new_hash}"] = True
-            st.session_state[f"route_state_{new_hash}"] = "ready"
-            
-            hist = st.session_state.get(f"history_{old_hash}", [])
-            hist.append(f"{ic_name} ({datetime.now().strftime('%m/%d')} - {action_label})")
-            st.session_state[f"history_{new_hash}"] = hist
-            
-            # 🌟 FIX: THE ZOMBIE STATE MEMORY WIPE
+            # 3. 🧠 THE TOTAL MEMORY WIPE
+            # We clear EVERYTHING associated with the old hash's assigned state.
             ui_keys_to_kill = [
                 f"sync_{old_hash}", f"tx_{old_hash}_preview", f"last_data_{old_hash}", 
                 f"tx_ver_{old_hash}", f"pay_val_{old_hash}", f"rate_val_{old_hash}", 
-                f"sel_{old_hash}", f"last_sel_{old_hash}", f"dd_{old_hash}"
+                f"sel_{old_hash}", f"last_sel_{old_hash}", f"dd_{old_hash}",
+                f"is_ghost_{old_hash}", f"route_ts_{old_hash}",
+                # 🌟 FIX: Kill the checklist states so they don't persist
+                f"g_s1_{old_hash}_0", f"g_s1_{old_hash}_1", f"g_s1_{old_hash}_2",
+                f"g_s2_{old_hash}_0", f"g_s2_{old_hash}_1", f"g_s2_{old_hash}_2",
+                f"g_s3_{old_hash}_0", f"g_s3_{old_hash}_1", f"g_s3_{old_hash}_2"
             ]
             for k in ui_keys_to_kill:
                 st.session_state.pop(k, None)
             
+            # 4. 🔄 REDIRECT TO DISPATCH
+            st.session_state[f"reverted_{new_hash}"] = True
+            st.session_state[f"route_state_{new_hash}"] = "ready"
+            
+            # Log the event
+            hist = st.session_state.get(f"history_{old_hash}", [])
+            hist.append(f"{ic_name} ({datetime.now().strftime('%m/%d')} - {action_label})")
+            st.session_state[f"history_{new_hash}"] = hist
+            
+            # Clean up tracking keys if hash changed
             if old_hash != new_hash:
                 for key in [f"history_{old_hash}", f"reverted_{old_hash}", f"route_state_{old_hash}"]:
                     st.session_state.pop(key, None)
-                    
-            st.toast(f"✅ Tasks released from {action_label} route and sent to Dispatch.")
+            
+            st.toast(f"✅ Route {action_label}. Tasks back in Dispatch.")
+            st.rerun() # 🌟 FINAL PUNCH: Force UI to update immediately
             return
 
 def instant_revoke_handler(cluster_hash, ic_name, payload_json, pod_name):
