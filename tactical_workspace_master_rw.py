@@ -1182,12 +1182,26 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     
     install_warning = "⚠️ Please Note: This route contains kiosk install(s) which will require heavy lifting of up to 50lbs.\n\n" if total_installs > 0 else ""
 
-    # --- DYNAMIC EMAIL PREVIEW (Upgraded with Smart WO & Bulletproof Refresh) ---
+    
+    
+    # --- 🌟 FIX: PRE-CALCULATE DATA FOR EMAIL & BUTTON ---
+    total_digital = sum(1 for t in cluster['data'] if t.get('is_digital'))
+    install_warning = "⚠️ NOTE: This route contains Kiosk Installs. Please ensure you have adequate vehicle space.\n\n" if any("install" in str(t.get('task_type','')).lower() for t in cluster['data']) else ""
+
+    # Build the Location Pills (The icons for each address)
+    loc_pills = {}
+    for t in cluster['data']:
+        addr = t.get('full', 'Unknown')
+        if addr not in loc_pills: loc_pills[addr] = ""
+        if t.get('escalated') and "⭐" not in loc_pills[addr]: loc_pills[addr] += "⭐"
+        if t.get('is_digital') and "🔌" not in loc_pills[addr]: loc_pills[addr] += "🔌"
+        if "install" in str(t.get('task_type','')).lower() and "🛠️" not in loc_pills[addr]: loc_pills[addr] += "🛠️"
+        if "removal" in str(t.get('task_type','')).lower() and "🗑️" not in loc_pills[addr]: loc_pills[addr] += "🗑️"
+
+    # --- DYNAMIC EMAIL PREVIEW ---
     due = st.session_state.get(f"dd_{cluster_hash}", datetime.now().date()+timedelta(14))
     
-    # 🌟 FIX 1: Smart Work Order Generation
-    # If the dropdown matches the original contractor, keep the old Work Order.
-    # If you change to a new person, generate a NEW Work Order.
+    # Smart Work Order Logic
     prev_ic_name = cluster.get('contractor_name', 'Unknown')
     if ic['Name'] == prev_ic_name and cluster.get('wo', 'none') != 'none':
         wo_val = cluster['wo']
@@ -1201,7 +1215,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         f"📅 Due Date: {due.strftime('%A, %b %d, %Y')}\n"
         f" Total Stops: {cluster['stops']}\n"
         f" Estimated Compensation: ${final_pay:.2f}\n"
-        f" 🔌 Digital Tasks: {total_digital}\n\n"  # 🌟 FIX: Added to the summary!
+        f" 🔌 Digital Tasks: {total_digital}\n\n" 
         f"{install_warning}"
         f"To view the complete route details—including total stops, estimated mileage, and time—please click the secure link below to access your Route Summary.\n\n"
         f"⚠️ ACTION REQUIRED:\n"
@@ -1210,9 +1224,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         f"{PORTAL_BASE_URL}?route=LINK_PENDING&v2=true"
     )
     
-    # 🌟 FIX 2: Bulletproof Key Versioning for the Text Box
-    # Streamlit holds onto text area data aggressively. We force it to reset by 
-    # changing the "version" of the key whenever you touch a dropdown.
+    # Bulletproof Key Versioning
     last_data_key = f"last_data_{cluster_hash}"
     version_key = f"tx_ver_{cluster_hash}"
     current_data_fingerprint = f"{ic['Name']}_{final_pay}_{due}_{wo_val}"
@@ -1225,7 +1237,6 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         st.session_state[last_data_key] = current_data_fingerprint
         st.session_state[f"tx_{cluster_hash}_{st.session_state[version_key]}"] = sig_preview
     
-    # Render the text area using the ACTIVE version key
     active_tx_key = f"tx_{cluster_hash}_{st.session_state[version_key]}"
     email_body_content = st.text_area("Email Content Preview", height=180, key=active_tx_key, disabled=not is_unlocked)
 
@@ -1235,8 +1246,9 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     with st.container():
         if st.button(btn_label, type="primary", key=f"gbtn_{cluster_hash}", disabled=not is_unlocked, use_container_width=True):
             with st.spinner("Syncing latest data & generating link..."):
-                # ALWAYS save the route to ensure the latest Comp/Due Date is in the Database
                 home = ic['Location']
+                
+                # Pre-calculate the payload
                 payload = {
                     "cluster_hash": cluster_hash,
                     "icn": ic['Name'], "ice": ic['Email'], "wo": wo_val, 
@@ -1244,34 +1256,43 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                     "locs": " | ".join([home] + list(stop_metrics.keys()) + [home]),
                     "taskIds": ",".join(task_ids),
                     "tCnt": len(task_ids),
-                    "jobOnly": " | ".join([f"{a} {pill}" for a, pill in loc_pills.items()])
+                    "jobOnly": " | ".join([f"{addr} {pills}" for addr, pills in loc_pills.items()])
                 }
-                res = requests.post(GAS_WEB_APP_URL, json={"action": "saveRoute", "payload": payload}).json()
+
+                # 🌟 1. HIT THE SERVER ONCE
+                try:
+                    res = requests.post(GAS_WEB_APP_URL, json={"action": "saveRoute", "payload": payload}, timeout=10).json()
+                except Exception as e:
+                    st.error(f"Connection Error: {e}")
+                    st.stop()
                 
                 if res.get("success"):
                     final_route_id = res.get("routeId")
+                    
+                    # 🌟 2. PREPARE THE EMAIL (Inject the real ID)
+                    final_sig = email_body_content.replace("LINK_PENDING", final_route_id)
+                    subject_line = f"Route Request | {wo_val}"
+                    gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={ic['Email']}&su={requests.utils.quote(subject_line)}&body={requests.utils.quote(final_sig)}"
+                    
+                    # 🌟 3. OPEN GMAIL (Do this BEFORE rerunning)
+                    st.components.v1.html(f"<script>window.open('{gmail_url}', '_blank');</script>", height=0)
+                    
+                    # 🌟 4. UPDATE SESSION STATE
                     st.session_state[sync_key] = final_route_id
+                    st.session_state[f"sent_ts_{cluster_hash}"] = datetime.now().strftime('%m/%d %I:%M %p')
+                    st.session_state[f"contractor_{cluster_hash}"] = ic['Name']
+                    st.session_state[f"route_state_{cluster_hash}"] = "email_sent"
+                    st.session_state[f"reverted_{cluster_hash}"] = False
+                    
+                    # Update the preview text area for the current session
+                    st.session_state[f"tx_{cluster_hash}_{st.session_state[version_key]}"] = final_sig
+                    
+                    st.toast("✅ Link Generated & Gmail Opened!")
+                    time.sleep(1.5) # Give the JS time to fire
+                    st.rerun() # 🌟 5. FINALLY RERUN
                 else:
-                    st.error("Failed to sync data to link database."); st.stop()
-
-            # The critical fix: Use 'email_body_content' so your edits are preserved!
-            final_sig = email_body_content.replace("LINK_PENDING", final_route_id)
-            
-            subject_line = f"Route Request | {wo_val}"
-            gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={ic['Email']}&su={requests.utils.quote(subject_line)}&body={requests.utils.quote(final_sig)}"
-            
-            # Open Gmail in a new tab
-            st.components.v1.html(f"<script>window.open('{gmail_url}', '_blank');</script>", height=0)
-            
-            # Update UI state
-            st.session_state[f"sent_ts_{cluster_hash}"] = datetime.now().strftime('%m/%d %I:%M %p')
-            st.session_state[f"contractor_{cluster_hash}"] = ic['Name']
-            st.session_state[f"route_state_{cluster_hash}"] = "email_sent"
-            st.session_state[f"reverted_{cluster_hash}"] = False
-            
-            st.toast("✅ Link Updated & Gmail Opened!")
-            time.sleep(1)
-            st.rerun()
+                    st.error(f"Google Sheets Error: {res.get('error', 'Unknown Error')}")
+                    st.stop()
             
 def run_pod_tab(pod_name):
     # Grab the contractor database from session state
