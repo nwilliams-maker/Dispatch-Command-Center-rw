@@ -724,8 +724,9 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
         unique_tasks_dict = {t['id']: t for t in all_tasks_raw}
         all_tasks = list(unique_tasks_dict.values())
         
-        # --- 🌟 1. DEFINE CORE TRIGGER KEYWORDS ---
-        DIGITAL_WHITELIST = ["service", "ins/remove", "offline"]
+        # --- 🌟 1. DEFINE SPECIFIC DIGITAL TRIGGERS ---
+        # We search for these exact keywords within your data
+        DIGITAL_WHITELIST = ["ins/remove", "offline", "service"]
 
         # PERFORMANCE FIX: Fetch Google Sheets data once before the loop
         fresh_sent_db, _ = fetch_sent_records_from_sheet()
@@ -743,42 +744,39 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             stt = normalize_state(addr.get('state', ''))
             is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
             
-            # Base display name
+            # Base display name from Onfleet native fields
             tt_val = str(t.get('taskType', '')).strip() or str(t.get('taskDetails', '')).strip()
             
             # --- 🔍 2. TARGETED CUSTOM FIELDS SCAN ---
-            # We look directly in customFields as requested
+            # Prioritizing customFields bucket as requested
             custom_fields = t.get('customFields') or []
             is_digital_task = False 
             found_official_type = False
             
-            # Check native Onfleet name as a baseline
+            # Baseline: Check native Onfleet title/details for keywords
             if any(trigger in tt_val.lower() for trigger in DIGITAL_WHITELIST):
                 is_digital_task = True
 
+            # Deep Scan: Check every value inside the customFields array
             for f in custom_fields:
                 f_name = str(f.get('name', '')).strip().lower()
                 f_key = str(f.get('key', '')).strip().lower()
                 f_val = str(f.get('value', '')).strip()
                 f_val_lower = f_val.lower()
                 
-                # Check for "Task Type" field
+                # A. CAPTURE DISPLAY NAME: Use the field specifically labeled 'Task Type'
                 if f_name in ['task type', 'tasktype'] or f_key in ['tasktype', 'task_type']:
                     tt_val = f_val 
                     found_official_type = True
-                    if any(trigger in f_val_lower for trigger in DIGITAL_WHITELIST):
-                        is_digital_task = True
                 
-                # Check for Escalation
+                # B. 🔌 TRIGGER: If any keyword appears in THIS custom field, flag as Digital
+                if any(trigger in f_val_lower for trigger in DIGITAL_WHITELIST):
+                    is_digital_task = True
+
+                # C. Check for Escalation (Standard Metadata check)
                 if 'escalation' in f_name or 'escalation' in f_key:
                     if f_val_lower in ['1', '1.0', 'true', 'yes'] or 'escalation' in f_val_lower:
                         is_esc = True
-                
-                # Fallback for generic 'type' field
-                elif (f_name == 'type' or f_key == 'type') and not found_official_type:
-                    if any(trigger in f_val_lower for trigger in DIGITAL_WHITELIST):
-                        is_digital_task = True
-                        tt_val = f_val
 
             # --- 3. ASSIGN STATUS & POOL ---
             t_status = 'ready'
@@ -797,7 +795,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                     "lon": t['destination']['location'][0],
                     "escalated": is_esc, 
                     "task_type": tt_val,
-                    "is_digital": is_digital_task, # 🔌 Flagged!
+                    "is_digital": is_digital_task, # 🔌 Drives the plug icon
                     "db_status": t_status, 
                     "wo": t_wo,
                 })
@@ -1034,7 +1032,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if metrics['c_ad'] > 0: pill_parts.append(f"🔄 {metrics['c_ad']} Continuity")
         if metrics['d_ad'] > 0: pill_parts.append(f"⚪ {metrics['d_ad']} Default")
         if metrics['inst'] > 0: pill_parts.append(f"🛠️ {metrics['inst']} Kiosk Install")
-        if metrics['remov'] > 0: pill_parts.append(f"🛑 {metrics['remov']} Kiosk Removal")
+        if metrics['remov'] > 0: pill_parts.append(f"🗑️ {metrics['remov']} Kiosk Removal")
         if metrics['digi'] > 0: pill_parts.append(f"🔌 {metrics['digi']} Digital Service")
         if metrics['oth'] > 0: pill_parts.append(f"📦 {metrics['oth']} Other")
         
