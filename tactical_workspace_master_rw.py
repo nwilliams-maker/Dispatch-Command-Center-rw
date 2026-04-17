@@ -851,22 +851,28 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 else:
                     spillover.append(t)
             
-            # 🌟 BRIDGE: Put spillover back and run viability
+            # 🌟 BRIDGE: Put spillover back and fix the 'd' column error
             rem.extend(spillover)
             
-            has_ic = False; closest_ic_loc = f"{anc['lat']},{anc['lon']}" 
+            has_ic = False
+            closest_ic_loc = f"{anc['lat']},{anc['lon']}" 
             if not v_ics_base.empty:
+                # Calculate distances
                 dists = v_ics_base.apply(lambda x: haversine(anc['lat'], anc['lon'], x['Lat'], x['Lng']), axis=1)
                 valid_ics = v_ics_base[dists <= 100].copy()
+                
                 if not valid_ics.empty:
                     has_ic = True
+                    # 🛠️ THE FIX: Create the 'd' column before sorting
+                    valid_ics['d'] = dists[dists <= 100] 
                     best_ic = valid_ics.sort_values('d').iloc[0]
                     closest_ic_loc = best_ic['Location']
 
             def check_viability(grp):
                 seen = set(); u_locs = []
                 for x in grp:
-                    if x['full'] not in seen: seen.add(x['full']); u_locs.append(x['full'])
+                    if x['full'] not in seen: 
+                        seen.add(x['full']); u_locs.append(x['full'])
                 if not u_locs: return 0, 0
                 _, hrs, _ = get_gmaps(closest_ic_loc, u_locs[:25])
                 pay = round(max(len(u_locs) * 18.0, hrs * 25.0), 2)
@@ -875,7 +881,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             gate_avg, _ = check_viability(group)
             status = anc_status.capitalize() if anc_status in ['sent', 'accepted'] else "Ready"
             
-            # Independent Counters for Badges
+            # 🛑 Independent Counters (Fixed removals/installs badges)
             g_data = group
             e_count = sum(1 for x in g_data if x.get('escalated'))
             i_count = sum(1 for x in g_data if "install" in str(x.get('task_type', '')).lower())
@@ -894,7 +900,8 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             pool = rem
 
         st.session_state[f"clusters_{pod_name}"] = clusters
-        if not master_bar: prog_bar.empty()
+        if not master_bar: 
+            prog_bar.empty()
 
     except Exception as e:
         st.error(f"Error initializing {pod_name}: {str(e)}")
