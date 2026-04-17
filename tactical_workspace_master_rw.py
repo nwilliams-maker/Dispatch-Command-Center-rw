@@ -736,51 +736,34 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             tt_val = str(t.get('taskType', '')).strip() or str(t.get('taskDetails', '')).strip()
             
             # --- 1. EXTRACT FROM CUSTOM FIELDS & METADATA ---
-            # We now check BOTH Custom Fields and Metadata to be bulletproof
             official_fields = (t.get('customFields') or []) + (t.get('metadata') or [])
             
-            found_official_type = False
+            tt_parts = [] # 🌟 Collect all type labels found
+            is_esc = False
+            
             for f in official_fields:
                 f_name = str(f.get('name', '')).strip().lower()
                 f_key = str(f.get('key', '')).strip().lower()
                 f_val = str(f.get('value', '')).strip()
                 f_val_lower = f_val.lower()
                 
-                # Check for Escalation (either by name or value)
-                if ('escalation' in f_name or 'escalation' in f_key):
+                # A. Check for Escalation (Independent)
+                if 'escalation' in f_name or 'escalation' in f_key or 'escalation' in f_val_lower:
                     if f_val_lower in ['1', '1.0', 'true', 'yes'] or 'escalation' in f_val_lower:
                         is_esc = True
+                        if f_val not in tt_parts: tt_parts.append(f_val)
                 
-                # Check for Task Type
-                if f_name in ['task type', 'tasktype'] or f_key in ['tasktype', 'task_type']:
-                    tt_val = f_val
-                    found_official_type = True
+                # B. Check for Task Types (Independent - No elif!)
+                # We look for "Task Type", "Type", or anything containing "Removal" or "Install"
+                type_triggers = ['task type', 'tasktype', 'task_type', 'type']
+                content_triggers = ['removal', 'install', 'digital', 'skykit']
                 
-                # Fallback to generic 'type' only if we haven't found the specific one yet
-                elif (f_name == 'type' or f_key == 'type') and not found_official_type:
-                    tt_val = f_val
-                
-            # --- FIXED: Always pull fresh data before clustering ---
-            t_status = 'ready'
-            t_wo = 'none'
-            
-            # Fetch fresh records and update session state
-            fresh_sent_db, _ = fetch_sent_records_from_sheet()
-            st.session_state.sent_db = fresh_sent_db
-            
-            if t['id'] in fresh_sent_db:
-                t_status = fresh_sent_db[t['id']].get('status', 'ready').lower()
-                t_wo = fresh_sent_db[t['id']].get('wo', 'none')
-            
-            if stt in config['states']:
-                pool.append({
-                    "id": t['id'], "city": addr.get('city', 'Unknown'), "state": stt,
-                    "full": f"{addr.get('number','')} {addr.get('street','')}, {addr.get('city','')}, {stt}",
-                    "lat": t['destination']['location'][1], "lon": t['destination']['location'][0],
-                    "escalated": is_esc, "task_type": tt_val,
-                    "db_status": t_status, 
-                    "wo": t_wo,
-                })
+                if any(x in f_name or x in f_key for x in type_triggers) or any(x in f_val_lower for x in content_triggers):
+                    if f_val and f_val not in tt_parts:
+                        tt_parts.append(f_val)
+
+            # Combine everything found into one string for the label
+            tt_val = ", ".join(tt_parts) if tt_parts else "General Task"
         
         clusters = []
         total_pool = len(pool)
@@ -896,14 +879,29 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             if not has_ic and status not in ['Sent', 'Accepted']: status = "Flagged"
             
             pool = rem
+            
+            # 🌟 FIX: Independent counts (No elifs!)
+            # This ensures a single task can trigger multiple badges if it matches multiple types
+            g_data = group
+            e_count = sum(1 for x in g_data if x.get('escalated'))
+            i_count = sum(1 for x in g_data if "install" in str(x.get('task_type', '')).lower())
+            r_count = sum(1 for x in g_data if "removal" in str(x.get('task_type', '')).lower())
+            
+            # Check for digital tasks across the whole group
+            is_digi = any(d in str(x.get('task_type', '')).lower() for x in g_data for d in ['digital', 'skykit'])
+
             clusters.append({
-                "data": group, "center": [anc['lat'], anc['lon']], 
-                "stops": len(set(x['full'] for x in group)), 
-                "city": anc['city'], "state": anc['state'],
-                "status": status, "has_ic": has_ic,
-                "esc_count": sum(1 for x in group if x.get('escalated')),
-                "is_digital": anc_is_digital,
-                "inst_count": sum(1 for x in group if "kiosk install" in str(x.get('task_type', '')).lower()), # 🌟 FIX: Added the install counter!
+                "data": g_data, 
+                "center": [anc['lat'], anc['lon']], 
+                "stops": len(set(x['full'] for x in g_data)), 
+                "city": anc['city'], 
+                "state": anc['state'],
+                "status": status, 
+                "has_ic": has_ic,
+                "esc_count": e_count,
+                "is_digital": is_digi,
+                "inst_count": i_count,
+                "remov_count": r_count, # 🌟 NEW: Track Removals independently
                 "wo": anc_wo
             })
             
@@ -1452,7 +1450,8 @@ def run_pod_tab(pod_name):
             for i, c in enumerate(sent):
                 ic_name = c.get('contractor_name', 'Unknown')
                 esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
-                digi_pill = " 🔌" if c.get('is_digital') else ""  
+                digi_pill = " 🔌" if c.get('is_digital') else ""
+                remov_pill = f"  [ 🛑 {c.get('remov_count', 0)} Removals ]" if c.get('remov_count', 0) > 0 else ""
                 inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else ""
                 
                 # Re-calculate hash for the quick-revoke button
