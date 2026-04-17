@@ -854,47 +854,70 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             # 🌟 BRIDGE: Put spillover back and fix the 'd' column error
             rem.extend(spillover)
             
+            # --- 📡 1. IC SEARCH & DISTANCE CHECK ---
             has_ic = False
+            ic_dist = 0
             closest_ic_loc = f"{anc['lat']},{anc['lon']}" 
+            
             if not v_ics_base.empty:
-                # Calculate distances
                 dists = v_ics_base.apply(lambda x: haversine(anc['lat'], anc['lon'], x['Lat'], x['Lng']), axis=1)
                 valid_ics = v_ics_base[dists <= 100].copy()
                 
                 if not valid_ics.empty:
-                    has_ic = True
-                    # 🛠️ THE FIX: Create the 'd' column before sorting
-                    valid_ics['d'] = dists[dists <= 100] 
+                    # 🛠️ THE FIX: Add the 'd' column here to prevent the KeyError
+                    valid_ics['d'] = dists[valid_ics.index]
                     best_ic = valid_ics.sort_values('d').iloc[0]
+                    has_ic = True
+                    ic_dist = best_ic['d']
                     closest_ic_loc = best_ic['Location']
 
             def check_viability(grp):
                 seen = set(); u_locs = []
                 for x in grp:
-                    if x['full'] not in seen: 
-                        seen.add(x['full']); u_locs.append(x['full'])
+                    if x['full'] not in seen: seen.add(x['full']); u_locs.append(x['full'])
                 if not u_locs: return 0, 0
                 _, hrs, _ = get_gmaps(closest_ic_loc, u_locs[:25])
                 pay = round(max(len(u_locs) * 18.0, hrs * 25.0), 2)
                 return round(pay / len(u_locs), 2), len(u_locs)
             
             gate_avg, _ = check_viability(group)
-            status = anc_status.capitalize() if anc_status in ['sent', 'accepted'] else "Ready"
             
-            # 🛑 Independent Counters (Fixed removals/installs badges)
-            g_data = group
-            e_count = sum(1 for x in g_data if x.get('escalated'))
-            i_count = sum(1 for x in g_data if "install" in str(x.get('task_type', '')).lower())
-            r_count = sum(1 for x in g_data if "removal" in str(x.get('task_type', '')).lower())
-            is_digi = any(d in str(x.get('task_type', '')).lower() for x in g_data for d in ['digital', 'skykit', 'service'])
+            # --- 🚦 2. UPDATED FLAGGING LOGIC ---
+            if anc_status in ['sent', 'accepted']:
+                status = anc_status.capitalize()
+            else:
+                status = "Ready" # Default status
+                
+                # Flag Criteria A: High Rate (> $23/stop)
+                if gate_avg > 23.00:
+                    if len(group) > 1:
+                        removed = group.pop()
+                        new_avg, _ = check_viability(group)
+                        if new_avg <= 23.00:
+                            rem.append(removed)
+                        else:
+                            group.append(removed)
+                            status = "Flagged"
+                    else:
+                        status = "Flagged"
+                
+                # Flag Criteria B: Long Distance (> 60 miles) or No Contractor
+                if not has_ic or ic_dist > 60:
+                    status = "Flagged"
 
+            # --- 📊 3. COUNTERS & SAVE TO SESSION ---
+            g_data = group
             clusters.append({
-                "data": g_data, "center": [anc['lat'], anc['lon']], 
+                "data": g_data, 
+                "center": [anc['lat'], anc['lon']], 
                 "stops": len(set(x['full'] for x in g_data)), 
                 "city": anc['city'], "state": anc['state'],
-                "status": status, "has_ic": has_ic,
-                "esc_count": e_count, "is_digital": is_digi,
-                "inst_count": i_count, "remov_count": r_count,
+                "status": status, # 🌟 This lands them in 'Review' if Flagged
+                "has_ic": has_ic,
+                "esc_count": sum(1 for x in g_data if x.get('escalated')),
+                "is_digital": anc_is_digital,
+                "inst_count": sum(1 for x in g_data if "install" in str(x.get('task_type', '')).lower()),
+                "remov_count": sum(1 for x in g_data if "removal" in str(x.get('task_type', '')).lower()),
                 "wo": anc_wo
             })
             pool = rem
