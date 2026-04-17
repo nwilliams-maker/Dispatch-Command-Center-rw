@@ -745,39 +745,46 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             
             # 1. BASE TASK TYPE EXTRACTION
             tt_val = str(t.get('taskType', '')).strip() or str(t.get('taskDetails', '')).strip()
+
+            # --- 🌟 1. DEFINE CORE TRIGGER KEYWORDS ---
+            DIGITAL_WHITELIST = ["service", "ins/remove", "offline"]
             
             # --- 🔍 2. DEEP SCAN ---
             official_fields = (t.get('customFields') or []) + (t.get('metadata') or [])
             is_digital_task = False 
             found_official_type = False
             
-            # Check Native Onfleet Type first
+            # Step A: Baseline check against Native Onfleet Type
             native_tt = tt_val.lower()
             if any(trigger in native_tt for trigger in DIGITAL_WHITELIST):
                 is_digital_task = True
 
+            # Step B: Priority Scan of Official Fields (Metadata/Custom Fields)
             for f in official_fields:
                 f_name = str(f.get('name', '')).strip().lower()
                 f_key = str(f.get('key', '')).strip().lower()
                 f_val = str(f.get('value', '')).strip()
                 f_val_lower = f_val.lower()
                 
-                # Check for Task Type in Custom Fields
+                # Check for Task Type in Official Fields
                 if f_name in ['task type', 'tasktype'] or f_key in ['tasktype', 'task_type']:
-                    tt_val = f_val
+                    tt_val = f_val # This becomes the display name (e.g., "Digital Service")
                     found_official_type = True
-                    # Set Digital Flag only if it matches the refined whitelist
+                    
+                    # 🔌 TRIGGER: Check if this official value contains our keywords
                     if any(trigger in f_val_lower for trigger in DIGITAL_WHITELIST):
                         is_digital_task = True
                 
-                # Check for Escalation
+                # Check for Escalation (Official Field Priority)
                 if ('escalation' in f_name or 'escalation' in f_key):
                     if f_val_lower in ['1', '1.0', 'true', 'yes'] or 'escalation' in f_val_lower:
                         is_esc = True
                 
-                # Fallback for generic 'type'
+                # Fallback for generic 'type' metadata if Task Type hasn't been found
                 elif (f_name == 'type' or f_key == 'type') and not found_official_type:
                     tt_val = f_val
+                    if any(trigger in f_val_lower for trigger in DIGITAL_WHITELIST):
+                        is_digital_task = True
 
             # --- 3. ASSIGN STATUS ---
             t_status = 'ready'
