@@ -845,7 +845,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     if hist:
         st.markdown(f"<p style='color: #94a3b8; font-size: 13px; margin-top: -10px; margin-bottom: 15px; font-weight: 600;'>↩️ Previously sent to: {', '.join(hist)}</p>", unsafe_allow_html=True)
 
-    # --- 2. STOP METRICS & PILLS (CONSOLIDATED) ---
+    # --- 2. STOP METRICS & PILLS ---
     stop_metrics = {}
     for t in cluster['data']:
         addr = t['full']
@@ -856,16 +856,26 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if t.get('escalated'): 
             stop_metrics[addr]['esc'] = True
         
-        tt = str(t.get('task_type', '')).strip().lower()
+        # 🌟 SURGERY: Escalation Logic
+        raw_tt = str(t.get('task_type', '')).strip()
+        tt_list = [p.strip().lower() for p in raw_tt.split(',') if p.strip()]
         
-        # 🌟 FIXED: Independent identification (No elif chain)
+        if "escalation" in tt_list:
+            if len(tt_list) > 1:
+                tt_list.remove("escalation") # Omit if other types exist
+            else:
+                tt_list = ["new ad"] # Change to New Ad if it was the only type
+        
+        tt = ", ".join(tt_list)
+
+        # Priority Counting (Independent)
         if any(x in tt for x in ["service", "digital", "skykit"]): stop_metrics[addr]['digi'] += 1
         if "install" in tt: stop_metrics[addr]['inst'] += 1
         if "removal" in tt: stop_metrics[addr]['remov'] += 1
         if any(x in tt for x in ["continuity", "photo", "swap"]): stop_metrics[addr]['c_ad'] += 1
         if any(x in tt for x in ["default", "pull down"]): stop_metrics[addr]['d_ad'] += 1
         
-        # Fallback for New Ad / Art Change
+        # Final check for New Ad / Art Change fallback
         if any(x in tt for x in ["new ad", "art change", "top"]) or not tt:
             stop_metrics[addr]['n_ad'] += 1
             
@@ -886,6 +896,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         st.markdown(f"<b>{display_addr}</b> &nbsp;<span style='color: #633094; background-color: #f3e8ff; padding: 2px 6px; border-radius: 10px; font-weight: 800; font-size: 11px;'>{metrics['t_count']} Tasks</span>&nbsp; <span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", unsafe_allow_html=True)
         
     st.divider()
+    
     # --- 3. CONTRACTOR FILTERING (100 MILES) ---
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
     v_ics = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].dropna(subset=['Lat', 'Lng']).copy()
