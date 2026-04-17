@@ -736,6 +736,10 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             addr = t.get('destination', {}).get('address', {})
             stt = normalize_state(addr.get('state', ''))
             
+            # 🌟 SURGERY: Initialize tt_parts here so it exists for every task
+            tt_parts = [] 
+            is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
+            
             # ... (Your existing Metadata extraction logic here) ...
             tt_val = ", ".join(tt_parts) if tt_parts else "General Task"
 
