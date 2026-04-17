@@ -473,13 +473,15 @@ def finalize_route_handler(cluster_hash):
     except Exception as e:
         st.error(f"Finalization Error: {e}")
         
-def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=False):
+def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=False, cluster_data=None):
     # 1. 🚀 DATABASE ARCHIVE
-    # Tell Google Sheets to move the row to Archive so the portal link dies.
+    # We send the action to Google Sheets to move the row to the Archive tab
     try:
+        # If we have the cluster_data, we send it as a payload to ensure the Archive tab gets the full info
         requests.post(GAS_WEB_APP_URL, json={
             "action": "archiveRoute", 
-            "cluster_hash": cluster_hash
+            "cluster_hash": cluster_hash,
+            "payload": cluster_data if cluster_data else {}
         }, timeout=5)
     except Exception as e:
         st.error(f"Archive Failed: {e}")
@@ -506,48 +508,34 @@ def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", ch
             
             if not valid_tasks:
                 clusters.remove(c)
-                st.toast("✅ Route cleared (Tasks completed or assigned elsewhere).")
+                st.toast("✅ Route cleared.")
                 st.rerun()
                 return
             
-            # Update the cluster object
             c['data'] = valid_tasks
             c['stops'] = len(set(x['full'] for x in valid_tasks))
+            new_hash = hashlib.md5("".join([str(t['id']).strip() for t in c['data']]).encode()).hexdigest()
             
-            new_task_ids = [str(t['id']).strip() for t in c['data']]
-            new_hash = hashlib.md5("".join(sorted(new_task_ids)).encode()).hexdigest()
-            
-            # 3. 🧠 THE TOTAL MEMORY WIPE
-            # We clear EVERYTHING associated with the old hash's assigned state.
+            # 3. 🧠 MEMORY WIPE
             ui_keys_to_kill = [
                 f"sync_{old_hash}", f"tx_{old_hash}_preview", f"last_data_{old_hash}", 
                 f"tx_ver_{old_hash}", f"pay_val_{old_hash}", f"rate_val_{old_hash}", 
                 f"sel_{old_hash}", f"last_sel_{old_hash}", f"dd_{old_hash}",
-                f"is_ghost_{old_hash}", f"route_ts_{old_hash}",
-                # 🌟 FIX: Kill the checklist states so they don't persist
-                f"g_s1_{old_hash}_0", f"g_s1_{old_hash}_1", f"g_s1_{old_hash}_2",
-                f"g_s2_{old_hash}_0", f"g_s2_{old_hash}_1", f"g_s2_{old_hash}_2",
-                f"g_s3_{old_hash}_0", f"g_s3_{old_hash}_1", f"g_s3_{old_hash}_2"
+                f"is_ghost_{old_hash}", f"route_ts_{old_hash}"
             ]
             for k in ui_keys_to_kill:
                 st.session_state.pop(k, None)
             
-            # 4. 🔄 REDIRECT TO DISPATCH
+            # 4. 🔄 REDIRECT
             st.session_state[f"reverted_{new_hash}"] = True
             st.session_state[f"route_state_{new_hash}"] = "ready"
             
-            # Log the event
             hist = st.session_state.get(f"history_{old_hash}", [])
             hist.append(f"{ic_name} ({datetime.now().strftime('%m/%d')} - {action_label})")
             st.session_state[f"history_{new_hash}"] = hist
             
-            # Clean up tracking keys if hash changed
-            if old_hash != new_hash:
-                for key in [f"history_{old_hash}", f"reverted_{old_hash}", f"route_state_{old_hash}"]:
-                    st.session_state.pop(key, None)
-            
             st.toast(f"✅ Route {action_label}. Tasks back in Dispatch.")
-            st.rerun() # 🌟 FINAL PUNCH: Force UI to update immediately
+            st.rerun()
             return
 
 def instant_revoke_handler(cluster_hash, ic_name, payload_json, pod_name):
@@ -1683,11 +1671,10 @@ def run_pod_tab(pod_name):
                         render_dispatch(i+3000, c, pod_name, is_declined=True)
                         
                 with btn_col:
-                    clicked = st.button("↩️ Re-Route", key=f"quick_reroute_{cluster_hash}", help="Pull this declined route back to Dispatch", use_container_width=True)
-                    
-                    if clicked:
-                        move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Declined", check_onfleet=False)
+                    if st.button("↩️ Re-Route", key=f"quick_reroute_{cluster_hash}", use_container_width=True):
+                        move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Declined", check_onfleet=False, cluster_data=c)
                         st.rerun()
+                    
         with t_fin:
             if not finalized: st.info("No finalized routes.")
             for i, c in enumerate(finalized):
@@ -1708,7 +1695,7 @@ def run_pod_tab(pod_name):
                 with btn_col:
                     # Allows moving work back to Dispatch if a mistake was made
                     if st.button("↩️ Re-Route", key=f"fin_rr_{cluster_hash}", use_container_width=True):
-                        move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Finalized", check_onfleet=False)
+                        move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Finalized", check_onfleet=False, cluster_data=c)
                         st.rerun()
                         
 # --- START ---
