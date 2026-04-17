@@ -1128,6 +1128,15 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     with col_a:
         # The callback is attached here to force the background math to run
         st.selectbox("Contractor", list(ic_opts.keys()), key=sel_key, on_change=update_for_new_contractor)
+        
+        # 🌟 NEW: Manual Name Override
+        # If you type here, it uses this name. If blank, it uses the dropdown selection.
+        manual_name = st.text_input("Edit Contractor Name", placeholder="Type name to override...", key=f"edit_name_{cluster_hash}")
+        
+        ic_selected = ic_opts[st.session_state[sel_key]]
+        ic = ic_selected.copy()
+        if manual_name.strip():
+            ic['Name'] = manual_name.strip()
     
     # Get current state values
     ic = ic_opts[st.session_state[sel_key]]
