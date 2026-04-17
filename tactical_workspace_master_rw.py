@@ -724,9 +724,6 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
         unique_tasks_dict = {t['id']: t for t in all_tasks_raw}
         all_tasks = list(unique_tasks_dict.values())
         
-        # 🌟 SURGERY: Fetch database first so we can tag tasks with their current status
-        current_sent_db, _ = fetch_sent_records_from_sheet()
-
         pool = []
         for t in all_tasks:
             container = t.get('container', {})
@@ -735,31 +732,57 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
 
             addr = t.get('destination', {}).get('address', {})
             stt = normalize_state(addr.get('state', ''))
-            
-            # 🌟 SURGERY: Initialize tt_parts here so it exists for every task
-            tt_parts = [] 
             is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
+            tt_val = str(t.get('taskType', '')).strip() or str(t.get('taskDetails', '')).strip()
             
-            # ... (Your existing Metadata extraction logic here) ...
-            tt_val = ", ".join(tt_parts) if tt_parts else "General Task"
-
-            # 🌟 SURGERY: Check database status and actually ADD to the pool
-            t_status, t_wo = 'ready', 'none'
-            if t['id'] in current_sent_db:
-                t_status = current_sent_db[t['id']].get('status', 'ready').lower()
-                t_wo = current_sent_db[t['id']].get('wo', 'none')
-
+            # --- 1. EXTRACT FROM CUSTOM FIELDS & METADATA ---
+            # We now check BOTH Custom Fields and Metadata to be bulletproof
+            official_fields = (t.get('customFields') or []) + (t.get('metadata') or [])
+            
+            found_official_type = False
+            for f in official_fields:
+                f_name = str(f.get('name', '')).strip().lower()
+                f_key = str(f.get('key', '')).strip().lower()
+                f_val = str(f.get('value', '')).strip()
+                f_val_lower = f_val.lower()
+                
+                # Check for Escalation (either by name or value)
+                if ('escalation' in f_name or 'escalation' in f_key):
+                    if f_val_lower in ['1', '1.0', 'true', 'yes'] or 'escalation' in f_val_lower:
+                        is_esc = True
+                
+                # Check for Task Type
+                if f_name in ['task type', 'tasktype'] or f_key in ['tasktype', 'task_type']:
+                    tt_val = f_val
+                    found_official_type = True
+                
+                # Fallback to generic 'type' only if we haven't found the specific one yet
+                elif (f_name == 'type' or f_key == 'type') and not found_official_type:
+                    tt_val = f_val
+                
+            # --- FIXED: Always pull fresh data before clustering ---
+            t_status = 'ready'
+            t_wo = 'none'
+            
+            # Fetch fresh records and update session state
+            fresh_sent_db, _ = fetch_sent_records_from_sheet()
+            st.session_state.sent_db = fresh_sent_db
+            
+            if t['id'] in fresh_sent_db:
+                t_status = fresh_sent_db[t['id']].get('status', 'ready').lower()
+                t_wo = fresh_sent_db[t['id']].get('wo', 'none')
+            
             if stt in config['states']:
                 pool.append({
                     "id": t['id'], "city": addr.get('city', 'Unknown'), "state": stt,
                     "full": f"{addr.get('number','')} {addr.get('street','')}, {addr.get('city','')}, {stt}",
                     "lat": t['destination']['location'][1], "lon": t['destination']['location'][0],
                     "escalated": is_esc, "task_type": tt_val,
-                    "db_status": t_status, "wo": t_wo
+                    "db_status": t_status, 
+                    "wo": t_wo,
                 })
         
         clusters = []
-        
         total_pool = len(pool)
         ic_df = st.session_state.get('ic_df', pd.DataFrame())
         v_ics_base = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].dropna(subset=['Lat', 'Lng']).copy() if not ic_df.empty else pd.DataFrame()
@@ -821,18 +844,19 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             spillover = []
             
             for _, t in candidates:
+                # Only add the task if we're under 20 stops OR the task is at an address we already have
                 if len(unique_stops) < 20 or t['full'] in unique_stops:
                     group.append(t)
                     unique_stops.add(t['full'])
                 else:
+                    # If the route is "full" at 20 stops, save this for the next route
                     spillover.append(t)
             
-            # --- 🌟 THE MISSING BRIDGE START 🌟 ---
             # Put the spillover tasks back into the main pool
             rem.extend(spillover)
+            # --------------------------------
             
-            has_ic = False
-            closest_ic_loc = f"{anc['lat']},{anc['lon']}" 
+            has_ic = False; closest_ic_loc = f"{anc['lat']},{anc['lon']}" 
             if not v_ics_base.empty:
                 dists = v_ics_base.apply(lambda x: haversine(anc['lat'], anc['lon'], x['Lat'], x['Lng']), axis=1)
                 valid_ics = v_ics_base[dists <= 100].copy()
@@ -843,47 +867,53 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                     closest_ic_loc = best_ic['Location']
 
             def check_viability(grp):
-                seen = set(); u_locs = []
+                seen = set(); unique_locs = []
                 for x in grp:
-                    if x['full'] not in seen: seen.add(x['full']); u_locs.append(x['full'])
-                if not u_locs: return 0, 0
-                _, hrs, _ = get_gmaps(closest_ic_loc, u_locs[:25])
-                pay = round(max(len(u_locs) * 18.0, hrs * 25.0), 2)
-                return round(pay / len(u_locs), 2), len(u_locs)
+                    if x['full'] not in seen: seen.add(x['full']); unique_locs.append(x['full'])
+                if not unique_locs: return 0, 0
+                _, hrs, _ = get_gmaps(closest_ic_loc, unique_locs[:25])
+                pay = round(max(len(unique_locs) * 18.0, hrs * 25.0), 2)
+                return round(pay / len(unique_locs), 2), len(unique_locs)
             
             gate_avg, _ = check_viability(group)
-            status = anc_status.capitalize() if anc_status in ['sent', 'accepted'] else "Ready"
             
-            # Count equipment for the dashboard icons
-            g_data = group
-            e_count = sum(1 for x in g_data if x.get('escalated'))
-            i_count = sum(1 for x in g_data if "install" in str(x.get('task_type', '')).lower())
-            r_count = sum(1 for x in g_data if "removal" in str(x.get('task_type', '')).lower())
-            is_digi = any(d in str(x.get('task_type', '')).lower() for x in g_data for d in ['digital', 'skykit'])
-
+            # NEW: Sent/Accepted stay frozen. Ready and Declined both become 'Ready'
+            # This forces Declined routes to merge back into Dispatch
+            if anc_status in ['sent', 'accepted']:
+                status = anc_status.capitalize()
+            else:
+                status = "Ready"
+            
+            # If the price is too high, we still attempt to "shave off" the last stop added
+            if gate_avg > 23.00 and status not in ['Sent', 'Accepted']:
+                if len(group) > 1:
+                    removed = group.pop()
+                    new_avg, _ = check_viability(group)
+                    if new_avg <= 23.00: rem.append(removed)
+                    else: group.append(removed); status = "Flagged"
+                else: status = "Flagged"
+            
+            if not has_ic and status not in ['Sent', 'Accepted']: status = "Flagged"
+            
+            pool = rem
             clusters.append({
-                "data": g_data, "center": [anc['lat'], anc['lon']], 
-                "stops": len(set(x['full'] for x in g_data)), 
+                "data": group, "center": [anc['lat'], anc['lon']], 
+                "stops": len(set(x['full'] for x in group)), 
                 "city": anc['city'], "state": anc['state'],
                 "status": status, "has_ic": has_ic,
-                "esc_count": e_count, "is_digital": is_digi,
-                "inst_count": i_count, "remov_count": r_count,
+                "esc_count": sum(1 for x in group if x.get('escalated')),
+                "is_digital": anc_is_digital,
+                "inst_count": sum(1 for x in group if "kiosk install" in str(x.get('task_type', '')).lower()), # 🌟 FIX: Added the install counter!
                 "wo": anc_wo
             })
-            pool = rem # Update main pool with remaining tasks
-
+            
         st.session_state[f"clusters_{pod_name}"] = clusters
-        if not master_bar: prog_bar.empty()
+        if not master_bar: prog_bar.empty() # Only clear if it was a single pod pull
 
     except Exception as e:
         st.error(f"Error initializing {pod_name}: {str(e)}")
 
-# --- DISPATCH RENDERING ---
 def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
-    # --- 🌟 THE MISSING BRIDGE END 🌟 ---
-    task_ids = [str(t['id']).strip() for t in cluster['data']]
-    cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
-    sync_key = f"sync_{cluster_hash}"
     task_ids = [str(t['id']).strip() for t in cluster['data']]
     cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
     sync_key = f"sync_{cluster_hash}"
@@ -894,48 +924,42 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     pay_key = f"pay_val_{cluster_hash}"
     rate_key = f"rate_val_{cluster_hash}"
     sel_key = f"sel_{cluster_hash}"
-    last_sel_key = f"last_sel_{cluster_hash}"
+    last_sel_key = f"last_sel_{cluster_hash}" # Tracks the "previous" selection
 
     st.write("### Route Stops")
 
-    # --- HISTORY LOG ---
+    # --- NEW: HISTORY LOG ---
     hist = st.session_state.get(f"history_{cluster_hash}", [])
     if hist:
         st.markdown(f"<p style='color: #94a3b8; font-size: 13px; margin-top: -10px; margin-bottom: 15px; font-weight: 600;'>↩️ Previously sent to: {', '.join(hist)}</p>", unsafe_allow_html=True)
 
     # --- 2. STOP METRICS & PILLS ---
     stop_metrics = {}
-    for t in cluster['data']:
-        addr = t['full']
+    for c in cluster['data']:
+        addr = c['full']
         if addr not in stop_metrics:
             stop_metrics[addr] = {'t_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 'inst': 0, 'remov': 0, 'digi': 0, 'oth': 0, 'esc': False}
-        
         stop_metrics[addr]['t_count'] += 1
-        if t.get('escalated'): 
+        
+        # 🌟 FIX: Flag this specific address if it contains an escalation
+        if c.get('escalated'):
             stop_metrics[addr]['esc'] = True
+        # Iterate through the tasks inside the cluster to calculate metrics per stop
+    for t in cluster['data']:
+        addr = t['full']
+        # 👇 CRITICAL FIX: Use 't' (the task), NOT 'c' (the cluster)
+        tt = str(t.get('task_type', '')).strip().lower()
         
-        # 🌟 SURGERY: Escalation Logic
-        raw_tt = str(t.get('task_type', '')).strip()
-        tt_list = [p.strip().lower() for p in raw_tt.split(',') if p.strip()]
-        
-        if "escalation" in tt_list:
-            if len(tt_list) > 1:
-                tt_list.remove("escalation") # Omit if other types exist
-            else:
-                tt_list = ["new ad"] # Change to New Ad if it was the only type
-        
-        tt = ", ".join(tt_list)
-
-        # Priority Counting (Independent)
+        # Priority 1: Check Digital/Skykit FIRST
         if any(x in tt for x in ["service", "digital", "skykit"]): stop_metrics[addr]['digi'] += 1
-        if "install" in tt: stop_metrics[addr]['inst'] += 1
-        if "removal" in tt: stop_metrics[addr]['remov'] += 1
-        if any(x in tt for x in ["continuity", "photo", "swap"]): stop_metrics[addr]['c_ad'] += 1
-        if any(x in tt for x in ["default", "pull down"]): stop_metrics[addr]['d_ad'] += 1
-        
-        # Final check for New Ad / Art Change fallback
-        if any(x in tt for x in ["new ad", "art change", "top"]) or not tt:
-            stop_metrics[addr]['n_ad'] += 1
+        elif "install" in tt: stop_metrics[addr]['inst'] += 1
+        elif "removal" in tt: stop_metrics[addr]['remov'] += 1
+        elif any(x in tt for x in ["continuity", "photo", "swap"]): stop_metrics[addr]['c_ad'] += 1
+        elif any(x in tt for x in ["default", "pull down"]): stop_metrics[addr]['d_ad'] += 1
+        elif any(x in tt for x in ["new ad", "art change", "top"]): stop_metrics[addr]['n_ad'] += 1
+        # If task type is completely blank, fallback to New Ad
+        elif not tt: stop_metrics[addr]['n_ad'] += 1 
+        else: stop_metrics[addr]['oth'] += 1
             
     loc_pills = {} 
     for addr, metrics in stop_metrics.items():
@@ -943,18 +967,22 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if metrics['n_ad'] > 0: pill_parts.append(f"🆕 {metrics['n_ad']} New Ad")
         if metrics['c_ad'] > 0: pill_parts.append(f"🔄 {metrics['c_ad']} Continuity")
         if metrics['d_ad'] > 0: pill_parts.append(f"⚪ {metrics['d_ad']} Default")
-        if metrics['inst'] > 0: pill_parts.append(f"🛠️ {metrics['inst']} Install")
-        if metrics['remov'] > 0: pill_parts.append(f"🛑 {metrics['remov']} Removal")
-        if metrics['digi'] > 0: pill_parts.append(f"🔌 {metrics['digi']} Digital")
-        
+        if metrics['inst'] > 0: pill_parts.append(f"🛠️ {metrics['inst']} Kiosk Install")
+        if metrics['remov'] > 0: pill_parts.append(f"🛑 {metrics['remov']} Kiosk Removal")
+        if metrics['digi'] > 0: pill_parts.append(f"🔌 {metrics['digi']} Digital Service")
+        if metrics['oth'] > 0: pill_parts.append(f"📦 {metrics['oth']} Other")
         pill_str = " | ".join(pill_parts)
+        
+        # 🌟 FIX: Inject the star before the address if escalated
         display_addr = f"⭐ {addr}" if metrics['esc'] else addr
+        
         loc_pills[display_addr] = f"({metrics['t_count']} Tasks) {pill_str}"
         
+        # 🌟 UI FIX: Replaced ** with HTML <b> tags to prevent the Markdown parsing error
         st.markdown(f"<b>{display_addr}</b> &nbsp;<span style='color: #633094; background-color: #f3e8ff; padding: 2px 6px; border-radius: 10px; font-weight: 800; font-size: 11px;'>{metrics['t_count']} Tasks</span>&nbsp; <span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", unsafe_allow_html=True)
         
     st.divider()
-    
+
     # --- 3. CONTRACTOR FILTERING (100 MILES) ---
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
     v_ics = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].dropna(subset=['Lat', 'Lng']).copy()
@@ -1424,8 +1452,7 @@ def run_pod_tab(pod_name):
             for i, c in enumerate(sent):
                 ic_name = c.get('contractor_name', 'Unknown')
                 esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
-                digi_pill = " 🔌" if c.get('is_digital') else ""
-                remov_pill = f"  [ 🛑 {c.get('remov_count', 0)} Removals ]" if c.get('remov_count', 0) > 0 else ""
+                digi_pill = " 🔌" if c.get('is_digital') else ""  
                 inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else ""
                 
                 # Re-calculate hash for the quick-revoke button
