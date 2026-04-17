@@ -725,67 +725,49 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
         all_tasks = list(unique_tasks_dict.values())
         
         # 🌟 UNIVERSAL WHITELIST: Only these three trigger the plug and 25-mile radius
-        DIGITAL_WHITELIST = ["digital service", "digital ins/remove", "digital offline", "site survey"]
+        DIGITAL_WHITELIST = ["service", "ins/remove", "offline", "site survey"]
 
-        # PERFORMANCE FIX: Fetch Google Sheets data once before the loop
-        fresh_sent_db, _ = fetch_sent_records_from_sheet()
-        st.session_state.sent_db = fresh_sent_db
-
-        pool = []
-        for t in all_tasks:
-            container = t.get('container', {})
-            c_type = str(container.get('type', '')).upper()
+        # --- 🔍 2. TARGETED CUSTOM FIELDS SCAN ---
+            # Prioritize customFields; fallback to metadata if necessary
+            custom_fields = t.get('customFields') or []
+            metadata = t.get('metadata') or []
+            official_fields = custom_fields + metadata 
             
-            if c_type == 'TEAM' and container.get('team') not in target_team_ids: 
-                continue
-
-            addr = t.get('destination', {}).get('address', {})
-            stt = normalize_state(addr.get('state', ''))
-            is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
-            
-            # 1. BASE TASK TYPE EXTRACTION
-            tt_val = str(t.get('taskType', '')).strip() or str(t.get('taskDetails', '')).strip()
-
-            # --- 🌟 1. DEFINE CORE TRIGGER KEYWORDS ---
-            DIGITAL_WHITELIST = ["service", "ins/remove", "offline"]
-            
-            # --- 🔍 2. DEEP SCAN ---
-            official_fields = (t.get('customFields') or []) + (t.get('metadata') or [])
             is_digital_task = False 
             found_official_type = False
             
-            # Step A: Baseline check against Native Onfleet Type
+            # Baseline: Check Native Onfleet Type first
             native_tt = tt_val.lower()
             if any(trigger in native_tt for trigger in DIGITAL_WHITELIST):
                 is_digital_task = True
 
-            # Step B: Priority Scan of Official Fields (Metadata/Custom Fields)
+            # Deep Dive into Custom Fields
             for f in official_fields:
+                # Standardize field attributes
                 f_name = str(f.get('name', '')).strip().lower()
                 f_key = str(f.get('key', '')).strip().lower()
                 f_val = str(f.get('value', '')).strip()
                 f_val_lower = f_val.lower()
                 
-                # Check for Task Type in Official Fields
+                # Check for "Task Type" or "TaskType" within Custom Fields
                 if f_name in ['task type', 'tasktype'] or f_key in ['tasktype', 'task_type']:
-                    tt_val = f_val # This becomes the display name (e.g., "Digital Service")
+                    tt_val = f_val # Set display name to the value in the custom field
                     found_official_type = True
                     
-                    # 🔌 TRIGGER: Check if this official value contains our keywords
+                    # 🔌 TRIGGER: Check for our 3 keywords in this specific field
                     if any(trigger in f_val_lower for trigger in DIGITAL_WHITELIST):
                         is_digital_task = True
                 
-                # Check for Escalation (Official Field Priority)
-                if ('escalation' in f_name or 'escalation' in f_key):
+                # Check for "Escalation" within Custom Fields
+                if 'escalation' in f_name or 'escalation' in f_key:
                     if f_val_lower in ['1', '1.0', 'true', 'yes'] or 'escalation' in f_val_lower:
                         is_esc = True
                 
-                # Fallback for generic 'type' metadata if Task Type hasn't been found
+                # Fallback: Catch generic 'type' if official Task Type hasn't been set yet
                 elif (f_name == 'type' or f_key == 'type') and not found_official_type:
-                    tt_val = f_val
                     if any(trigger in f_val_lower for trigger in DIGITAL_WHITELIST):
                         is_digital_task = True
-
+                        tt_val = f_val
             # --- 3. ASSIGN STATUS ---
             t_status = 'ready'
             t_wo = 'none'
