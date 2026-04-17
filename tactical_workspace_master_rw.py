@@ -738,8 +738,18 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             # --- 1. EXTRACT FROM CUSTOM FIELDS & METADATA ---
             # We now check BOTH Custom Fields and Metadata to be bulletproof
             official_fields = (t.get('customFields') or []) + (t.get('metadata') or [])
-            
+
+            # 🌟 NEW: Define the ONLY allowed triggers for the plug icon
+            DIGITAL_WHITELIST = [
+                "digital offline", 
+                "digital ins/remove", 
+                "digital service", 
+                "digital sit survey"
+            ]
+
+            is_digital_task = False # Reset for each task
             found_official_type = False
+            
             for f in official_fields:
                 f_name = str(f.get('name', '')).strip().lower()
                 f_key = str(f.get('key', '')).strip().lower()
