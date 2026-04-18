@@ -50,6 +50,8 @@ TB_HOVER_GRAY = "#e2e8f0"
 TB_GREEN_FILL = "#dcfce7" # Ready
 TB_BLUE_FILL = "#dbeafe"  # Sent
 TB_RED_FILL = "#ffcccc"   # Flagged
+TB_YELLOW_FILL = "#FEF9C3"     # Field Nation
+
 
 POD_CONFIGS = {
     "Blue": {"states": {"AL", "AR", "FL", "IL", "IA", "LA", "MI", "MN", "MS", "MO", "NC", "SC", "WI"}},
@@ -390,6 +392,18 @@ div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb
     color: #991b1b !important; 
 }}
 
+/* 5. Field Nation (Yellow) */
+div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(5) {{
+    background-color: #fef9c3 !important;
+    border: 2px solid #854d0e !important;
+    border-bottom: none !important; /* Keeps the tab look */
+    border-radius: 4px 4px 0px 0px !important;
+}}
+
+div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(5) p {{
+    color: #854d0e !important;
+    font-weight: bold !important;
+}}
 
 /* --- RIGHT COLUMN: Awaiting Tabs --- */
 /* Force the gap so they break apart into individual pills */
@@ -1198,23 +1212,6 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     BORDER_COLOR = "#FACC15" # Mid-tone Yellow (for the border)
 
     if route_state == "field_nation":
-        st.markdown(f"""
-        <div style="
-            background-color: {BG_COLOR};
-            color: {TEXT_COLOR};
-            border: 1px solid {BORDER_COLOR};
-            padding: 2px 12px;
-            border-radius: 50px;
-            display: inline-block;
-            font-size: 12px;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 8px;
-        ">
-            Field Nation
-        </div>
-    """, unsafe_allow_html=True)
         
         st.info("💡 Route is currently tracked in the Field Nation tab.")
         if st.button("📢 Mark as Posted (Move to Sent)", key=f"posted_{cluster_hash}", type="primary", use_container_width=True):
