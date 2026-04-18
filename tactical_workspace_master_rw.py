@@ -1543,7 +1543,7 @@ def run_pod_tab(pod_name):
             else:
                 sent.append(c)
         elif route_state == "field_nation" and not is_reverted: 
-            field_nation.append(c))
+            field_nation.append(c)
         elif route_state == "link_generated" and not is_reverted:
             orig = st.session_state.get(f"orig_status_{cluster_hash}")
             if orig == "declined":
