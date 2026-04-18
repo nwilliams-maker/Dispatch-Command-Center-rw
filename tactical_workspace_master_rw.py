@@ -616,14 +616,17 @@ def fetch_sent_records_from_sheet():
                                 except:
                                     ts_display = str(raw_ts)
                             
+                            # 1. Live Task Matching
                             for tid in tids:
                                 tid = tid.strip()
                                 if tid:
+                                    # 1. Enforce Contractor name for FN routes
+                                    display_name = "Field Nation" if status_label == "field_nation" else c_name
                                     sent_dict[tid] = {
-                                        "name": c_name, 
+                                        "name": display_name, 
                                         "status": status_label,
                                         "time": ts_display,
-                                        "wo": p.get('wo', c_name)
+                                        "wo": p.get('wo', display_name)
                                     }
                             
                             # Ghost Route logic for Accepted routes
@@ -1823,10 +1826,20 @@ def run_pod_tab(pod_name):
                             st.rerun()
 
                 with btn_col:
-                    # 🌟 NEW: Revoke button for Ghost Routes
-                    if st.button("↩️ Revoke", key=f"rev_ghost_{ghost_hash}"):
-                        # check_onfleet=False since these aren't in the active pool
-                        move_to_dispatch(ghost_hash, ic_name, pod_name, action_label="Ghost Archived", check_onfleet=False)
+                    # 🌟 FIX: Safety popup with live Onfleet scrubbing
+                    with st.popover("↩️ Revoke", use_container_width=True):
+                        st.error(f"Are you sure you want to remove this route?")
+                        if st.button("🚨 Yes, Remove route", key=f"rev_ghost_{ghost_hash}", type="primary", use_container_width=True):
+                            # 🌟 check_onfleet=True: Performs the same state check as active routes
+                            move_to_dispatch(
+                                cluster_hash=ghost_hash, 
+                                ic_name=ic_name, 
+                                pod_name=pod_name, 
+                                action_label="Ghost Archived", 
+                                check_onfleet=True, # Forces live state verification
+                                cluster_data=g 
+                            )
+                            st.rerun()
                     
         with t_dec:
             if not declined: st.info("No declined routes.")
