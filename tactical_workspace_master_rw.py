@@ -1172,39 +1172,54 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             selected_label = st.selectbox("Select IC", list(ic_opts.keys()), key=sel_key, on_change=update_for_new_contractor)
             ic = ic_opts[selected_label]
         else:
-            # 🌟 FIX: Added 'location' and 'd' keys to prevent KeyError
             ic = {
                 "name": "Manual/FN", 
                 "location": f"{cluster['center'][0]},{cluster['center'][1]}",
                 "d": 0
             }
-            st.info("Use Field Nation button below.")
+            st.info("Use Field Nation checkbox below.")
 
     st.divider()
 
-    # --- 🌐 FIELD NATION PIPELINE ---
-    if route_state not in ["field_nation", "email_sent"]:
-        if st.button("🌐 Move to Field Nation", key=f"fn_{cluster_hash}", use_container_width=True):
-            with st.spinner("Saving to Field Nation database..."):
-                # 🌟 PERSISTENCE FIX: Save to Sheet immediately
+    # --- 🌐 FIELD NATION PERSISTENCE (CHECKBOX) ---
+    is_fn = (route_state == "field_nation")
+    
+    # Hide checkbox if already officially sent to an IC via Email
+    if route_state != "email_sent":
+        fn_checked = st.checkbox("🌐 Assign to Field Nation", value=is_fn, key=f"fn_check_{cluster_hash}")
+        
+        # Trigger Movement to Google Sheet
+        if fn_checked and not is_fn:
+            with st.spinner("Syncing to Field Nation tab..."):
                 home = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
                 payload = {
                     "cluster_hash": cluster_hash,
-                    "icn": "Field Nation", "wo": f"FN-{datetime.now().strftime('%m%d%Y')}",
-                    "lCnt": cluster['stops'], "tCnt": len(task_ids), "taskIds": ",".join(task_ids),
+                    "icn": "Field Nation", # 1. Contractor Field explicitly set
+                    "city": cluster.get('city', 'Unknown'),
+                    "state": cluster.get('state', 'Unknown'),
+                    "taskIds": ",".join(task_ids),
+                    "wo": f"FN-{datetime.now().strftime('%m%d%Y')}",
+                    "lCnt": cluster['stops'],
+                    "tCnt": len(task_ids),
                     "locs": " | ".join([home] + list(stop_metrics.keys()) + [home])
                 }
                 try:
-                    # Tells your GAS to save this in the Field Nation tab
+                    # 2. Checkbox triggers the movement to the Google Sheet
                     requests.post(GAS_WEB_APP_URL, json={"action": "saveToFieldNation", "payload": payload}, timeout=10)
                     st.session_state[f"route_state_{cluster_hash}"] = "field_nation"
                     st.rerun()
                 except Exception as e:
                     st.error(f"Failed to save to database: {e}")
-                    
+        
+        # Trigger Removal (Move back to Dispatch)
+        elif not fn_checked and is_fn:
+            move_to_dispatch(cluster_hash, "Field Nation", pod_name, action_label="Revoked from FN", check_onfleet=True)
+
+    # Transition to Sent
     if route_state == "field_nation":
-        st.info("💡 Route is in the Field Nation tab.")
+        st.info("💡 Route is currently tracked in the Field Nation tab.")
         if st.button("📢 Mark as Posted (Move to Sent)", key=f"posted_{cluster_hash}", type="primary", use_container_width=True):
+            # Move to Sent State locally and in DB
             st.session_state[f"route_state_{cluster_hash}"] = "email_sent"
             st.session_state[f"contractor_{cluster_hash}"] = "Field Nation"
             st.session_state[f"sent_ts_{cluster_hash}"] = datetime.now().strftime('%m/%d %I:%M %p')
