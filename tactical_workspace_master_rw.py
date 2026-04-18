@@ -1228,12 +1228,25 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     if route_state == "field_nation":
         st.info("💡 Route is currently tracked in the Field Nation tab.")
         if st.button("📢 Mark as Posted (Move to Sent)", key=f"posted_{cluster_hash}", type="primary", use_container_width=True):
-            # Move to Sent State locally and in DB
-            st.session_state[f"route_state_{cluster_hash}"] = "email_sent"
-            st.session_state[f"contractor_{cluster_hash}"] = "Field Nation"
-            st.session_state[f"sent_ts_{cluster_hash}"] = datetime.now().strftime('%m/%d %I:%M %p')
-            st.toast("🚀 Moved to Sent!")
-            st.rerun()
+            with st.spinner("Moving route to Sent database..."):
+                try:
+                    # 🌟 Trigger GAS to move row from 'Field Nation' to 'Saved_Routes'
+                    res = requests.post(GAS_WEB_APP_URL, json={
+                        "action": "postFieldNationRoute",
+                        "cluster_hash": cluster_hash
+                    }, timeout=10).json()
+                    
+                    if res.get("success"):
+                        st.session_state[f"route_state_{cluster_hash}"] = "email_sent"
+                        st.session_state[f"contractor_{cluster_hash}"] = "Field Nation"
+                        st.session_state[f"sent_ts_{cluster_hash}"] = datetime.now().strftime('%m/%d %I:%M %p')
+                        st.session_state[f"sync_{cluster_hash}"] = res.get("routeId") # Save new ID
+                        st.toast("🚀 Moved to Sent in Google Sheets!")
+                        st.rerun()
+                    else:
+                        st.error(f"Sheet Error: {res.get('error')}")
+                except Exception as e:
+                    st.error(f"Connection Failed: {e}")
         
     # --- 3. DYNAMIC PRICING SYNC LOGIC ---
     def sync_on_total():
