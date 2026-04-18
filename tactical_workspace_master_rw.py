@@ -1169,8 +1169,6 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         st.session_state[sel_key] = default_label
         st.session_state[last_sel_key] = default_label
 
-    -deleted-
-
     # All mileage math is tied to this single selection
     mi, hrs, t_str = get_gmaps(ic['Location'], list(stop_metrics.keys())[:25])
     
