@@ -38,6 +38,7 @@ IC_SHEET_URL = "https://docs.google.com/spreadsheets/d/1y6wX0x93iDc3gdK_nZKLD-2Q
 SAVED_ROUTES_GID = "1477617688"
 ACCEPTED_ROUTES_GID = "934075207"
 DECLINED_ROUTES_GID = "600909788"
+FIELD_NATION_GID = "1396320527"
 
 # Terraboost Media Brand Palette
 TB_PURPLE = "#633094"
@@ -577,6 +578,7 @@ def fetch_sent_records_from_sheet():
             (DECLINED_ROUTES_GID, "declined"),
             (ACCEPTED_ROUTES_GID, "accepted"),
             (SAVED_ROUTES_GID, "sent")
+            (FIELD_NATION_GID, "field_nation")
         ]
         
         sent_dict = {}
@@ -1172,9 +1174,23 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     # --- 🌐 FIELD NATION PIPELINE ---
     if route_state not in ["field_nation", "email_sent"]:
         if st.button("🌐 Move to Field Nation", key=f"fn_{cluster_hash}", use_container_width=True):
-            st.session_state[f"route_state_{cluster_hash}"] = "field_nation"
-            st.rerun()
-
+            with st.spinner("Saving to Field Nation database..."):
+                # 🌟 PERSISTENCE FIX: Save to Sheet immediately
+                home = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
+                payload = {
+                    "cluster_hash": cluster_hash,
+                    "icn": "Field Nation", "wo": f"FN-{datetime.now().strftime('%m%d%Y')}",
+                    "lCnt": cluster['stops'], "tCnt": len(task_ids), "taskIds": ",".join(task_ids),
+                    "locs": " | ".join([home] + list(stop_metrics.keys()) + [home])
+                }
+                try:
+                    # Tells your GAS to save this in the Field Nation tab
+                    requests.post(GAS_WEB_APP_URL, json={"action": "saveToFieldNation", "payload": payload}, timeout=10)
+                    st.session_state[f"route_state_{cluster_hash}"] = "field_nation"
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Failed to save to database: {e}")
+                    
     if route_state == "field_nation":
         st.info("💡 Route is in the Field Nation tab.")
         if st.button("📢 Mark as Posted (Move to Sent)", key=f"posted_{cluster_hash}", type="primary", use_container_width=True):
