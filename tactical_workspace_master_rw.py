@@ -1580,7 +1580,7 @@ def run_pod_tab(pod_name):
         # SECTION 1: DISPATCH (LEFT SIDE - CENTERED)
         # ==========================================
         st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_PURPLE}; margin-bottom: 5px; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
-        t_ready, t_flagged = st.tabs(["📥 Ready", "⚠️ Flagged"])
+        t_ready, t_flagged = st.tabs(["📥 Ready", "⚠️ Flagged", "🌐 Outsource"])
 
         with t_ready:
             if not ready: st.info("No tasks ready for dispatch.")
@@ -1588,21 +1588,33 @@ def run_pod_tab(pod_name):
                 # --- PRE-CALCULATE BADGES ---
                 badges = ""
                 if not ic_df.empty:
-                    v_ics = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].dropna(subset=['Lat', 'Lng']).copy()
-                    if not v_ics.empty:
-                        v_ics['d'] = v_ics.apply(lambda x: haversine(c['center'][0], c['center'][1], x['Lat'], x['Lng']), axis=1)
-                        closest_ic = v_ics.sort_values('d').iloc[0]
-                        _, hrs, _ = get_gmaps(closest_ic['Location'], [t['full'] for t in c['data'][:25]])
-                        est_pay = max(c['stops'] * 18.0, hrs * 25.0)
-                        est_rate = est_pay / c['stops'] if c['stops'] > 0 else 0
-                        
-                        if est_rate >= 25.0: badges += " 💰"
-                        if closest_ic['d'] > 60: badges += " 📡"
-                        if est_rate >= 25.0 or closest_ic['d'] > 60: badges = " 🔒" + badges
+                    # Dynamically find the exact column names (ignoring case and spaces)
+                    lat_col = next((col for col in ic_df.columns if str(col).strip().lower() == 'lat'), 'Lat')
+                    lng_col = next((col for col in ic_df.columns if str(col).strip().lower() == 'lng'), 'Lng')
+                    loc_col = next((col for col in ic_df.columns if str(col).strip().lower() == 'location'), 'Location')
 
+                    # Only run the math if the coordinate columns actually exist
+                    if lat_col in ic_df.columns and lng_col in ic_df.columns:
+                        v_ics = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].dropna(subset=[lat_col, lng_col]).copy()
+                        
+                        if not v_ics.empty:
+                            v_ics['d'] = v_ics.apply(lambda x: haversine(c['center'][0], c['center'][1], x[lat_col], x[lng_col]), axis=1)
+                            closest_ic = v_ics.sort_values('d').iloc[0]
+                            
+                            # Calculate Pay & Distance using the dynamic location column
+                            _, hrs, _ = get_gmaps(closest_ic[loc_col], [t['full'] for t in c['data'][:25]])
+                            est_pay = max(c['stops'] * 18.0, hrs * 25.0)
+                            est_rate = est_pay / c['stops'] if c['stops'] > 0 else 0
+                            
+                            if est_rate >= 25.0: badges += " 💰"
+                            if closest_ic['d'] > 60: badges += " 📡"
+                            if est_rate >= 25.0 or closest_ic['d'] > 60: badges = " 🔒" + badges
+
+                # Build the pills and the expander
                 esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
                 digi_pill = " 🔌" if c.get('is_digital') else ""  
-                inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else "" # 🌟 FIX
+                inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else "" 
+                
                 with st.expander(f"{badges} 🟢 {c['city']}, {c['state']} | {c['stops']} Stops{digi_pill}{inst_pill}{esc_pill}"):
                     render_dispatch(i, c, pod_name)
                     
