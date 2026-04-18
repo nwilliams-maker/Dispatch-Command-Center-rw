@@ -392,17 +392,17 @@ div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb
     color: #991b1b !important; 
 }}
 
-/* 5. Field Nation (Yellow) */
-div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(5) {{
+/* 3. Field Nation (Light Yellow BG / Dark Yellow Text) */
+/* 🌟 FIXED: Changed index to 3 and applied your color palette */
+div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(3) {{
     background-color: #fef9c3 !important;
     border: 2px solid #854d0e !important;
-    border-bottom: none !important; /* Keeps the tab look */
-    border-radius: 4px 4px 0px 0px !important;
+    border-radius: 30px !important; /* Makes it a pill */
+    margin: 0 5px !important;
 }}
-
-div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(5) p {{
+div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(3) p {{
     color: #854d0e !important;
-    font-weight: bold !important;
+    font-weight: 800 !important;
 }}
 
 /* --- RIGHT COLUMN: Awaiting Tabs --- */
@@ -524,8 +524,7 @@ def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", ch
     # This fetches fresh 'state=0' tasks from Onfleet and re-runs the math.
     # Because those tasks are now unassigned, they will automatically 
     # 'attach' to existing routes if they fall within your distance threshold.
-    with st.spinner(f"Adding tasks back to... {pod_name} routes..."):
-        # We call the function you provided to re-build the pod from scratch
+    with st.spinner("Adding tasks back to pool..."):
         process_pod(pod_name)
     
     st.toast(f"✅ {action_label}! Tasks returned to pool and re-attached.")
@@ -1533,7 +1532,9 @@ def run_pod_tab(pod_name):
         # --- PRIORITY: LIVE DATABASE OVERRIDES LOCAL STATE ---
         if sheet_match and not is_reverted:
             raw_status = str(sheet_match.get('status', '')).lower()
-            if raw_status == 'declined':
+            if raw_status == 'field_nation': # 🌟 FIXED: Send FN status to FN list
+                field_nation.append(c)
+            elif raw_status == 'declined':
                 declined.append(c)
             elif raw_status == 'accepted':
                 accepted.append(c)
@@ -1541,10 +1542,8 @@ def run_pod_tab(pod_name):
                 finalized.append(c)
             else:
                 sent.append(c)
-        elif route_state == "email_sent" and not is_reverted:
-            sent.append(c)
         elif route_state == "field_nation" and not is_reverted: 
-            field_nation.append(c)
+            field_nation.append(c))
         elif route_state == "link_generated" and not is_reverted:
             orig = st.session_state.get(f"orig_status_{cluster_hash}")
             if orig == "declined":
