@@ -1859,10 +1859,19 @@ def run_pod_tab(pod_name):
                         st.error("Route declined. Select a new contractor below to generate a fresh link.")
                         render_dispatch(i+3000, c, pod_name, is_declined=True)
                         
-                with btn_col:
-                    if st.button("↩️ Re-Route", key=f"quick_reroute_{cluster_hash}"):
-                        # We pass 'c' (the full cluster object) to the archive payload
-                        move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Re-Routed", check_onfleet=True, cluster_data=c)
+               with btn_col:
+                    with st.popover("↩️ Revoke", use_container_width=True):
+                        st.error(f"Re-route this declined route?")
+                        # Standardized Label and Logic
+                        if st.button("🚨 Yes, Add back to Pool", key=f"rev_acc_{cluster_hash}", type="primary", use_container_width=True):
+                            move_to_dispatch(
+                                cluster_hash=cluster_hash, 
+                                ic_name=ic_name, 
+                                pod_name=pod_name, 
+                                action_label="Route Revoked", 
+                                check_onfleet=True, 
+                                cluster_data=c
+                            )
                     
         with t_fin:
             if not finalized: st.info("No finalized routes.")
