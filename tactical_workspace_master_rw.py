@@ -1056,13 +1056,33 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
 
     # --- 3. CONTRACTOR FILTERING (100 MILES) ---
 ic_df = st.session_state.get('ic_df', pd.DataFrame())
-v_ics = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].dropna(subset=['Lat', 'Lng']).copy()
 
-ic_opts = {}
+if not ic_df.empty:
+    # Standardize column headers: Remove spaces and make lowercase
+    ic_df.columns = [str(c).strip().lower() for c in ic_df.columns]
+    
+    # Define the columns we NEED (now in lowercase)
+    lat_col = 'lat'
+    lng_col = 'lng'
 
-if not v_ics.empty:
-    v_ics['d'] = v_ics.apply(lambda x: haversine(cluster['center'][0], cluster['center'][1], x['Lat'], x['Lng']), axis=1)
-    v_ics = v_ics[v_ics['d'] <= 100].sort_values('d')
+    # Check if they exist before proceeding
+    if lat_col in ic_df.columns and lng_col in ic_df.columns:
+        # Filter out 'Field Agent' types
+        v_ics = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].copy()
+        
+        # Drop rows missing coordinates
+        v_ics = v_ics.dropna(subset=[lat_col, lng_col])
+        
+        if not v_ics.empty:
+            # Use lowercase names in the haversine calculation
+            # Note: Ensure haversine references 'lat' and 'lng' (lowercase)
+            v_ics['d'] = v_ics.apply(lambda x: haversine(cluster['center'][0], cluster['center'][1], x[lat_col], x[lng_col]), axis=1)
+            v_ics = v_ics[v_ics['d'] <= 100].sort_values('d')
+    else:
+        st.error(f"⚠️ Missing coordinate columns. Found: {ic_df.columns.tolist()}")
+        v_ics = pd.DataFrame() 
+else:
+    v_ics = pd.DataFrame()
     
     # Inject the 🔌 for Digital Certified Contractors
     for _, r in v_ics.iterrows():
