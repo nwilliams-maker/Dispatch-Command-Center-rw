@@ -479,10 +479,11 @@ def finalize_route_handler(cluster_hash):
         
 def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=True, cluster_data=None):
     """
-    Archives the route and releases tasks back into the general unassigned pool 
-    so they can be re-clustered with existing routes.
+    Releases tasks back into the general unassigned pool so process_pod 
+    can re-attach them to nearby routes based on proximity.
     """
     # --- 1. 🚀 ARCHIVE IN GOOGLE SHEETS ---
+    # This removes the route from 'Sent' or 'Accepted' tabs so it doesn't double-count
     try:
         requests.post(GAS_WEB_APP_URL, json={
             "action": "archiveRoute", 
@@ -490,43 +491,30 @@ def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", ch
             "payload": cluster_data if cluster_data else {}
         }, timeout=15)
     except Exception as e:
-        st.toast(f"⚠️ Archive Note: {e}")
+        st.toast(f"⚠️ Sheet Archive Note: {e}")
 
-    # --- 2. 📡 TASK SCRUBBING (PRE-VALIDATION) ---
-    # We check Onfleet to make sure we aren't trying to re-pool completed tasks
-    if check_onfleet and cluster_data:
-        with st.spinner("Checking Onfleet task states..."):
-            valid_ids = []
-            for t in cluster_data.get('data', []):
-                try:
-                    res = requests.get(f"https://onfleet.com/api/v2/tasks/{t['id']}", headers=headers, timeout=5).json()
-                    if res.get('state') == 0: # 0 = Unassigned
-                        valid_ids.append(t['id'])
-                except: continue
-            
-            if not valid_ids:
-                st.error("All tasks in this route are already assigned or completed in Onfleet.")
-                return
-
-    # --- 3. 🧠 RELEASE TO POOL & RE-CLUSTER ---
-    # Remove the specific cluster from the pod's session state
+    # --- 2. 🧠 RELEASE FROM LOCAL MEMORY ---
+    # We remove this specific cluster so the tasks are 'free' to be re-clustered
     if f"clusters_{pod_name}" in st.session_state:
         st.session_state[f"clusters_{pod_name}"] = [
             c for c in st.session_state[f"clusters_{pod_name}"] 
             if hashlib.md5("".join(sorted([str(t['id']).strip() for t in c['data']])).encode()).hexdigest() != cluster_hash
         ]
 
-    # Clear UI metadata for this specific hash
+    # Clear UI keys for this hash to prevent ghosting
     for key in list(st.session_state.keys()):
         if cluster_hash in key:
             st.session_state.pop(key, None)
 
-    # Trigger the Pod Processing logic
-    # This fetches all 'State 0' tasks and re-runs the proximity math
-    with st.spinner(f"Re-attaching tasks to {pod_name} routes..."):
+    # --- 3. 📡 RE-RUN THE ENGINE (process_pod) ---
+    # This fetches fresh 'state=0' tasks from Onfleet and re-runs the math.
+    # Because those tasks are now unassigned, they will automatically 
+    # 'attach' to existing routes if they fall within your distance threshold.
+    with st.spinner(f"Scrubbing Onfleet & Re-attaching tasks to {pod_name} routes..."):
+        # We call the function you provided to re-build the pod from scratch
         process_pod(pod_name)
     
-    st.toast(f"✅ {action_label}! Tasks returned to pool and re-clustered.")
+    st.toast(f"✅ {action_label}! Tasks returned to pool and re-attached.")
     st.rerun()
 
 def instant_revoke_handler(cluster_hash, ic_name, payload_json, pod_name):
