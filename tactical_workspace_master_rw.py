@@ -1145,7 +1145,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             st.info("Use Field Nation checkbox below.")
 
     st.divider()
-
+    
     # --- 🌐 FIELD NATION PERSISTENCE (CHECKBOX) ---
     is_fn = (route_state == "field_nation")
     
@@ -1192,7 +1192,33 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 check_onfleet=True
             )
     # Transition to Sent
+    # Color Constants
+
+    LIGHT_YELLOW_BG = "#FEF9C3"  # Soft light yellow
+    DARK_YELLOW_TEXT = "#854D0E" # Deep dark yellow/amber
+
     if route_state == "field_nation":
+        st.markdown(f"""
+        <div style="
+            background-color: {LIGHT_YELLOW_BG};
+            border-radius: 4px;
+            padding: 4px 12px;
+            display: inline-block;
+            margin-bottom: 8px;
+            border: 1px solid #FDE68A;
+        ">
+            <span style="
+                color: {DARK_YELLOW_TEXT};
+                font-weight: 900;
+                font-size: 14px;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            ">
+                Field Nation
+            </span>
+        </div>
+    """, unsafe_allow_html=True)
+        
         st.info("💡 Route is currently tracked in the Field Nation tab.")
         if st.button("📢 Mark as Posted (Move to Sent)", key=f"posted_{cluster_hash}", type="primary", use_container_width=True):
             with st.spinner("Moving route to Sent database..."):
