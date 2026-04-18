@@ -1192,30 +1192,27 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 check_onfleet=True
             )
     # Transition to Sent
-    # Color Constants
-
-    LIGHT_YELLOW_BG = "#FEF9C3"  # Soft light yellow
-    DARK_YELLOW_TEXT = "#854D0E" # Deep dark yellow/amber
+    # --- COLOR PALETTE ---
+    BG_COLOR = "#FEF9C3"     # Light Yellow
+    TEXT_COLOR = "#854D0E"   # Dark Yellow / Amber
+    BORDER_COLOR = "#FACC15" # Mid-tone Yellow (for the border)
 
     if route_state == "field_nation":
         st.markdown(f"""
         <div style="
-            background-color: {LIGHT_YELLOW_BG};
-            border-radius: 4px;
-            padding: 4px 12px;
+            background-color: {BG_COLOR};
+            color: {TEXT_COLOR};
+            border: 1px solid {BORDER_COLOR};
+            padding: 2px 12px;
+            border-radius: 50px;
             display: inline-block;
+            font-size: 12px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
             margin-bottom: 8px;
-            border: 1px solid #FDE68A;
         ">
-            <span style="
-                color: {DARK_YELLOW_TEXT};
-                font-weight: 900;
-                font-size: 14px;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-            ">
-                Field Nation
-            </span>
+            Field Nation
         </div>
     """, unsafe_allow_html=True)
         
