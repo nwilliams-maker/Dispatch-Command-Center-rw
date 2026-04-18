@@ -1466,7 +1466,6 @@ def run_pod_tab(pod_name):
     # Grab the contractor database from session state
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
     
-    # ... rest of your header code ...
     # Grab the matching "Midnight" text color for the current pod
     text_color = {
         "Blue": "#1e3a8a",
@@ -1791,36 +1790,43 @@ def run_pod_tab(pod_name):
                             move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=True, cluster_data=c)
                             st.rerun()
 
-            # --- 2. GHOST ROUTES ---
+            # --- 2. GHOST ROUTES (Historical Assigned Routes) ---
             for i, g in enumerate(pod_ghosts):
                 wo_display = g.get('wo', g.get('contractor_name', 'Unknown'))
                 ts_suffix = f" | {g.get('route_ts', '')}"
-                ghost_hash = g.get('hash', f"ghost_{i}") # Grab the hash we created
+                ghost_hash = g.get('hash', f"ghost_{i}") 
+                ic_name = g.get('contractor_name', 'Unknown')
+
+                # Column layout for Revoke button alignment
+                exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                 
-                with st.expander(f"✅ {wo_display} | {g.get('city', 'Unknown')}, {g.get('state', 'Unknown')}{ts_suffix}"):
-                    st.success("Route accepted and tasks successfully assigned in OnFleet.")
-                    st.markdown(f"""
-                        <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:12px; margin-top:5px;">
-                            <p style="margin:0; font-size:12px; color:#64748b; font-weight:800; text-transform:uppercase;">Historical Route Data</p>
-                            <div style="display:flex; justify-content:space-between; margin-top:8px;">
-                                <div><span style="font-size:11px; color:#475569;">Original Tasks:</span><br><b style="color:#000000; font-size:16px;">{g.get('tasks', 0)}</b></div>
-                                <div><span style="font-size:11px; color:#475569;">Stops:</span><br><b style="color:#000000; font-size:16px;">{g.get('stops', 0)}</b></div>
-                                <div><span style="font-size:11px; color:#475569;">Compensation:</span><br><b style="color:#22c55e; font-size:16px;">${g.get('pay', 0)}</b></div>
+                with exp_col:
+                    with st.expander(f"✅ {wo_display} | {g.get('city', 'Unknown')}, {g.get('state', 'Unknown')}{ts_suffix}"):
+                        st.success("Route accepted and tasks successfully assigned in OnFleet.")
+                        st.markdown(f"""
+                            <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:12px; margin-top:5px;">
+                                <p style="margin:0; font-size:12px; color:#64748b; font-weight:800; text-transform:uppercase;">Historical Route Data</p>
+                                <div style="display:flex; justify-content:space-between; margin-top:8px;">
+                                    <div><span style="font-size:11px; color:#475569;">Original Tasks:</span><br><b style="color:#000000; font-size:16px;">{g.get('tasks', 0)}</b></div>
+                                    <div><span style="font-size:11px; color:#475569;">Stops:</span><br><b style="color:#000000; font-size:16px;">{g.get('stops', 0)}</b></div>
+                                    <div><span style="font-size:11px; color:#475569;">Compensation:</span><br><b style="color:#22c55e; font-size:16px;">${g.get('pay', 0)}</b></div>
+                                </div>
                             </div>
-                        </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # 🌟 FIX: Inject Operational Readiness Checklist for Ghost Routes
-                    st.divider()
-                    st.markdown("<p style='font-weight:800; color:#16a34a;'>📋 Operational Readiness</p>", unsafe_allow_html=True)
-                    
-                    # Added '_{i}' to the end of each key to guarantee they are 100% unique!
-                    s1 = st.checkbox("1. **Onfleet**: Optimized route?", key=f"g_s1_{ghost_hash}_{i}")
-                    s2 = st.checkbox("2. **Plan**: Fields & Backend Dispatch?", key=f"g_s2_{ghost_hash}_{i}", disabled=not s1)
-                    
-                    if st.checkbox("3. **Pack**: Packing list uploaded?", key=f"g_s3_{ghost_hash}_{i}", disabled=not s2):
-                        finalize_route_handler(ghost_hash)
-                        st.rerun()
+                        """, unsafe_allow_html=True)
+                        
+                        st.divider()
+                        st.markdown("<p style='font-weight:800; color:#16a34a;'>📋 Operational Readiness</p>", unsafe_allow_html=True)
+                        s1 = st.checkbox("1. **Onfleet**: Optimized route?", key=f"g_s1_{ghost_hash}_{i}")
+                        s2 = st.checkbox("2. **Plan**: Fields & Backend Dispatch?", key=f"g_s2_{ghost_hash}_{i}", disabled=not s1)
+                        if st.checkbox("3. **Pack**: Packing list uploaded?", key=f"g_s3_{ghost_hash}_{i}", disabled=not s2):
+                            finalize_route_handler(ghost_hash)
+                            st.rerun()
+
+                with btn_col:
+                    # 🌟 NEW: Revoke button for Ghost Routes
+                    if st.button("↩️ Revoke", key=f"rev_ghost_{ghost_hash}"):
+                        # check_onfleet=False since these aren't in the active pool
+                        move_to_dispatch(ghost_hash, ic_name, pod_name, action_label="Ghost Archived", check_onfleet=False)
                     
         with t_dec:
             if not declined: st.info("No declined routes.")
