@@ -1414,7 +1414,7 @@ def run_pod_tab(pod_name):
     sent_db, ghost_db = fetch_sent_records_from_sheet()
     pod_ghosts = ghost_db.get(pod_name, [])
 
-    # Added 'finalized' to the list
+    # 1. 📂 DEFINE BUCKETS
     ready, review, sent, accepted, declined, finalized, field_nation = [], [], [], [], [], [], []
 
     for c in cls:
@@ -1426,7 +1426,6 @@ def run_pod_tab(pod_name):
         local_ts = st.session_state.get(f"sent_ts_{cluster_hash}", "")
         local_contractor = st.session_state.get(f"contractor_{cluster_hash}", "Unknown")
         
-        # Check if the dispatcher manually revoked this route
         is_reverted = st.session_state.get(f"reverted_{cluster_hash}", False)
         
         if sheet_match and not is_reverted:
@@ -1437,20 +1436,21 @@ def run_pod_tab(pod_name):
             c['contractor_name'] = local_contractor
             c['route_ts'] = local_ts
         
-        # --- NEW PRIORITY: LIVE DATABASE OVERRIDES LOCAL STATE ---
+        # --- PRIORITY: LIVE DATABASE OVERRIDES LOCAL STATE ---
         if sheet_match and not is_reverted:
             raw_status = str(sheet_match.get('status', '')).lower()
             if raw_status == 'declined':
                 declined.append(c)
             elif raw_status == 'accepted':
                 accepted.append(c)
-            elif raw_status == 'finalized': # NEW: Catch finalized status
+            elif raw_status == 'finalized': 
                 finalized.append(c)
             else:
                 sent.append(c)
         elif route_state == "email_sent" and not is_reverted:
             sent.append(c)
-        
+        elif route_state == "field_nation" and not is_reverted: 
+            field_nation.append(c)
         elif route_state == "link_generated" and not is_reverted:
             orig = st.session_state.get(f"orig_status_{cluster_hash}")
             if orig == "declined":
@@ -1458,7 +1458,6 @@ def run_pod_tab(pod_name):
             else:
                 ready.append(c)
         else:
-            # Falls back into standard Dispatching
             if c.get('status') == 'Ready': 
                 ready.append(c)
             else: 
@@ -1468,14 +1467,11 @@ def run_pod_tab(pod_name):
     total_stops = sum(c['stops'] for c in cls)
     total_routes = len(cls)
 
-    # 🌟 NEW: Add ghosts to the Tracking Math
+    # 🌟 RESTORED: Ghosts and Tracking Math
     total_accepted = len(accepted) + len(pod_ghosts)
     total_dispatched = len(sent) + total_accepted + len(declined)
 
-    # We swap the widths so the wider 'Routes' card fits on the left
-    c1, c2, c3 = st.columns([1.5, 1, 1.5])
-
-    # Dashboard Supercards (Now with Hover Glow!)
+    # 🌟 RESTORED: Dashboard Supercards (Hover Glow)
     c1, c2, c3 = st.columns([1.5, 1, 1.5])
 
     with c1:
@@ -1533,28 +1529,21 @@ def run_pod_tab(pod_name):
             </div>
         """, unsafe_allow_html=True)
         
-    # --- ACTION BUTTON ---
+    # 🌟 RESTORED: Action Button
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("⚙️ Re-Optimize Routes", use_container_width=True, key=f"reopt_{pod_name}"):
-        st.session_state.pop(f"clusters_{pod_name}", None) # Wipes current clusters
-        process_pod(pod_name) # Re-runs Onfleet pull and clustering
+        st.session_state.pop(f"clusters_{pod_name}", None)
+        process_pod(pod_name) 
         st.rerun()
 
-    # --- MAP RENDERING (STAYS RIGHT BELOW) ---
-    
-    # We use the first cluster as the center point
+    # 🌟 RESTORED: Map Rendering
     m = folium.Map(location=cls[0]['center'], zoom_start=6, tiles="cartodbpositron")
-    
-    # Draw markers
     for c in ready: folium.CircleMarker(c['center'], radius=8, color=TB_GREEN, fill=True, opacity=0.8).add_to(m)
     for c in sent: folium.CircleMarker(c['center'], radius=8, color="#3b82f6", fill=True, opacity=0.8).add_to(m)
     for c in review: folium.CircleMarker(c['center'], radius=8, color="#ef4444", fill=True, opacity=0.8).add_to(m)
-    
-    # FIX: Remove width=1100 and use container width for responsiveness
     st_folium(m, height=400, use_container_width=True, key=f"map_{pod_name}")
     
-    # --- ICON KEY (LEGEND) ---
-    # (Pushed to the far left so Streamlit doesn't turn it into a code block)
+    # 🌟 RESTORED: Icon Key (Legend)
     st.markdown("""
 <div style="display: flex; justify-content: center; flex-wrap: wrap; gap: 20px; background: #ffffff; padding: 12px; border-radius: 12px; border: 1px solid #cbd5e1; margin-top: -10px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
     <div style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; align-self: center; margin-right: 10px;">Route Key:</div>
@@ -1571,8 +1560,6 @@ def run_pod_tab(pod_name):
 
     st.markdown("---")
 
-    # Create two equal-width columns for side-by-side layout
-    # [4, 5.5] ratio makes the left card narrower and the right side wider
     col_left, col_right = st.columns([4.5, 5.5])
 
     with col_left:
@@ -1580,28 +1567,24 @@ def run_pod_tab(pod_name):
         # SECTION 1: DISPATCH (LEFT SIDE - CENTERED)
         # ==========================================
         st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_PURPLE}; margin-bottom: 5px; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
-        t_ready, t_flagged = st.tabs(["📥 Ready", "⚠️ Flagged", "🌐 Outsource"])
+        t_ready, t_flagged, t_fn = st.tabs(["📥 Ready", "⚠️ Flagged", "🌐 Field Nation"])
 
         with t_ready:
             if not ready: st.info("No tasks ready for dispatch.")
             for i, c in enumerate(ready):
-                # --- PRE-CALCULATE BADGES ---
+                # 🌟 RESTORED: Pre-Calculate Badges WITH the Dynamic Header KeyError Fix
                 badges = ""
                 if not ic_df.empty:
-                    # Dynamically find the exact column names (ignoring case and spaces)
                     lat_col = next((col for col in ic_df.columns if str(col).strip().lower() == 'lat'), 'Lat')
                     lng_col = next((col for col in ic_df.columns if str(col).strip().lower() == 'lng'), 'Lng')
                     loc_col = next((col for col in ic_df.columns if str(col).strip().lower() == 'location'), 'Location')
 
-                    # Only run the math if the coordinate columns actually exist
                     if lat_col in ic_df.columns and lng_col in ic_df.columns:
                         v_ics = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].dropna(subset=[lat_col, lng_col]).copy()
                         
                         if not v_ics.empty:
                             v_ics['d'] = v_ics.apply(lambda x: haversine(c['center'][0], c['center'][1], x[lat_col], x[lng_col]), axis=1)
                             closest_ic = v_ics.sort_values('d').iloc[0]
-                            
-                            # Calculate Pay & Distance using the dynamic location column
                             _, hrs, _ = get_gmaps(closest_ic[loc_col], [t['full'] for t in c['data'][:25]])
                             est_pay = max(c['stops'] * 18.0, hrs * 25.0)
                             est_rate = est_pay / c['stops'] if c['stops'] > 0 else 0
@@ -1610,7 +1593,7 @@ def run_pod_tab(pod_name):
                             if closest_ic['d'] > 60: badges += " 📡"
                             if est_rate >= 25.0 or closest_ic['d'] > 60: badges = " 🔒" + badges
 
-                # Build the pills and the expander
+                # 🌟 RESTORED: Your exact Installs logic + Digital & Esc
                 esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
                 digi_pill = " 🔌" if c.get('is_digital') else ""  
                 inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else "" 
@@ -1621,17 +1604,22 @@ def run_pod_tab(pod_name):
         with t_flagged:
             if not review: st.info("No flagged tasks requiring review.")
             for i, c in enumerate(review):
+                # 🌟 RESTORED: Your exact Installs logic
                 esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
                 digi_pill = " 🔌" if c.get('is_digital') else ""  
-                inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else "" # 🌟 FIX
+                inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else ""
                 with st.expander(f"🔒 🔴 {c['city']}, {c['state']} | {c['stops']} Stops{digi_pill}{inst_pill}{esc_pill}"):
                     render_dispatch(i+1000, c, pod_name)
+
         with t_fn:
             if not field_nation: 
                 st.info("No routes currently moved to Field Nation.")
             for i, c in enumerate(field_nation):
-                # We use a unique icon for FN routes
-                with st.expander(f"🌐 FN: {c['city']}, {c['state']} | {c['stops']} Stops"):
+                # 🌟 Added pills here just in case they have installs or escalations
+                esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
+                digi_pill = " 🔌" if c.get('is_digital') else ""  
+                inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else ""
+                with st.expander(f"🌐 FN: {c['city']}, {c['state']} | {c['stops']} Stops{digi_pill}{inst_pill}{esc_pill}"):
                     render_dispatch(i+5000, c, pod_name)
                     
     with col_right:
