@@ -1169,30 +1169,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         st.session_state[sel_key] = default_label
         st.session_state[last_sel_key] = default_label
 
-    # --- 🌟 REVERTED colA: SINGLE SEARCHABLE DROPDOOWN ---
-    ic_df = st.session_state.get('ic_df', pd.DataFrame())
-    ic_data_map = {}
-    ic_labels = []
-
-    if not ic_df.empty:
-        # 1. Distance filtering (100 miles)
-        v_ics = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].dropna(subset=['Lat', 'Lng']).copy()
-        v_ics['d'] = v_ics.apply(lambda x: haversine(cluster['center'][0], cluster['center'][1], x['Lat'], x['Lng']), axis=1)
-        v_ics = v_ics[v_ics['d'] <= 100].sort_values('d')
-        
-        # 2. Build labels for the dropdown list
-        for _, r in v_ics.iterrows():
-            cert_icon = " 🔌" if str(r.get('Digital Certified', '')).strip().upper() in ['YES', 'Y', 'TRUE', '1'] else ""
-            label = f"{r['Name']}{cert_icon} ({round(r['d'], 1)} mi)"
-            ic_labels.append(label)
-            ic_data_map[label] = r
-
-    col_a, col_b, col_c, col_d = st.columns([1.5, 1, 1, 1])
-    
-    with col_a:
-        # Searchable selectbox: Single field for contractor selection
-        choice = st.selectbox("Contractor", ic_labels, key=sel_key, on_change=update_for_new_contractor)
-        ic = ic_data_map.get(choice, {"Name": "Unknown", "Location": f"{cluster['center'][0]},{cluster['center'][1]}", "d": 0})
+    -deleted-
 
     # All mileage math is tied to this single selection
     mi, hrs, t_str = get_gmaps(ic['Location'], list(stop_metrics.keys())[:25])
@@ -1268,14 +1245,16 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     
     # Smart Work Order Logic
     prev_ic_name = cluster.get('contractor_name', 'Unknown')
-    if ic['Name'] == prev_ic_name and cluster.get('wo', 'none') != 'none':
+    ic_name = ic.get('name', 'Unknown Contractor') # Handle the lowercase key
+    
+    if ic_name == prev_ic_name and cluster.get('wo', 'none') != 'none':
         wo_val = cluster['wo']
     else:
-        wo_val = f"{ic['Name']} - {datetime.now().strftime('%m%d%Y')}"
+        wo_val = f"{ic_name} - {datetime.now().strftime('%m%d%Y')}"
     
     # 🌟 FIX 2: Inject link_id directly into the template
     sig_preview = (
-        f"Hello {ic['Name']},\n\n"
+        f"Hello {ic.get('name', 'Unknown Contractor')},\n\n"
         f"We have a new route available for you to review.\n\n"
         f" Work Order: {wo_val}\n"
         f"📅 Due Date: {due.strftime('%A, %b %d, %Y')}\n"
@@ -1329,8 +1308,15 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 # Pre-calculate the payload
                 payload = {
                     "cluster_hash": cluster_hash,
-                    "icn": ic['Name'], "ice": ic['Email'], "wo": wo_val, 
-                    "due": str(due), "comp": final_pay, "lCnt": cluster['stops'], "mi": mi, "time": t_str, "phone": str(ic['Phone']),
+                    "icn": ic.get('name', 'Unknown'), 
+                    "ice": ic.get('email', ''), 
+                    "wo": wo_val, 
+                    "due": str(due), 
+                    "comp": final_pay, 
+                    "lCnt": cluster['stops'], 
+                    "mi": mi, 
+                    "time": t_str, 
+                    "phone": str(ic.get('phone', '')),
                     "locs": " | ".join([home] + list(stop_metrics.keys()) + [home]),
                     "taskIds": ",".join(task_ids),
                     "tCnt": len(task_ids),
@@ -1351,7 +1337,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                     # We use email_body_content to preserve any manual edits you made
                     final_sig = email_body_content.replace("LINK_PENDING", final_route_id)
                     subject_line = f"Route Request | {wo_val}"
-                    gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={ic['Email']}&su={requests.utils.quote(subject_line)}&body={requests.utils.quote(final_sig)}"
+                    gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={ic.get('email', '')}&su={requests.utils.quote(subject_line)}&body={requests.utils.quote(final_sig)}"
                     
                     # 🌟 2. OPEN GMAIL
                     st.components.v1.html(f"<script>window.open('{gmail_url}', '_blank');</script>", height=0)
@@ -1359,7 +1345,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                     # 🌟 3. UPDATE SESSION STATE (Moving the card to 'Sent')
                     st.session_state[sync_key] = final_route_id
                     st.session_state[f"sent_ts_{cluster_hash}"] = datetime.now().strftime('%m/%d %I:%M %p')
-                    st.session_state[f"contractor_{cluster_hash}"] = ic['Name']
+                    st.session_state[f"contractor_{cluster_hash}"] = ic.get('name', 'Unknown')
                     st.session_state[f"route_state_{cluster_hash}"] = "email_sent"
                     st.session_state[f"reverted_{cluster_hash}"] = False
                     
