@@ -1143,7 +1143,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         # Only run the math if the label actually exists
         if selected_label and selected_label != st.session_state.get(last_sel_key):
             ic_new = ic_opts[selected_label]
-            _, h, _ = get_gmaps(ic_new['Location'], list(stop_metrics.keys())[:25])
+            _, h, _ = get_gmaps(ic_new['location'], list(stop_metrics.keys())[:25])
             new_pay = float(round(max(cluster['stops'] * 18.0, h * 25.0), 2))
             st.session_state[pay_key] = new_pay
             st.session_state[rate_key] = round(new_pay / cluster['stops'], 2) if cluster['stops'] > 0 else 0
@@ -1157,12 +1157,12 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         
         if prev_name != 'Unknown':
             for label, row in ic_opts.items():
-                if row['Name'] == prev_name:
+                if row.get('name') == prev_name:
                     default_label = label
                     break
                     
         ic_init = ic_opts[default_label]
-        _, h, _ = get_gmaps(ic_init['Location'], list(stop_metrics.keys())[:25])
+        _, h, _ = get_gmaps(ic_init['location'], list(stop_metrics.keys())[:25])
         initial_pay = float(round(max(cluster['stops'] * 18.0, h * 25.0), 2))
         st.session_state[pay_key] = initial_pay
         st.session_state[rate_key] = round(initial_pay / cluster['stops'], 2) if cluster['stops'] > 0 else 0
@@ -1303,19 +1303,16 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if st.button(btn_label, type="primary", key=f"gbtn_{cluster_hash}", disabled=not is_unlocked, use_container_width=True):
             # ... (keep the rest of your save logic exactly as it is) ...
             with st.spinner("Syncing latest data & generating link..."):
-                home = ic['Location']
+                home = ic['location']
                 
                 # Pre-calculate the payload
                 payload = {
                     "cluster_hash": cluster_hash,
+                    # 🌟 CHANGE: All keys to lowercase .get()
                     "icn": ic.get('name', 'Unknown'), 
                     "ice": ic.get('email', ''), 
                     "wo": wo_val, 
-                    "due": str(due), 
-                    "comp": final_pay, 
-                    "lCnt": cluster['stops'], 
-                    "mi": mi, 
-                    "time": t_str, 
+                    "due": str(due), "comp": final_pay, "lCnt": cluster['stops'], "mi": mi, "time": t_str, 
                     "phone": str(ic.get('phone', '')),
                     "locs": " | ".join([home] + list(stop_metrics.keys()) + [home]),
                     "taskIds": ",".join(task_ids),
