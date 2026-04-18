@@ -451,14 +451,17 @@ div.mini-btn button {{
 
 def background_sheet_move(cluster_hash, payload_json):
     try:
-        # This runs safely in a separate invisible thread
+        # --- 1. 🚀 DATABASE ARCHIVE (Increased Timeout) ---
+        # Increased timeout to 15s to allow Google Sheets more time to move rows
         requests.post(GAS_WEB_APP_URL, json={
-            "action": "archiveRoute",  # 🌟 FIX: Tell the Sheet to Archive instead of Delete
+            "action": "archiveRoute", 
             "cluster_hash": cluster_hash,
-            "payload": payload_json
-        })
-    except:
-        pass
+            "payload": cluster_data if cluster_data else {}
+        }, timeout=15)
+    except Exception as e:
+        # Changed to toast so it doesn't block the UI if Google is just being slow
+        st.toast(f"⚠️ Archive Note: {e}")
+        
 def finalize_route_handler(cluster_hash):
     # This fires the command to your Google Sheet to change status to 'finalized'
     try:
