@@ -1859,7 +1859,7 @@ def run_pod_tab(pod_name):
                         st.error("Route declined. Select a new contractor below to generate a fresh link.")
                         render_dispatch(i+3000, c, pod_name, is_declined=True)
                         
-               with btn_col:
+                with btn_col:
                     with st.popover("↩️ Revoke", use_container_width=True):
                         st.error(f"Re-route this declined route?")
                         # Standardized Label and Logic
