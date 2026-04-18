@@ -510,7 +510,7 @@ def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", ch
     # This fetches fresh 'state=0' tasks from Onfleet and re-runs the math.
     # Because those tasks are now unassigned, they will automatically 
     # 'attach' to existing routes if they fall within your distance threshold.
-    with st.spinner(f"Scrubbing Onfleet & Re-attaching tasks to {pod_name} routes..."):
+    with st.spinner(f"Adding tasks back to... {pod_name} routes..."):
         # We call the function you provided to re-build the pod from scratch
         process_pod(pod_name)
     
@@ -1182,10 +1182,15 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 except Exception as e:
                     st.error(f"Connection Failed: {e}")
         
-        # 3. Trigger Revoke when Unchecked
+        # Trigger Removal (Move back to Dispatch pool)
         elif not fn_checked and is_fn:
-            move_to_dispatch(cluster_hash, "Field Nation", pod_name, action_label="Revoked from FN", check_onfleet=True)
-
+            move_to_dispatch(
+                cluster_hash=cluster_hash, 
+                ic_name="Field Nation", 
+                pod_name=pod_name, 
+                action_label="Field Nation Revoked", 
+                check_onfleet=True
+            )
     # Transition to Sent
     if route_state == "field_nation":
         st.info("💡 Route is currently tracked in the Field Nation tab.")
@@ -1721,14 +1726,18 @@ def run_pod_tab(pod_name):
                         render_dispatch(i+500, c, pod_name, is_sent=True)
                         
                 with btn_col:
-                    # Pure Streamlit Button (No HTML wrapping!)
-                    st.button(
-                        "↩️ Revoke", 
-                        key=f"instant_rev_{cluster_hash}", 
-                        on_click=instant_revoke_handler,
-                        args=(cluster_hash, ic_name, c, pod_name),
-                        use_container_width=True
-                    )
+                    with st.popover("↩️ Revoke", use_container_width=True):
+                        st.error(f"Revoke this route?")
+                        # Standardized Label and Logic
+                        if st.button("🚨 Yes, Add back to Pool", key=f"rev_acc_{cluster_hash}", type="primary", use_container_width=True):
+                            move_to_dispatch(
+                                cluster_hash=cluster_hash, 
+                                ic_name=ic_name, 
+                                pod_name=pod_name, 
+                                action_label="Route Revoked", 
+                                check_onfleet=True, 
+                                cluster_data=c
+                            )
         with t_acc:
             if not accepted and not pod_ghosts: st.info("Waiting for portal acceptances...")
             
@@ -1766,13 +1775,18 @@ def run_pod_tab(pod_name):
                         render_dispatch(i+2000, c, pod_name, is_sent=True)
                         
                 with btn_col:
-                    # Keep the manual revoke option for emergencies 
                     with st.popover("↩️ Revoke", use_container_width=True):
-                        st.error(f"Revoke from {ic_name}?")
-                        if st.button("🚨 Yes, Revoke", key=f"rev_acc_{cluster_hash}", type="primary"):
-                            # 🌟 FIX: Added cluster_data=c to ensure the archive gets the route info
-                            move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=True, cluster_data=c)
-                            st.rerun()
+                        st.error(f"Revoke this route?")
+                        # Standardized Label and Logic
+                        if st.button("🚨 Yes, Add back to Pool", key=f"rev_acc_{cluster_hash}", type="primary", use_container_width=True):
+                            move_to_dispatch(
+                                cluster_hash=cluster_hash, 
+                                ic_name=ic_name, 
+                                pod_name=pod_name, 
+                                action_label="Route Revoked", 
+                                check_onfleet=True, 
+                                cluster_data=c
+                            )
 
             # --- 2. GHOST ROUTES (Historical Assigned Routes) ---
             for i, g in enumerate(pod_ghosts):
