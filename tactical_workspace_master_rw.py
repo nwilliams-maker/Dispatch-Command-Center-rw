@@ -1161,12 +1161,13 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if ic_opts:
             selected_label = st.selectbox("Select IC", list(ic_opts.keys()), key=sel_key, on_change=update_for_new_contractor)
             ic = ic_opts[selected_label]
-            ic_location = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
-            ic_dist = ic.get('d', 0)
         else:
-            ic = {"name": "Manual/FN"}
-            ic_location = f"{cluster['center'][0]},{cluster['center'][1]}"
-            ic_dist = 0
+            # 🌟 FIX: Added 'location' and 'd' keys to prevent KeyError
+            ic = {
+                "name": "Manual/FN", 
+                "location": f"{cluster['center'][0]},{cluster['center'][1]}",
+                "d": 0
+            }
             st.info("Use Field Nation button below.")
 
     st.divider()
@@ -1232,12 +1233,14 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         st.session_state[sel_key] = default_label
         st.session_state[last_sel_key] = default_label
 
-    # All mileage math is tied to this single selection
-    mi, hrs, t_str = get_gmaps(ic['location'], list(stop_metrics.keys())[:25])
+    # 🌟 FIX: Use the variable ic_location for total safety
+    ic_location = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
+    mi, hrs, t_str = get_gmaps(ic_location, list(stop_metrics.keys())[:25])
     
-    # LOCK CHECK
+    # 🌟 FIX: Use .get('d', 0) to avoid KeyError on distance
     curr_rate = st.session_state[rate_key]
-    needs_unlock = (curr_rate >= 25.0) or (ic['d'] > 60) or (cluster['status'] == 'Flagged')
+    ic_dist = ic.get('d', 0)
+    needs_unlock = (curr_rate >= 25.0) or (ic_dist > 60) or (cluster['status'] == 'Flagged')
     is_unlocked = True 
     
     if needs_unlock:
@@ -1362,9 +1365,9 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     with st.container():
         # 🌟 NEW: The button is now always available but changes flavor if it's a resend
         if st.button(btn_label, type="primary", key=f"gbtn_{cluster_hash}", disabled=not is_unlocked, use_container_width=True):
-            # ... (keep the rest of your save logic exactly as it is) ...
             with st.spinner("Syncing latest data & generating link..."):
-                home = ic['location']
+                # 🌟 FIX: Use lowercase 'location' here as well
+                home = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
                 
                 # Pre-calculate the payload
                 payload = {
