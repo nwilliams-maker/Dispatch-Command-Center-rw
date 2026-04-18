@@ -1098,7 +1098,59 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     else:
         st.warning("📂 Contractor database (ic_df) is empty.")
 
-    # --- 4. SELECTION & BUTTON LOGIC ---
+    # ==========================================
+    # 🌟 MOVED UP: DYNAMIC PRICING & INITIAL SETUP
+    # This MUST happen before the selectbox is drawn!
+    # ==========================================
+    def sync_on_total():
+        val = st.session_state.get(pay_key)
+        if val is not None:
+            st.session_state[rate_key] = round(val / cluster['stops'], 2) if cluster['stops'] > 0 else 0
+
+    def sync_on_rate():
+        val = st.session_state.get(rate_key)
+        if val is not None:
+            st.session_state[pay_key] = round(val * cluster['stops'], 2)
+
+    def update_for_new_contractor():
+        selected_label = st.session_state.get(sel_key)
+        if selected_label and selected_label != st.session_state.get(last_sel_key):
+            ic_new = ic_opts[selected_label]
+            _, h, _ = get_gmaps(ic_new.get('location', f"{cluster['center'][0]},{cluster['center'][1]}"), list(stop_metrics.keys())[:25])
+            new_pay = float(round(max(cluster['stops'] * 18.0, h * 25.0), 2))
+            st.session_state[pay_key] = new_pay
+            st.session_state[rate_key] = round(new_pay / cluster['stops'], 2) if cluster['stops'] > 0 else 0
+            st.session_state[last_sel_key] = selected_label
+
+    # Initial Setup (First time card is seen)
+    if pay_key not in st.session_state:
+        prev_name = cluster.get('contractor_name', 'Unknown')
+        default_label = list(ic_opts.keys())[0] if ic_opts else None
+        
+        if prev_name != 'Unknown' and ic_opts:
+            for label, row in ic_opts.items():
+                if row.get('name') == prev_name:
+                    default_label = label
+                    break
+                    
+        if default_label:
+            ic_init = ic_opts[default_label]
+            _, h, _ = get_gmaps(ic_init.get('location', f"{cluster['center'][0]},{cluster['center'][1]}"), list(stop_metrics.keys())[:25])
+            initial_pay = float(round(max(cluster['stops'] * 18.0, h * 25.0), 2))
+        else:
+            initial_pay = float(round(cluster['stops'] * 18.0, 2))
+
+        st.session_state[pay_key] = initial_pay
+        st.session_state[rate_key] = round(initial_pay / cluster['stops'], 2) if cluster['stops'] > 0 else 0
+        
+        # Safely setting the widget keys BEFORE the widget exists!
+        if default_label:
+            st.session_state[sel_key] = default_label
+            st.session_state[last_sel_key] = default_label
+
+    # ==========================================
+    # --- 4. UI RENDERING & BUTTON LOGIC ---
+    # ==========================================
     task_ids = [str(t['id']).strip() for t in cluster['data']]
     cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
     route_state = st.session_state.get(f"route_state_{cluster_hash}")
@@ -1107,12 +1159,15 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     
     with col_a:
         if ic_opts:
-            selected_label = st.selectbox("Select IC", list(ic_opts.keys()), key=f"sel_{cluster_hash}")
+            selected_label = st.selectbox("Select IC", list(ic_opts.keys()), key=sel_key, on_change=update_for_new_contractor)
             ic = ic_opts[selected_label]
+            ic_location = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
+            ic_dist = ic.get('d', 0)
         else:
-            # Fallback so the rest of the code doesn't crash if database is empty
-            ic = {"name": "Manual/FN", "location": f"{cluster['center'][0]},{cluster['center'][1]}", "d": 0}
-            st.info("Use Field Nation button below to proceed.")
+            ic = {"name": "Manual/FN"}
+            ic_location = f"{cluster['center'][0]},{cluster['center'][1]}"
+            ic_dist = 0
+            st.info("Use Field Nation button below.")
 
     st.divider()
 
