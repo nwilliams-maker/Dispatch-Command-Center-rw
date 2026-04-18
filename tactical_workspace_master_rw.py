@@ -889,7 +889,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                     best_ic = valid_ics.sort_values('d').iloc[0]
                     has_ic = True
                     ic_dist = best_ic['d']
-                    closest_ic_loc = best_ic['Location']
+                    closest_ic_loc = best_ic['location']
 
             def check_viability(grp):
                 seen = set(); u_locs = []
@@ -1170,7 +1170,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         st.session_state[last_sel_key] = default_label
 
     # All mileage math is tied to this single selection
-    mi, hrs, t_str = get_gmaps(ic['Location'], list(stop_metrics.keys())[:25])
+    mi, hrs, t_str = get_gmaps(ic['location'], list(stop_metrics.keys())[:25])
     
     # LOCK CHECK
     curr_rate = st.session_state[rate_key]
@@ -1270,7 +1270,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     # Versioning logic
     last_data_key = f"last_data_{cluster_hash}"
     version_key = f"tx_ver_{cluster_hash}"
-    current_data_fingerprint = f"{ic['Name']}_{final_pay}_{due}_{wo_val}"
+    current_data_fingerprint = f"{ic.get('name', 'Unknown')}_{final_pay}_{due}_{wo_val}"
     
     if version_key not in st.session_state:
         st.session_state[version_key] = 1
