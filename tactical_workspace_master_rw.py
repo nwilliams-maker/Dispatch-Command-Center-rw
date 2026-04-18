@@ -807,7 +807,15 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
         clusters = []
         total_pool = len(pool)
         ic_df = st.session_state.get('ic_df', pd.DataFrame())
-        v_ics_base = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].dropna(subset=['Lat', 'Lng']).copy() if not ic_df.empty else pd.DataFrame()
+        
+        # 🌟 CRITICAL FIX: Safe extraction using standardized headers
+        lat_col = next((col for col in ic_df.columns if 'lat' in str(col).lower()), 'lat')
+        lng_col = next((col for col in ic_df.columns if 'lng' in str(col).lower()), 'lng')
+        
+        if lat_col in ic_df.columns and lng_col in ic_df.columns:
+            v_ics_base = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].dropna(subset=[lat_col, lng_col]).copy()
+        else:
+            v_ics_base = pd.DataFrame()
 
         while pool:
             # Routing progress calculation
@@ -880,16 +888,16 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             closest_ic_loc = f"{anc['lat']},{anc['lon']}" 
             
             if not v_ics_base.empty:
-                dists = v_ics_base.apply(lambda x: haversine(anc['lat'], anc['lon'], x['Lat'], x['Lng']), axis=1)
+                # 🌟 CRITICAL FIX: Use the safe lat/lng variables, and lowercase 'location'
+                dists = v_ics_base.apply(lambda x: haversine(anc['lat'], anc['lon'], x[lat_col], x[lng_col]), axis=1)
                 valid_ics = v_ics_base[dists <= 100].copy()
                 
                 if not valid_ics.empty:
-                    # 🛠️ THE FIX: Add the 'd' column here to prevent the KeyError
                     valid_ics['d'] = dists[valid_ics.index]
                     best_ic = valid_ics.sort_values('d').iloc[0]
                     has_ic = True
                     ic_dist = best_ic['d']
-                    closest_ic_loc = best_ic['location']
+                    closest_ic_loc = best_ic.get('location', closest_ic_loc)
 
             def check_viability(grp):
                 seen = set(); u_locs = []
@@ -903,7 +911,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             gate_avg, _ = check_viability(group)
             
             # --- 🚦 2. UPDATED FLAGGING LOGIC ---
-            if anc_status in ['sent', 'accepted']:
+            if anc_status in ['sent', 'accepted', 'finalized']:
                 status = anc_status.capitalize()
             else:
                 status = "Ready" # Default status
@@ -1771,7 +1779,10 @@ def run_pod_tab(pod_name):
 if "ic_df" not in st.session_state:
     try:
         url = f"{IC_SHEET_URL.split('/edit')[0]}/export?format=csv&gid=0"
-        st.session_state.ic_df = pd.read_csv(url)
+        df = pd.read_csv(url)
+        # 🌟 BULLETPROOF: Lowercase all headers the second the data is downloaded
+        df.columns = [str(c).strip().lower() for c in df.columns]
+        st.session_state.ic_df = df
     except: st.error("Database connection failed.")
 
 # --- HEADER ROW (Title & Refresh Button) ---
