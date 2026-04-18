@@ -1055,75 +1055,73 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     st.divider()
 
     # --- 3. CONTRACTOR FILTERING (100 MILES) ---
-ic_df = st.session_state.get('ic_df', pd.DataFrame())
+    ic_df = st.session_state.get('ic_df', pd.DataFrame())
+    ic_opts = {} # Initialize this first
+    v_ics = pd.DataFrame() 
 
-if not ic_df.empty:
-    # Standardize column headers: Remove spaces and make lowercase
-    ic_df.columns = [str(c).strip().lower() for c in ic_df.columns]
-    
-    # Define the columns we NEED (now in lowercase)
-    lat_col = 'lat'
-    lng_col = 'lng'
+    if not ic_df.empty:
+        # Standardize headers to lowercase/stripped to prevent KeyErrors
+        ic_df.columns = [str(c).strip().lower() for c in ic_df.columns]
+        
+        lat_col, lng_col = 'lat', 'lng'
 
-    # Check if they exist before proceeding
-    if lat_col in ic_df.columns and lng_col in ic_df.columns:
-        # Filter out 'Field Agent' types
-        v_ics = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].copy()
-        
-        # Drop rows missing coordinates
-        v_ics = v_ics.dropna(subset=[lat_col, lng_col])
-        
-        if not v_ics.empty:
-            # Use lowercase names in the haversine calculation
-            # Note: Ensure haversine references 'lat' and 'lng' (lowercase)
-            v_ics['d'] = v_ics.apply(lambda x: haversine(cluster['center'][0], cluster['center'][1], x[lat_col], x[lng_col]), axis=1)
-            v_ics = v_ics[v_ics['d'] <= 100].sort_values('d')
+        if lat_col in ic_df.columns and lng_col in ic_df.columns:
+            # Filter out 'Field Agent' types
+            v_ics = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].copy()
+            v_ics = v_ics.dropna(subset=[lat_col, lng_col])
+            
+            if not v_ics.empty:
+                v_ics['d'] = v_ics.apply(lambda x: haversine(cluster['center'][0], cluster['center'][1], x[lat_col], x[lng_col]), axis=1)
+                v_ics = v_ics[v_ics['d'] <= 100].sort_values('d')
+                
+                # --- NEW: Inject the 🔌 for Digital Certified Contractors ---
+                # We use lowercase 'digital certified' and 'name' because of the standardization above
+                for _, r in v_ics.iterrows():
+                    cert_val = str(r.get('digital certified', '')).strip().upper()
+                    cert_icon = " 🔌" if cert_val in ['YES', 'Y', 'TRUE', '1', '1.0'] else ""
+                    
+                    ic_name = r.get('name', 'Unknown')
+                    label = f"{ic_name}{cert_icon} ({round(r['d'], 1)} mi)"
+                    ic_opts[label] = r
+            else:
+                st.warning("📡 No local contractors found within 100 miles.")
+        else:
+            st.error(f"⚠️ Coordinate columns (lat/lng) not found. Headers: {ic_df.columns.tolist()}")
     else:
-        st.error(f"⚠️ Missing coordinate columns. Found: {ic_df.columns.tolist()}")
-        v_ics = pd.DataFrame() 
-else:
-    v_ics = pd.DataFrame()
+        st.warning("📂 Contractor database (ic_df) is empty.")
+
+    # --- 4. SELECTION & BUTTON LOGIC ---
+    task_ids = [str(t['id']).strip() for t in cluster['data']]
+    cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+    route_state = st.session_state.get(f"route_state_{cluster_hash}")
+
+    col_a, col_b, col_c, col_d = st.columns([1.5, 1, 1, 1])
     
-    # Inject the 🔌 for Digital Certified Contractors
-    for _, r in v_ics.iterrows():
-        cert_val = str(r.get('Digital Certified', '')).strip().upper()
-        cert_icon = " 🔌" if cert_val in ['YES', 'Y', 'TRUE', '1', '1.0'] else ""
-        label = f"{r['Name']}{cert_icon} ({round(r['d'], 1)} mi)"
-        ic_opts[label] = r
-else:
-    st.warning("📡 No local contractors found in database. Use Field Nation below.")
+    with col_a:
+        if ic_opts:
+            selected_label = st.selectbox("Select IC", list(ic_opts.keys()), key=f"sel_{cluster_hash}")
+            ic = ic_opts[selected_label]
+        else:
+            # Fallback so the rest of the code doesn't crash if database is empty
+            ic = {"name": "Manual/FN", "location": f"{cluster['center'][0]},{cluster['center'][1]}", "d": 0}
+            st.info("Use Field Nation button below to proceed.")
 
-# --- 4. SELECTION & BUTTON LOGIC ---
-task_ids = [str(t['id']).strip() for t in cluster['data']]
-cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
-route_state = st.session_state.get(f"route_state_{cluster_hash}")
+    st.divider()
 
-# Dropdown (Only show if we actually have contractors)
-if ic_opts:
-    selected_label = st.selectbox("Select IC", list(ic_opts.keys()), key=sel_key)
-    ic = ic_opts[selected_label]
-else:
-    # Fallback ic object if list is empty so the rest of the code doesn't crash
-    ic = {"Name": "Manual/FN", "Location": f"{cluster['center'][0]},{cluster['center'][1]}", "d": 0}
+    # --- 🌐 FIELD NATION PIPELINE ---
+    if route_state not in ["field_nation", "email_sent"]:
+        if st.button("🌐 Move to Field Nation", key=f"fn_{cluster_hash}", use_container_width=True):
+            st.session_state[f"route_state_{cluster_hash}"] = "field_nation"
+            st.rerun()
 
-st.divider()
-
-# --- 🌐 FIELD NATION PIPELINE ---
-# 1. Move to FN (Visible if not already posted/sent)
-if route_state not in ["field_nation", "email_sent"]:
-    if st.button("🌐 Move to Field Nation", key=f"fn_{cluster_hash}", use_container_width=True):
-        st.session_state[f"route_state_{cluster_hash}"] = "field_nation"
-        st.rerun()
-
-# 2. Mark as Posted (Visible only when in the FN Tab)
-if route_state == "field_nation":
-    st.info("💡 Route is in the Field Nation tab.")
-    if st.button("📢 Mark as Posted (Move to Sent)", key=f"posted_{cluster_hash}", type="primary", use_container_width=True):
-        st.session_state[f"route_state_{cluster_hash}"] = "email_sent"
-        st.session_state[f"contractor_{cluster_hash}"] = "Field Nation"
-        st.session_state[f"sent_ts_{cluster_hash}"] = datetime.now().strftime('%m/%d %I:%M %p')
-        st.toast("🚀 Moved to Sent!")
-        st.rerun()
+    if route_state == "field_nation":
+        st.info("💡 Route is in the Field Nation tab.")
+        if st.button("📢 Mark as Posted (Move to Sent)", key=f"posted_{cluster_hash}", type="primary", use_container_width=True):
+            st.session_state[f"route_state_{cluster_hash}"] = "email_sent"
+            st.session_state[f"contractor_{cluster_hash}"] = "Field Nation"
+            st.session_state[f"sent_ts_{cluster_hash}"] = datetime.now().strftime('%m/%d %I:%M %p')
+            st.toast("🚀 Moved to Sent!")
+            st.rerun()
         
     # --- 3. DYNAMIC PRICING SYNC LOGIC ---
     def sync_on_total():
