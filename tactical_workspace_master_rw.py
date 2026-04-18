@@ -1055,27 +1055,56 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     st.divider()
 
     # --- 3. CONTRACTOR FILTERING (100 MILES) ---
-    ic_df = st.session_state.get('ic_df', pd.DataFrame())
-    v_ics = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].dropna(subset=['Lat', 'Lng']).copy()
-    if not v_ics.empty:
-        v_ics['d'] = v_ics.apply(lambda x: haversine(cluster['center'][0], cluster['center'][1], x['Lat'], x['Lng']), axis=1)
-        v_ics = v_ics[v_ics['d'] <= 100].sort_values('d')
+ic_df = st.session_state.get('ic_df', pd.DataFrame())
+v_ics = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].dropna(subset=['Lat', 'Lng']).copy()
 
-    if v_ics.empty:
-        st.error("⚠️ No contractors found within 100 miles. Manual recruiting or assignment required.")
-        return
+ic_opts = {}
 
-    # --- NEW: Inject the 🔌 for Digital Certified Contractors ---
-    ic_opts = {}
+if not v_ics.empty:
+    v_ics['d'] = v_ics.apply(lambda x: haversine(cluster['center'][0], cluster['center'][1], x['Lat'], x['Lng']), axis=1)
+    v_ics = v_ics[v_ics['d'] <= 100].sort_values('d')
+    
+    # Inject the 🔌 for Digital Certified Contractors
     for _, r in v_ics.iterrows():
-        # Safely extract the column value (defaults to blank if missing to prevent crashes)
         cert_val = str(r.get('Digital Certified', '')).strip().upper()
-        # Checks for various ways 'YES' might be formatted in the sheet
         cert_icon = " 🔌" if cert_val in ['YES', 'Y', 'TRUE', '1', '1.0'] else ""
-        
         label = f"{r['Name']}{cert_icon} ({round(r['d'], 1)} mi)"
         ic_opts[label] = r
-    
+else:
+    st.warning("📡 No local contractors found in database. Use Field Nation below.")
+
+# --- 4. SELECTION & BUTTON LOGIC ---
+task_ids = [str(t['id']).strip() for t in cluster['data']]
+cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+route_state = st.session_state.get(f"route_state_{cluster_hash}")
+
+# Dropdown (Only show if we actually have contractors)
+if ic_opts:
+    selected_label = st.selectbox("Select IC", list(ic_opts.keys()), key=sel_key)
+    ic = ic_opts[selected_label]
+else:
+    # Fallback ic object if list is empty so the rest of the code doesn't crash
+    ic = {"Name": "Manual/FN", "Location": f"{cluster['center'][0]},{cluster['center'][1]}", "d": 0}
+
+st.divider()
+
+# --- 🌐 FIELD NATION PIPELINE ---
+# 1. Move to FN (Visible if not already posted/sent)
+if route_state not in ["field_nation", "email_sent"]:
+    if st.button("🌐 Move to Field Nation", key=f"fn_{cluster_hash}", use_container_width=True):
+        st.session_state[f"route_state_{cluster_hash}"] = "field_nation"
+        st.rerun()
+
+# 2. Mark as Posted (Visible only when in the FN Tab)
+if route_state == "field_nation":
+    st.info("💡 Route is in the Field Nation tab.")
+    if st.button("📢 Mark as Posted (Move to Sent)", key=f"posted_{cluster_hash}", type="primary", use_container_width=True):
+        st.session_state[f"route_state_{cluster_hash}"] = "email_sent"
+        st.session_state[f"contractor_{cluster_hash}"] = "Field Nation"
+        st.session_state[f"sent_ts_{cluster_hash}"] = datetime.now().strftime('%m/%d %I:%M %p')
+        st.toast("🚀 Moved to Sent!")
+        st.rerun()
+        
     # --- 3. DYNAMIC PRICING SYNC LOGIC ---
     def sync_on_total():
         # 🌟 FIX: Use safely with .get() to survive memory wipes
@@ -1368,7 +1397,7 @@ def run_pod_tab(pod_name):
     pod_ghosts = ghost_db.get(pod_name, [])
 
     # Added 'finalized' to the list
-    ready, review, sent, accepted, declined, finalized = [], [], [], [], [], []
+    ready, review, sent, accepted, declined, finalized, field_nation = [], [], [], [], [], [], []
 
     for c in cls:
         task_ids = [str(t['id']).strip() for t in c['data']]
@@ -1403,6 +1432,7 @@ def run_pod_tab(pod_name):
                 sent.append(c)
         elif route_state == "email_sent" and not is_reverted:
             sent.append(c)
+        
         elif route_state == "link_generated" and not is_reverted:
             orig = st.session_state.get(f"orig_status_{cluster_hash}")
             if orig == "declined":
@@ -1566,7 +1596,14 @@ def run_pod_tab(pod_name):
                 inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else "" # 🌟 FIX
                 with st.expander(f"🔒 🔴 {c['city']}, {c['state']} | {c['stops']} Stops{digi_pill}{inst_pill}{esc_pill}"):
                     render_dispatch(i+1000, c, pod_name)
-
+        with t_fn:
+            if not field_nation: 
+                st.info("No routes currently moved to Field Nation.")
+            for i, c in enumerate(field_nation):
+                # We use a unique icon for FN routes
+                with st.expander(f"🌐 FN: {c['city']}, {c['state']} | {c['stops']} Stops"):
+                    render_dispatch(i+5000, c, pod_name)
+                    
     with col_right:
         # ==========================================
         # SECTION 2: AWAITING CONFIRMATION (RIGHT SIDE - CENTERED)
