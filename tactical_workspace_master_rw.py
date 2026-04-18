@@ -1189,17 +1189,19 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     
     # Hide checkbox if already officially sent to an IC via Email
     if route_state != "email_sent":
+        # 1. The Checkbox UI
         fn_checked = st.checkbox("🌐 Assign to Field Nation", value=is_fn, key=f"fn_check_{cluster_hash}")
         
-        # Trigger Movement to Google Sheet
+        # 2. Trigger Movement to Google Sheet when Checked
         if fn_checked and not is_fn:
-            with st.spinner("Syncing to Field Nation tab..."):
+            with st.spinner("Pushing to Google Sheet..."):
+                # Use the anchor location for the start/end point
                 home = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
                 payload = {
                     "cluster_hash": cluster_hash,
-                    "icn": "Field Nation", # 1. Contractor Field explicitly set
-                    "city": cluster.get('city', 'Unknown'),
-                    "state": cluster.get('state', 'Unknown'),
+                    "icn": "Field Nation", 
+                    "city": cluster.get('city', 'Unknown'), # 🌟 MUST BE SENT
+                    "state": cluster.get('state', 'Unknown'), # 🌟 MUST BE SENT
                     "taskIds": ",".join(task_ids),
                     "wo": f"FN-{datetime.now().strftime('%m%d%Y')}",
                     "lCnt": cluster['stops'],
@@ -1207,14 +1209,18 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                     "locs": " | ".join([home] + list(stop_metrics.keys()) + [home])
                 }
                 try:
-                    # 2. Checkbox triggers the movement to the Google Sheet
-                    requests.post(GAS_WEB_APP_URL, json={"action": "saveToFieldNation", "payload": payload}, timeout=10)
-                    st.session_state[f"route_state_{cluster_hash}"] = "field_nation"
-                    st.rerun()
+                    # Hits the GAS "saveToFieldNation" action
+                    res = requests.post(GAS_WEB_APP_URL, json={"action": "saveToFieldNation", "payload": payload}, timeout=10).json()
+                    if res.get("success"):
+                        st.session_state[f"route_state_{cluster_hash}"] = "field_nation"
+                        st.toast("✅ Saved to Field Nation Tab")
+                        st.rerun()
+                    else:
+                        st.error(f"Sheet Error: {res.get('error')}")
                 except Exception as e:
-                    st.error(f"Failed to save to database: {e}")
+                    st.error(f"Connection Failed: {e}")
         
-        # Trigger Removal (Move back to Dispatch)
+        # 3. Trigger Revoke when Unchecked
         elif not fn_checked and is_fn:
             move_to_dispatch(cluster_hash, "Field Nation", pod_name, action_label="Revoked from FN", check_onfleet=True)
 
