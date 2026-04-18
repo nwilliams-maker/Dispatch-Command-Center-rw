@@ -573,21 +573,32 @@ def normalize_state(st_str):
 @st.cache_data(ttl=15, show_spinner=False)
 def fetch_sent_records_from_sheet():
     try:
+        # Use safe extraction to prevent KeyError/AttributeError
+        if not isinstance(IC_SHEET_URL, str):
+            raise ValueError("IC_SHEET_URL must be a string. Check for trailing commas!")
+            
         base_url = f"{IC_SHEET_URL.split('/edit')[0]}/export?format=csv&gid="
+        
         sheets_to_fetch = [
             (DECLINED_ROUTES_GID, "declined"),
             (ACCEPTED_ROUTES_GID, "accepted"),
-            (SAVED_ROUTES_GID, "sent")
+            (SAVED_ROUTES_GID, "sent"),
             (FIELD_NATION_GID, "field_nation")
         ]
+
+        # 3. Add Field Nation only if the GID is defined to avoid errors
+        if 'FIELD_NATION_GID' in globals() and FIELD_NATION_GID:
+            # We check if it's already there to prevent duplicates
+            if (FIELD_NATION_GID, "field_nation") not in sheets_to_fetch:
+                sheets_to_fetch.append((FIELD_NATION_GID, "field_nation"))
         
         sent_dict = {}
-        # Prepare ghost lists for each pod
         ghost_routes = {"Blue": [], "Green": [], "Orange": [], "Purple": [], "Red": [], "UNKNOWN": []}
         
         for gid, status_label in sheets_to_fetch:
             try:
-                df = pd.read_csv(base_url + gid)
+                # Ensure gid is cast to string just in case it's an integer
+                df = pd.read_csv(base_url + str(gid))
                 df.columns = [str(c).strip().lower() for c in df.columns]
                 
                 if 'json payload' in df.columns:
@@ -605,7 +616,6 @@ def fetch_sent_records_from_sheet():
                                 except:
                                     ts_display = str(raw_ts)
                             
-                            # 1. Live Task Matching
                             for tid in tids:
                                 tid = tid.strip()
                                 if tid:
@@ -613,10 +623,10 @@ def fetch_sent_records_from_sheet():
                                         "name": c_name, 
                                         "status": status_label,
                                         "time": ts_display,
-                                        "wo": p.get('wo', c_name) # Falls back to name if missing
+                                        "wo": p.get('wo', c_name)
                                     }
                             
-                            # 2. GHOST ROUTES (Only for Accepted routes that vanish from the pool)
+                            # Ghost Route logic for Accepted routes
                             if status_label == 'accepted':
                                 locs_str = str(p.get('locs', ''))
                                 state_guess, city_guess = "UNKNOWN", "Unknown"
@@ -653,8 +663,9 @@ def fetch_sent_records_from_sheet():
                                         "hash": ghost_hash # Pass the hash to the UI
                                     })
                                     
-                        except: continue
-            except: continue
+                        except Exception: continue
+            except Exception: continue
+            
         return sent_dict, ghost_routes
     except Exception as e:
         st.error(f"Failed to fetch portal records: {e}")
