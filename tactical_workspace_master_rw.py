@@ -963,7 +963,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
     except Exception as e:
         st.error(f"Error initializing {pod_name}: {str(e)}")
 
-def render_dispatch
+def render_dispatch():
         
     # --- 3. DYNAMIC PRICING SYNC LOGIC ---
     def sync_on_total():
