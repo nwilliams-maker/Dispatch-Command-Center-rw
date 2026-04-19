@@ -660,6 +660,140 @@ def load_ic_database(sheet_url):
         return pd.read_csv(export_url)
     except: return None
 
+def process_digital_pool(master_bar=None):
+    prog_bar = master_bar if master_bar else st.progress(0)
+    prog_bar.progress(0.1, text="📥 Fetching National Tasks from Onfleet...")
+    
+    # 1. Fetch Onfleet (ONCE)
+    APPROVED_TEAMS = ["a - escalation", "b - boosted campaigns", "b - local campaigns", "c - priority nationals", "cvs kiosk removal", "cvs kiosk removals", "d - digital routes", "n - national campaigns"]
+    teams_res = requests.get("https://onfleet.com/api/v2/teams", headers=headers).json()
+    target_team_ids = [t['id'] for t in teams_res if any(appr in str(t.get('name', '')).lower() for appr in APPROVED_TEAMS)]
+    esc_team_ids = [t['id'] for t in teams_res if 'escalation' in str(t.get('name', '')).lower()]
+
+    all_tasks_raw = []
+    time_window = int(time.time()*1000) - (45*24*3600*1000)
+    url = f"https://onfleet.com/api/v2/tasks/all?state=0&from={time_window}"
+    
+    while url:
+        response = requests.get(url, headers=headers)
+        if response.status_code == 429:
+            time.sleep(2); continue
+        if response.status_code != 200: break
+        res_json = response.json()
+        all_tasks_raw.extend(res_json.get('tasks', []))
+        url = f"https://onfleet.com/api/v2/tasks/all?state=0&from={time_window}&lastId={res_json['lastId']}" if res_json.get('lastId') else None
+        
+    prog_bar.progress(0.4, text="🔍 Isolating Digital Service Calls...")
+    
+    # 🌟 STRICT DIGITAL FILTER
+    DIGITAL_WHITELIST = ["service", "ins/rem", "offline", "digital offline", "digital service", "digital ins/rem"]
+    fresh_sent_db, _ = fetch_sent_records_from_sheet()
+    st.session_state.sent_db = fresh_sent_db
+
+    pool = []
+    unique_tasks_dict = {t['id']: t for t in all_tasks_raw}
+    
+    for t in unique_tasks_dict.values():
+        container = t.get('container', {})
+        c_type = str(container.get('type', '')).upper()
+        if c_type == 'TEAM' and container.get('team') not in target_team_ids: continue
+
+        addr = t.get('destination', {}).get('address', {})
+        stt = normalize_state(addr.get('state', ''))
+        is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
+        tt_val = str(t.get('taskType', '')).strip() or str(t.get('taskDetails', '')).strip()
+        
+        is_digital_task = False 
+        
+        # Check Custom Fields
+        for f in t.get('customFields', []):
+            f_val_lower = str(f.get('value', '')).strip().lower()
+            if any(trigger in f_val_lower for trigger in DIGITAL_WHITELIST): 
+                is_digital_task = True
+                break
+        
+        # 🌟 SPEED FIX: Skip routing math entirely if it's not digital
+        if not is_digital_task: 
+            continue
+
+        t_status = fresh_sent_db.get(t['id'], {}).get('status', 'ready').lower() if t['id'] in fresh_sent_db else 'ready'
+        t_wo = fresh_sent_db.get(t['id'], {}).get('wo', 'none') if t['id'] in fresh_sent_db else 'none'
+        
+        pool.append({
+            "id": t['id'], "city": addr.get('city', 'Unknown'), "state": stt,
+            "full": f"{addr.get('number','')} {addr.get('street','')}, {addr.get('city','')}, {stt}",
+            "lat": t['destination']['location'][1], "lon": t['destination']['location'][0],
+            "escalated": is_esc, "task_type": tt_val, "is_digital": True, "db_status": t_status, "wo": t_wo
+        })
+
+    prog_bar.progress(0.6, text=f"🗺️ Routing {len(pool)} Digital Tasks...")
+    
+    # 3. Route ONLY the Digital Tasks
+    ic_df = st.session_state.get('ic_df', pd.DataFrame())
+    lat_col = next((col for col in ic_df.columns if 'lat' in str(col).lower()), 'lat')
+    lng_col = next((col for col in ic_df.columns if 'lng' in str(col).lower()), 'lng')
+    v_ics_base = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].dropna(subset=[lat_col, lng_col]).copy() if (lat_col in ic_df.columns and lng_col in ic_df.columns) else pd.DataFrame()
+
+    clusters = []
+    route_radius = 25 # Strict 25-mile radius for digital
+    
+    while pool:
+        anc = pool.pop(0)
+        candidates = []
+        rem = []
+        
+        for t in pool:
+            if anc['db_status'] in ['sent', 'accepted', 'field_nation']:
+                if t['db_status'] == anc['db_status'] and t['wo'] == anc['wo']: candidates.append((0, t))
+                else: rem.append(t)
+            elif anc['db_status'] in ['ready', 'declined']:
+                if t['db_status'] in ['ready', 'declined']:
+                    d = haversine(anc['lat'], anc['lon'], t['lat'], t['lon'])
+                    if d <= route_radius: candidates.append((d, t))
+                    else: rem.append(t)
+                else: rem.append(t)
+        
+        candidates.sort(key=lambda x: x[0])
+        
+        group = [anc]
+        unique_stops = {anc['full']}
+        spillover = []
+        for _, t in candidates:
+            if len(unique_stops) < 20 or t['full'] in unique_stops:
+                group.append(t); unique_stops.add(t['full'])
+            else: spillover.append(t)
+        rem.extend(spillover)
+        
+        has_ic = False
+        ic_dist = 0
+        if not v_ics_base.empty:
+            dists = [haversine(anc['lat'], anc['lon'], lat, lng) for lat, lng in zip(v_ics_base[lat_col], v_ics_base[lng_col])]
+            valid_ics = v_ics_base.copy()
+            valid_ics['d'] = dists
+            valid_ics = valid_ics[valid_ics['d'] <= 100]
+            if not valid_ics.empty:
+                best_ic = valid_ics.sort_values('d').iloc[0]
+                has_ic = True
+                ic_dist = best_ic['d']
+
+        status = "Ready" if anc['db_status'] not in ['sent', 'accepted', 'finalized'] else anc['db_status'].capitalize()
+        if status == "Ready" and (not has_ic or ic_dist > 60): status = "Flagged"
+
+        clusters.append({
+            "data": group, "center": [anc['lat'], anc['lon']], "stops": len(unique_stops), 
+            "city": anc['city'], "state": anc['state'], "status": status, "has_ic": has_ic,
+            "esc_count": sum(1 for x in group if x.get('escalated')),
+            "is_digital": True,
+            "inst_count": sum(1 for x in group if "install" in str(x.get('task_type', '')).lower()),
+            "remov_count": sum(1 for x in group if "remove" in str(x.get('task_type', '')).lower()),
+            "wo": anc['wo']
+        })
+        pool = rem
+
+    # Save to dedicated Global Digital State
+    st.session_state['global_digital_clusters'] = clusters
+    prog_bar.empty()
+
 # --- CORE LOGIC ---
 def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
     config = POD_CONFIGS[pod_name]
@@ -1891,29 +2025,30 @@ for i, pod in enumerate(["Blue", "Green", "Orange", "Purple", "Red"], 1):
 with tabs[6]:
     st.markdown("<h2 style='color: #1e40af; text-align:center;'>🔌 National Digital Service Pool</h2>", unsafe_allow_html=True)
     
-    # 🌟 NEW: Dedicated Initialize Button with Progress Bar for the Digital Tab
+    # 🌟 NEW: Uses the lightning-fast dedicated digital function
     d_btn = st.columns([1,2,1])[1]
     if d_btn.button("🚀 Initialize Digital Data", key="digital_init_btn", use_container_width=True):
-        st.session_state.sent_db, st.session_state.ghost_db = fetch_sent_records_from_sheet()
-        d_bar = st.progress(0, text="🎬 Initializing Digital Data...")
-        pod_keys = list(POD_CONFIGS.keys())
-        for idx, p in enumerate(pod_keys):
-            process_pod(p, master_bar=d_bar, pod_idx=idx, total_pods=len(pod_keys))
-        d_bar.empty()
+        d_bar = st.progress(0, text="🎬 Initializing...")
+        process_digital_pool(master_bar=d_bar)
         st.rerun()
         
     st.markdown("---")
     
-    global_digital = []
-    for pod in POD_CONFIGS.keys():
-        if f"clusters_{pod}" in st.session_state:
-            global_digital.extend([c for c in st.session_state[f"clusters_{pod}"] if c.get('is_digital')])
+    # Pulls directly from the new dedicated session state
+    global_digital = st.session_state.get('global_digital_clusters', [])
 
     if not global_digital:
-        st.info("No digital service tasks pending nationwide.")
+        st.info("No digital service tasks pending. Click Initialize above to fetch.")
     else:
         for i, c in enumerate(global_digital):
-            with st.expander(f"🔌 DIGITAL: {c['city']}, {c['state']} | {c['stops']} Stops"):
+            # Add status indicators so you know what's happening
+            status_icon = "🔌"
+            db_stat = c.get('db_status', 'ready').lower()
+            if db_stat in ["sent", "field_nation"]: status_icon = "✉️"
+            elif db_stat == "accepted": status_icon = "✅"
+            elif db_stat == "declined": status_icon = "❌"
+            
+            with st.expander(f"{status_icon} {c.get('state')} | {c['city']} — {c['stops']} Stops"):
                 render_dispatch(i+8000, c, "Global_Digital")
 
 # (THIS MUST BE THE ABSOLUTE END OF YOUR FILE)
