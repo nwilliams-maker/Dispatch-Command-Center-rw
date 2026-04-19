@@ -1571,7 +1571,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
    # 🌟 THE FIX: Injected {pod_name} so Streamlit knows which tab this box belongs to
     email_body_content = st.text_area("Email Content Preview", value=sig_preview, height=180, key=f"txt_area_{pod_name}_{current_data_fingerprint}_{cluster_hash}", disabled=not is_unlocked)
 
-        btn_label = "✉️ RESEND LINK & OPEN GMAIL" if is_already_sent else "🚀 GENERATE LINK & OPEN GMAIL"
+btn_label = "✉️ RESEND LINK & OPEN GMAIL" if is_already_sent else "🚀 GENERATE LINK & OPEN GMAIL"
 
     with st.container():
         if st.button(btn_label, type="primary", key=f"gbtn_{pod_name}_{cluster_hash}", disabled=not is_unlocked, use_container_width=True):
