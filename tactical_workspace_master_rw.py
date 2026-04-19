@@ -963,59 +963,270 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
     except Exception as e:
         st.error(f"Error initializing {pod_name}: {str(e)}")
 
-def render_dispatch():
+# --- DISPATCH RENDERING ---
+def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
+    # Capture current state identifiers
+    task_ids = [str(t['id']).strip() for t in cluster['data']]
+    cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+    sync_key = f"sync_{cluster_hash}"
+    real_id = st.session_state.get(sync_key)
+    link_id = real_id if real_id else "LINK_PENDING"
+
+    # --- 1. STATE KEYS & INITIALIZATION (🌟 UNIQUE BY POD) ---
+    pay_key = f"pay_val_{pod_name}_{cluster_hash}"
+    rate_key = f"rate_val_{pod_name}_{cluster_hash}"
+    sel_key = f"sel_{pod_name}_{cluster_hash}"
+    last_sel_key = f"last_sel_{pod_name}_{cluster_hash}"
+
+    st.write("### Route Stops")
+
+    # --- HISTORY LOG ---
+    hist = st.session_state.get(f"history_{cluster_hash}", [])
+    if hist:
+        st.markdown(f"<p style='color: #94a3b8; font-size: 13px; margin-top: -10px; margin-bottom: 15px; font-weight: 600;'>↩️ Previously sent to: {', '.join(hist)}</p>", unsafe_allow_html=True)
+
+    # --- 2. STOP METRICS & PILLS ---
+    stop_metrics = {}
+    for t in cluster['data']:
+        addr = t['full']
+        if addr not in stop_metrics:
+            stop_metrics[addr] = {
+                't_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 
+                'inst': 0, 'remov': 0, 'digi': 0, 'oth': 0, 'esc': False
+            }
+        stop_metrics[addr]['t_count'] += 1
+        if t.get('escalated'): stop_metrics[addr]['esc'] = True
+            
+        raw_tt = str(t.get('task_type', '')).strip()
+        parts = [p.strip().lower() for p in raw_tt.split(',') if p.strip()]
+        if "escalation" in parts:
+            if len(parts) > 1: parts.remove("escalation") 
+            else: parts = ["new ad"] 
+        tt = ", ".join(parts)
+
+        found_category = False
+        if any(x in tt for x in ["service", "offline", "skykit", "ins/re"]): 
+            stop_metrics[addr]['digi'] += 1
+            found_category = True
+        if "install" in tt: 
+            stop_metrics[addr]['inst'] += 1
+            found_category = True
+        if any(trigger in tt for trigger in ["kiosk removal", "remove kiosk"]):
+            stop_metrics[addr]['remov'] += 1
+            found_category = True
+        if any(x in tt for x in ["continuity", "photo retake", "swap"]): 
+            stop_metrics[addr]['c_ad'] += 1
+            found_category = True
+        if any(x in tt for x in ["default", "pull down"]): 
+            stop_metrics[addr]['d_ad'] += 1
+            found_category = True
         
-    # --- 3. DYNAMIC PRICING SYNC LOGIC ---
+        if any(x in tt for x in ["new ad", "art change", "top"]) or not tt:
+            stop_metrics[addr]['n_ad'] += 1
+        elif not found_category:
+            stop_metrics[addr]['oth'] += 1
+            
+    # --- UI RENDERING (WITH BREAK-OFF FEATURE) ---
+    for addr, metrics in stop_metrics.items():
+        pill_parts = []
+        if metrics['n_ad'] > 0: pill_parts.append(f"🆕 {metrics['n_ad']} New Ad")
+        if metrics['c_ad'] > 0: pill_parts.append(f"🔄 {metrics['c_ad']} Continuity")
+        if metrics['d_ad'] > 0: pill_parts.append(f"⚪ {metrics['d_ad']} Default")
+        if metrics['inst'] > 0: pill_parts.append(f"🛠️ {metrics['inst']} Kiosk Install")
+        if metrics['remov'] > 0: pill_parts.append(f"🗑️ {metrics['remov']} Kiosk Removal")
+        if metrics['digi'] > 0: pill_parts.append(f"🔌 {metrics['digi']} Digital Service")
+        
+        pill_str = " | ".join(pill_parts)
+        display_addr = f"⭐ {addr}" if metrics['esc'] else addr
+        
+        # UI: Stop Info + Break-Off Button Layout
+        s_col, b_col = st.columns([0.9, 0.1], vertical_alignment="center")
+        with s_col:
+            st.markdown(
+                f"<b>{display_addr}</b> &nbsp;"
+                f"<span style='color: #633094; background-color: #f3e8ff; padding: 2px 6px; border-radius: 10px; font-weight: 800; font-size: 11px;'>"
+                f"{metrics['t_count']} Tasks</span>&nbsp; "
+                f"<span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", 
+                unsafe_allow_html=True
+            )
+        with b_col:
+            if not is_sent and not is_declined:
+                # 🌟 THE BREAK-OFF TOOL (UNIQUE KEY)
+                if st.button("✂️", key=f"split_{pod_name}_{cluster_hash}_{hashlib.md5(addr.encode()).hexdigest()[:6]}", help=f"Break this stop into its own route"):
+                    # 1. Identify tasks to move
+                    tasks_to_move = [t for t in cluster['data'] if t['full'] == addr]
+                    
+                    # 2. Create the new "Fragment" route
+                    new_fragment = {
+                        "data": tasks_to_move, 
+                        "center": [tasks_to_move[0]['lat'], tasks_to_move[0]['lon']], 
+                        "stops": 1, 
+                        "city": tasks_to_move[0]['city'], 
+                        "state": tasks_to_move[0]['state'],
+                        "status": "Ready",
+                        "has_ic": cluster.get('has_ic', False),
+                        "esc_count": sum(1 for x in tasks_to_move if x.get('escalated')),
+                        "is_digital": any(x.get('is_digital') for x in tasks_to_move),
+                        "inst_count": sum(1 for x in tasks_to_move if "install" in str(x.get('task_type', '')).lower()),
+                        "remov_count": sum(1 for x in tasks_to_move if "remove" in str(x.get('task_type', '')).lower()),
+                        "wo": "none"
+                    }
+
+                    # 3. Remove from current cluster
+                    cluster['data'] = [t for t in cluster['data'] if t['full'] != addr]
+                    cluster['stops'] = len(set(t['full'] for t in cluster['data']))
+                    
+                    # 4. Inject new route into Pod memory (Determine target pod)
+                    target_pod = pod_name if pod_name != "Global_Digital" else next((p for p, cfg in POD_CONFIGS.items() if new_fragment['state'] in cfg['states']), "UNKNOWN")
+                    if target_pod != "UNKNOWN" and f"clusters_{target_pod}" in st.session_state:
+                        st.session_state[f"clusters_{target_pod}"].append(new_fragment)
+                    
+                    # 5. Clear pricing for parent route to force recalculation
+                    st.session_state.pop(pay_key, None)
+                    st.session_state.pop(rate_key, None)
+                    
+                    st.toast(f"📍 Stop broken off into a standalone route!")
+                    st.rerun()
+        
+    st.divider()
+
+    # --- 3. CONTRACTOR FILTERING (100 MILES) ---
+    ic_df = st.session_state.get('ic_df', pd.DataFrame())
+    ic_opts = {} 
+    v_ics = pd.DataFrame() 
+
+    if not ic_df.empty:
+        ic_df.columns = [str(c).strip().lower() for c in ic_df.columns]
+        lat_col, lng_col = 'lat', 'lng'
+        if lat_col in ic_df.columns and lng_col in ic_df.columns:
+            v_ics = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].copy()
+            v_ics = v_ics.dropna(subset=[lat_col, lng_col])
+            if not v_ics.empty:
+                v_ics['d'] = v_ics.apply(lambda x: haversine(cluster['center'][0], cluster['center'][1], x[lat_col], x[lng_col]), axis=1)
+                v_ics = v_ics[v_ics['d'] <= 100].sort_values('d')
+                for _, r in v_ics.iterrows():
+                    cert_val = str(r.get('digital certified', '')).strip().upper()
+                    cert_icon = " 🔌" if cert_val in ['YES', 'Y', 'TRUE', '1', '1.0'] else ""
+                    ic_name = r.get('name', 'Unknown')
+                    label = f"{ic_name}{cert_icon} ({round(r['d'], 1)} mi)"
+                    ic_opts[label] = r
+
+    # --- DYNAMIC PRICING SYNC ---
     def sync_on_total():
-        # 🌟 FIX: Use safely with .get() to survive memory wipes
         val = st.session_state.get(pay_key)
         if val is not None:
             st.session_state[rate_key] = round(val / cluster['stops'], 2) if cluster['stops'] > 0 else 0
 
     def sync_on_rate():
-        # 🌟 FIX: Use safely with .get() to survive memory wipes
         val = st.session_state.get(rate_key)
         if val is not None:
             st.session_state[pay_key] = round(val * cluster['stops'], 2)
 
     def update_for_new_contractor():
-        # 🌟 FIX: Use .get() safely so it doesn't crash if the Memory Wipe deleted the key!
         selected_label = st.session_state.get(sel_key)
-        
-        # Only run the math if the label actually exists
         if selected_label and selected_label != st.session_state.get(last_sel_key):
             ic_new = ic_opts[selected_label]
-            _, h, _ = get_gmaps(ic_new['location'], list(stop_metrics.keys())[:25])
+            _, h, _ = get_gmaps(ic_new.get('location', f"{cluster['center'][0]},{cluster['center'][1]}"), tuple(stop_metrics.keys()))
             new_pay = float(round(max(cluster['stops'] * 18.0, h * 25.0), 2))
             st.session_state[pay_key] = new_pay
             st.session_state[rate_key] = round(new_pay / cluster['stops'], 2) if cluster['stops'] > 0 else 0
             st.session_state[last_sel_key] = selected_label
 
-    # Initial Setup (First time card is seen)
+    # Initial Setup
     if pay_key not in st.session_state:
-        # 🌟 FIX: Look for the previously sent contractor first!
         prev_name = cluster.get('contractor_name', 'Unknown')
-        default_label = list(ic_opts.keys())[0] # Fallback to closest if previous is missing
-        
-        if prev_name != 'Unknown':
+        default_label = list(ic_opts.keys())[0] if ic_opts else None
+        if prev_name != 'Unknown' and ic_opts:
             for label, row in ic_opts.items():
                 if row.get('name') == prev_name:
                     default_label = label
                     break
-                    
-        ic_init = ic_opts[default_label]
-        _, h, _ = get_gmaps(ic_init['location'], list(stop_metrics.keys())[:25])
-        initial_pay = float(round(max(cluster['stops'] * 18.0, h * 25.0), 2))
+        if default_label:
+            ic_init = ic_opts[default_label]
+            _, h, _ = get_gmaps(ic_init.get('location', f"{cluster['center'][0]},{cluster['center'][1]}"), tuple(stop_metrics.keys()))
+            initial_pay = float(round(max(cluster['stops'] * 18.0, h * 25.0), 2))
+        else:
+            initial_pay = float(round(cluster['stops'] * 18.0, 2))
         st.session_state[pay_key] = initial_pay
         st.session_state[rate_key] = round(initial_pay / cluster['stops'], 2) if cluster['stops'] > 0 else 0
-        st.session_state[sel_key] = default_label
-        st.session_state[last_sel_key] = default_label
+        if default_label:
+            st.session_state[sel_key] = default_label
+            st.session_state[last_sel_key] = default_label
 
-    # 🌟 FIX: Use the variable ic_location for total safety
-    ic_location = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
-    mi, hrs, t_str = get_gmaps(ic_location, list(stop_metrics.keys())[:25])
+    # --- 4. UI RENDERING & BUTTON LOGIC ---
+    route_state = st.session_state.get(f"route_state_{cluster_hash}")
+    col_a, col_b, col_c, col_d = st.columns([1.5, 1, 1, 1])
+    with col_a:
+        if ic_opts:
+            selected_label = st.selectbox("Select IC", list(ic_opts.keys()), key=sel_key, on_change=update_for_new_contractor)
+            ic = ic_opts[selected_label]
+        else:
+            ic = {"name": "Manual/FN", "location": f"{cluster['center'][0]},{cluster['center'][1]}", "d": 0}
+            st.info("Use Field Nation checkbox below.")
+
+    st.divider()
     
-    # 🌟 FIX: Use .get('d', 0) to avoid KeyError on distance
+    # --- 🌐 FIELD NATION PERSISTENCE (CHECKBOX) ---
+    is_fn = (route_state == "field_nation")
+    
+    if route_state != "email_sent":
+        # 🌟 UNIQUE KEY
+        fn_checked = st.checkbox("🌐 Assign to Field Nation", value=is_fn, key=f"fn_check_{pod_name}_{cluster_hash}")
+        
+        if fn_checked and not is_fn:
+            with st.spinner("Pushing to Google Sheet..."):
+                home = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
+                payload = {
+                    "cluster_hash": cluster_hash,
+                    "icn": "Field Nation", 
+                    "city": cluster.get('city', 'Unknown'), 
+                    "state": cluster.get('state', 'Unknown'), 
+                    "taskIds": ",".join(task_ids),
+                    "wo": f"FN-{datetime.now().strftime('%m%d%Y')}",
+                    "lCnt": cluster['stops'],
+                    "tCnt": len(task_ids),
+                    "locs": " | ".join([home] + list(stop_metrics.keys()) + [home])
+                }
+                try:
+                    res = requests.post(GAS_WEB_APP_URL, json={"action": "saveToFieldNation", "payload": payload}, timeout=10).json()
+                    if res.get("success"):
+                        st.session_state[f"route_state_{cluster_hash}"] = "field_nation"
+                        st.toast("✅ Saved to Field Nation Tab")
+                        st.rerun()
+                    else:
+                        st.error(f"Sheet Error: {res.get('error')}")
+                except Exception as e:
+                    st.error(f"Connection Failed: {e}")
+        
+        elif not fn_checked and is_fn:
+            move_to_dispatch(cluster_hash=cluster_hash, ic_name="Field Nation", pod_name=pod_name, action_label="Field Nation Revoked", check_onfleet=True)
+
+    BG_COLOR = "#FEF9C3"
+    TEXT_COLOR = "#854D0E"
+    BORDER_COLOR = "#FACC15"
+
+    if route_state == "field_nation":
+        st.info("💡 Route is currently tracked in the Field Nation tab.")
+        # 🌟 UNIQUE KEY
+        if st.button("📢 Mark as Posted (Move to Sent)", key=f"posted_{pod_name}_{cluster_hash}", type="primary", use_container_width=True):
+            with st.spinner("Moving route to Sent database..."):
+                try:
+                    res = requests.post(GAS_WEB_APP_URL, json={"action": "postFieldNationRoute", "cluster_hash": cluster_hash}, timeout=10).json()
+                    if res.get("success"):
+                        st.session_state[f"route_state_{cluster_hash}"] = "email_sent"
+                        st.session_state[f"contractor_{cluster_hash}"] = "Field Nation"
+                        st.session_state[f"sent_ts_{cluster_hash}"] = datetime.now().strftime('%m/%d %I:%M %p')
+                        st.session_state[f"sync_{cluster_hash}"] = res.get("routeId") 
+                        st.toast("🚀 Moved to Sent in Google Sheets!")
+                        st.rerun()
+                    else:
+                        st.error(f"Sheet Error: {res.get('error')}")
+                except Exception as e:
+                    st.error(f"Connection Failed: {e}")
+
+    ic_location = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
+    mi, hrs, t_str = get_gmaps(ic_location, tuple(stop_metrics.keys()))
+    
     curr_rate = st.session_state[rate_key]
     ic_dist = ic.get('d', 0)
     needs_unlock = (curr_rate >= 25.0) or (ic_dist > 60) or (cluster['status'] == 'Flagged')
@@ -1027,17 +1238,18 @@ def render_dispatch():
         if ic['d'] > 60: reasons.append(f"Distance ({round(ic['d'],1)}mi)")
         if cluster['status'] == 'Flagged': reasons.append("Flagged Route")
         st.markdown(f"""<div style="background-color:#fef2f2; border:1px solid #ef4444; padding:10px; border-radius:8px; margin-bottom:15px;"><span style="color:#b91c1c; font-weight:800;">🔒 ACTION REQUIRED:</span> <span style="color:#7f1d1d;">{" & ".join(reasons)}</span></div>""", unsafe_allow_html=True)
-        is_unlocked = st.checkbox("Authorize Premium Rate / Distance", key=f"lock_{cluster_hash}")
+        # 🌟 UNIQUE KEY
+        is_unlocked = st.checkbox("Authorize Premium Rate / Distance", key=f"lock_{pod_name}_{cluster_hash}")
 
     with col_b:
         st.number_input("Total Comp ($)", min_value=0.0, step=5.0, key=pay_key, on_change=sync_on_total, disabled=not is_unlocked)
     with col_c:
         st.number_input("Rate/Stop ($)", min_value=0.0, step=1.0, key=rate_key, on_change=sync_on_rate, disabled=not is_unlocked)
     with col_d:
-        st.date_input("Deadline", datetime.now().date()+timedelta(14), key=f"dd_{cluster_hash}", disabled=not is_unlocked)
+        # 🌟 UNIQUE KEY
+        st.date_input("Deadline", datetime.now().date()+timedelta(14), key=f"dd_{pod_name}_{cluster_hash}", disabled=not is_unlocked)
 
     # --- 6. UPDATED FINANCIALS & PREVIEW ---
-    # Fetch final values from session state to ensure they match the UI dynamically
     final_pay = st.session_state[pay_key]
     final_rate = st.session_state[rate_key]
 
@@ -1048,10 +1260,7 @@ def render_dispatch():
     with m2: 
         st.markdown(f"<div style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:15px; margin-bottom:10px;'><p style='font-size:11px; font-weight:800; text-transform:uppercase;'>Logistics</p><p style='margin:0; font-size:24px; font-weight:800; color:#000000;'>{t_str}</p><p style='margin:0; font-size:13px; color:#000000;'>Round Trip: {mi} mi</p></div>", unsafe_allow_html=True)
 
-    # --- BUILD STOP PREVIEW & METRICS ---
     stops_text = ""
-    
-    # 🌟 FIX: Use unique locations instead of raw tasks, and inject the star!
     for i, (addr, metrics) in enumerate(list(stop_metrics.items())[:2], start=1):
         esc_star = "⭐ " if metrics['esc'] else ""
         stops_text += f"📍 Stop {i}: {esc_star}{addr}\n"
@@ -1059,15 +1268,11 @@ def render_dispatch():
     if len(stop_metrics) > 2:
         stops_text += f"   ... and {len(stop_metrics) - 2} more stops.\n"
 
-    # --- 🌟 FINAL POLISH: CONSOLIDATED COUNTERS ---
-    # We define these once using the verified extraction flag
     total_digital = sum(1 for t in cluster['data'] if t.get('is_digital'))
     total_installs = sum(1 for t in cluster['data'] if "install" in str(t.get('task_type','')).lower())
     
-    # Standardize the warning
     install_warning = "⚠️ NOTE: This route contains Kiosk Installs. Please ensure you have adequate vehicle space.\n\n" if total_installs > 0 else ""
 
-    # Build the Location Pills (The icons for each address)
     loc_pills = {}
     for t in cluster['data']:
         addr = t.get('full', 'Unknown')
@@ -1078,23 +1283,17 @@ def render_dispatch():
         if str(t.get('task_type','')).lower() in ["kiosk removal", "remove kiosk"] and "🗑️" not in loc_pills[addr]: 
             loc_pills[addr] += "🗑️"
 
-    # Dynamic Email Preview
-    due = st.session_state.get(f"dd_{cluster_hash}", datetime.now().date()+timedelta(14))
-    
-    # Logic to lock the UI if already sent
-    # 🌟 NEW: Disable the button if the route is already in the 'Sent' or 'Accepted' tab
+    due = st.session_state.get(f"dd_{pod_name}_{cluster_hash}", datetime.now().date()+timedelta(14))
     is_already_sent = is_sent or is_declined or st.session_state.get(f"route_state_{cluster_hash}") == "email_sent"
     
-    # Smart Work Order Logic
     prev_ic_name = cluster.get('contractor_name', 'Unknown')
-    ic_name = ic.get('name', 'Unknown Contractor') # Handle the lowercase key
+    ic_name = ic.get('name', 'Unknown Contractor') 
     
     if ic_name == prev_ic_name and cluster.get('wo', 'none') != 'none':
         wo_val = cluster['wo']
     else:
         wo_val = f"{ic_name} - {datetime.now().strftime('%m%d%Y')}"
     
-    # 🌟 FIX 2: Inject link_id directly into the template
     sig_preview = (
         f"Hello {ic.get('name', 'Unknown Contractor')},\n\n"
         f"We have a new route available for you to review.\n\n"
@@ -1111,9 +1310,9 @@ def render_dispatch():
         f"{PORTAL_BASE_URL}?route={link_id}&v2=true"
     )
     
-    # Versioning logic
-    last_data_key = f"last_data_{cluster_hash}"
-    version_key = f"tx_ver_{cluster_hash}"
+    # 🌟 UNIQUE KEY
+    last_data_key = f"last_data_{pod_name}_{cluster_hash}"
+    version_key = f"tx_ver_{pod_name}_{cluster_hash}"
     current_data_fingerprint = f"{ic.get('name', 'Unknown')}_{final_pay}_{due}_{wo_val}"
     
     if version_key not in st.session_state:
@@ -1122,13 +1321,10 @@ def render_dispatch():
     if st.session_state.get(last_data_key) != current_data_fingerprint:
         st.session_state[version_key] += 1
         st.session_state[last_data_key] = current_data_fingerprint
-        # Initialize the new version with the preview
-        st.session_state[f"tx_{cluster_hash}_{st.session_state[version_key]}"] = sig_preview
+        st.session_state[f"tx_{pod_name}_{cluster_hash}_{st.session_state[version_key]}"] = sig_preview
     
-    active_tx_key = f"tx_{cluster_hash}_{st.session_state[version_key]}"
+    active_tx_key = f"tx_{pod_name}_{cluster_hash}_{st.session_state[version_key]}"
 
-    # 🌟 FIX 3: ENSURE THE BOX IS NEVER BLANK
-    # If the user edited the text, but then we generated a real ID, swap the placeholder
     if active_tx_key not in st.session_state:
         st.session_state[active_tx_key] = sig_preview
     elif real_id and "LINK_PENDING" in st.session_state[active_tx_key]:
@@ -1136,21 +1332,15 @@ def render_dispatch():
     
     email_body_content = st.text_area("Email Content Preview", height=180, key=active_tx_key, disabled=not is_unlocked)
 
-    # --- 7. BUTTON LAYOUT ---
-    # Change the label based on whether it's already been sent
     btn_label = "✉️ RESEND LINK & OPEN GMAIL" if is_already_sent else "🚀 GENERATE LINK & OPEN GMAIL"
 
     with st.container():
-        # 🌟 NEW: The button is now always available but changes flavor if it's a resend
-        if st.button(btn_label, type="primary", key=f"gbtn_{cluster_hash}", disabled=not is_unlocked, use_container_width=True):
+        # 🌟 UNIQUE KEY
+        if st.button(btn_label, type="primary", key=f"gbtn_{pod_name}_{cluster_hash}", disabled=not is_unlocked, use_container_width=True):
             with st.spinner("Syncing latest data & generating link..."):
-                # 🌟 FIX: Use lowercase 'location' here as well
                 home = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
-                
-                # Pre-calculate the payload
                 payload = {
                     "cluster_hash": cluster_hash,
-                    # 🌟 CHANGE: All keys to lowercase .get()
                     "icn": ic.get('name', 'Unknown'), 
                     "ice": ic.get('email', ''), 
                     "wo": wo_val, 
@@ -1162,7 +1352,6 @@ def render_dispatch():
                     "jobOnly": " | ".join([f"{addr} {pills}" for addr, pills in loc_pills.items()])
                 }
 
-                # 🌟 1. HIT THE SERVER ONCE
                 try:
                     res = requests.post(GAS_WEB_APP_URL, json={"action": "saveRoute", "payload": payload}, timeout=10).json()
                 except Exception as e:
@@ -1171,34 +1360,23 @@ def render_dispatch():
                 
                 if res.get("success"):
                     final_route_id = res.get("routeId")
-                    
-                    # 🌟 1. PREPARE THE EMAIL (Inject the real ID for Gmail)
-                    # We use email_body_content to preserve any manual edits you made
                     final_sig = email_body_content.replace("LINK_PENDING", final_route_id)
                     subject_line = f"Route Request | {wo_val}"
                     gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={ic.get('email', '')}&su={requests.utils.quote(subject_line)}&body={requests.utils.quote(final_sig)}"
                     
-                    # 🌟 2. OPEN GMAIL
                     st.components.v1.html(f"<script>window.open('{gmail_url}', '_blank');</script>", height=0)
                     
-                    # 🌟 3. UPDATE SESSION STATE (Moving the card to 'Sent')
                     st.session_state[sync_key] = final_route_id
                     st.session_state[f"sent_ts_{cluster_hash}"] = datetime.now().strftime('%m/%d %I:%M %p')
                     st.session_state[f"contractor_{cluster_hash}"] = ic.get('name', 'Unknown')
                     st.session_state[f"route_state_{cluster_hash}"] = "email_sent"
                     st.session_state[f"reverted_{cluster_hash}"] = False
                     
-                    # 🚀 FIX: Removed the line that causes the StreamlitAPIException crash.
-                    # Your 'Fix 3' at the top will handle the text area refresh on rerun!
-                    
-                    # 🌟 4. THE VISUAL TIMER
                     timer_placeholder = st.empty()
                     for seconds in range(3, 0, -1):
                         timer_placeholder.success(f"✅ Link Live! Moving to 'Sent' in {seconds}s...")
                         time.sleep(1)
                     timer_placeholder.empty()
-                    
-                    # 🌟 5. FINALLY RERUN
                     st.rerun()
             
 def run_pod_tab(pod_name):
