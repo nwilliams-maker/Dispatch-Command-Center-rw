@@ -523,12 +523,8 @@ def finalize_route_handler(cluster_hash):
         st.error(f"Finalization Error: {e}")
         
 def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=True, cluster_data=None):
-    """
-    Releases tasks back into the general unassigned pool so process_pod 
-    can re-attach them to nearby routes based on proximity.
-    """
-    # --- 1. 🚀 ARCHIVE IN GOOGLE SHEETS ---
-    # This removes the route from 'Sent' or 'Accepted' tabs so it doesn't double-count
+    """Moves route to Dispatch column instantly and schedules a background Onfleet scrub."""
+    # 1. 🚀 ARCHIVE IN GOOGLE SHEETS
     try:
         requests.post(GAS_WEB_APP_URL, json={
             "action": "archiveRoute", 
@@ -538,23 +534,13 @@ def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", ch
     except Exception as e:
         st.toast(f"⚠️ Sheet Archive Note: {e}")
         
-    # 🌟 FIX 3: Clear the cache so the app instantly sees the tasks are free!
-    st.cache_data.clear()
-    
-    # 2. 🧠 RELEASE FROM LOCAL MEMORY
-    if f"clusters_{pod_name}" in st.session_state:
-        st.session_state[f"clusters_{pod_name}"] = [
-            c for c in st.session_state[f"clusters_{pod_name}"] 
-            if hashlib.md5("".join(sorted([str(t['id']).strip() for t in c['data']])).encode()).hexdigest() != cluster_hash
-        ]
-
-    # 🧠 INSTANT RESET: Clear flags that move route to the right column
+    # 2. 🧠 INSTANT RESET: Clear column-shifting flags so it falls to the left side
     st.session_state.pop(f"route_state_{cluster_hash}", None)
     st.session_state.pop(f"sent_ts_{cluster_hash}", None)
     st.session_state.pop(f"contractor_{cluster_hash}", None)
     st.session_state.pop(f"sync_{cluster_hash}", None)
     
-    # 🛡️ SCHEDULE SCRUB: Set timer for 5 seconds from now
+    # 3. 🛡️ SCHEDULE SCRUB: 5-second deferred check for Onfleet
     st.session_state[f"scrub_timer_{cluster_hash}"] = time.time() + 5
     
     st.toast(f"✅ {action_label}! Route moved back to Dispatch.")
@@ -1197,6 +1183,26 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     sync_key = f"sync_{cluster_hash}"
     real_id = st.session_state.get(sync_key)
     link_id = real_id if real_id else "LINK_PENDING"
+
+    # --- 🛡️ DEFERRED ONFLEET SCRUB ENGINE ---
+    scrub_key = f"scrub_timer_{cluster_hash}"
+    if scrub_key in st.session_state and time.time() >= st.session_state[scrub_key]:
+        with st.spinner("🔍 Validating task availability with Onfleet..."):
+            active_tasks = []
+            for t in cluster['data']:
+                try:
+                    # Check if task is still unassigned (state 0)
+                    res = requests.get(f"https://onfleet.com/api/v2/tasks/{t['id']}", headers=headers).json()
+                    if res.get('state') == 0: active_tasks.append(t)
+                except: active_tasks.append(t) # Keep if API fails to be safe
+            
+            # Update the cluster with valid data only
+            cluster['data'] = active_tasks
+            cluster['stops'] = len(set(x['full'] for x in active_tasks))
+            # Cleanup timer so it only runs once
+            st.session_state.pop(scrub_key, None)
+            st.toast("🛡️ Route scrubbed: Completed tasks removed.")
+            st.rerun()
 
     # --- 1. STATE KEYS & INITIALIZATION (🌟 UNIQUE BY POD) ---
     pay_key = f"pay_val_{pod_name}_{cluster_hash}"
