@@ -2124,22 +2124,26 @@ for i, pod in enumerate(["Blue", "Green", "Orange", "Purple", "Red"], 1):
 
 # --- TAB 6: DIGITAL POOL ---
 with tabs[6]:
+    # Clean header with no background fill
     st.markdown(f"""
-        <div style='background: {TB_DIGITAL_FILL}; border: 1px solid {TB_DIGITAL_BORDER}; border-radius: 12px; padding: 20px; margin-bottom: 20px;'>
-            <h2 style='color: {TB_DIGITAL_TEXT}; text-align:center; margin:0;'>🔌 Digital Services</h2>
-            <p style='color: {TB_DIGITAL_TEXT}; text-align:center; font-size: 14px; margin-top: 5px; font-weight: 600;'>
-                Centralized management for service, offline, and digital-only tasks.
-            </p>
+        <div style='text-align:center; padding: 20px 0 10px 0;'>
+            <h2 style='color: #000000; margin: 0; font-weight: 800;'>🔌 National Digital Service Pool</h2>
+            <div style='margin-top: 12px;'>
+                <span style='background: {TB_DIGITAL_FILL}; color: {TB_DIGITAL_TEXT}; padding: 6px 20px; border-radius: 25px; font-weight: 800; font-size: 13px; border: 1px solid {TB_DIGITAL_BORDER};'>
+                    {len(pool)} TOTAL TASKS PENDING
+                </span>
+            </div>
         </div>
     """, unsafe_allow_html=True)
-    # 🌟 NEW: Uses the lightning-fast dedicated digital function
+    
+    # Action Button
     d_btn = st.columns([1,2,1])[1]
     if d_btn.button("🚀 Initialize Digital Data", key="digital_init_btn", use_container_width=True):
         d_bar = st.progress(0, text="🎬 Initializing...")
         process_digital_pool(master_bar=d_bar)
         st.rerun()
         
-    st.markdown("---")
+    st.markdown("<br>", unsafe_allow_html=True)
     
     # Pulls directly from the new dedicated session state
     global_digital = st.session_state.get('global_digital_clusters', [])
