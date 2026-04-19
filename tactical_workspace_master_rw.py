@@ -694,21 +694,34 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
         # Change the 80 to 45 right here:
         url = f"https://onfleet.com/api/v2/tasks/all?state=0&from={int(time.time()*1000)-(45*24*3600*1000)}"
         
+        all_tasks_raw = []
+        # 🌟 FIX 1: Change 80 to 45 days
+        time_window = int(time.time()*1000) - (45*24*3600*1000)
+        url = f"https://onfleet.com/api/v2/tasks/all?state=0&from={time_window}"
+        
         while url:
             response = requests.get(url, headers=headers)
-            res_json = response.json()
             
-            # Check for API errors immediately
+            # 🌟 FIX 2: Handle Rate Limiting (Error 429)
+            if response.status_code == 429:
+                st.toast("⚠️ Onfleet Throttling... waiting 2 seconds.")
+                time.sleep(2)
+                continue
+            
             if response.status_code != 200:
-                st.error(f"Onfleet API Error: {res_json}")
+                st.error(f"Onfleet API Error: {response.json()}")
                 break
                 
+            res_json = response.json()
             tasks_page = res_json.get('tasks', [])
             all_tasks_raw.extend(tasks_page)
             
-            # Change the 80 to 45 right here:
-            url = f"https://onfleet.com/api/v2/tasks/all?state=0&from={int(time.time()*1000)-(45*24*3600*1000)}"
-            update_prog(min(len(all_tasks_raw)/500 * 0.4, 0.4), "📡 Fetching task pages...")
+            # 🌟 FIX 3: Add a 0.5s pause to avoid hitting limits again
+            time.sleep(0.5) 
+            
+            # 🌟 FIX 4: Ensure the pagination URL also uses the 45-day window
+            url = f"https://onfleet.com/api/v2/tasks/all?state=0&from={time_window}&lastId={res_json['lastId']}" if res_json.get('lastId') else None
+            update_prog(min(len(all_tasks_raw)/500 * 0.4, 0.4), "📡 Fetching tasks...")
 
         unique_tasks_dict = {t['id']: t for t in all_tasks_raw}
         all_tasks = list(unique_tasks_dict.values())
