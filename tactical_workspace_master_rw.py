@@ -683,7 +683,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
         update_prog(0.0, "📥 Extracting tasks...")
         APPROVED_TEAMS = [
             "a - escalation", "b - boosted campaigns", "b - local campaigns", 
-            "c - priority nationals", "cvs kiosk removal", "n - national campaigns"
+            "c - priority nationals", "cvs kiosk removal", "digital routes", "n - national campaigns"
         ]
 
         teams_res = requests.get("https://onfleet.com/api/v2/teams", headers=headers).json()
