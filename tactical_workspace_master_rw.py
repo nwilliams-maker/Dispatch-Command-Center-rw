@@ -472,14 +472,12 @@ div.mini-btn button {{
 def background_sheet_move(cluster_hash, payload_json):
     try:
         # --- 1. 🚀 DATABASE ARCHIVE (Increased Timeout) ---
-        # Increased timeout to 15s to allow Google Sheets more time to move rows
         requests.post(GAS_WEB_APP_URL, json={
             "action": "archiveRoute", 
             "cluster_hash": cluster_hash,
-            "payload": cluster_data if cluster_data else {}
+            "payload": payload_json if payload_json else {} # 🌟 FIXED VARIABLE NAME
         }, timeout=15)
     except Exception as e:
-        # Changed to toast so it doesn't block the UI if Google is just being slow
         st.toast(f"⚠️ Archive Note: {e}")
         
 def finalize_route_handler(cluster_hash):
@@ -523,9 +521,11 @@ def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", ch
         ]
 
     # 3. 📡 RE-POOLING ENGINE
-    # This now pulls fresh State 0 tasks and re-attaches them to nearby routes.
     with st.spinner("Adding tasks back to pool..."):
-        process_pod(pod_name)
+        if pod_name == "Global_Digital":
+            process_digital_pool() # 🌟 FIX: Routes to the digital engine
+        else:
+            process_pod(pod_name) # Routes to the standard pod engine
     
     st.toast(f"✅ {action_label}! Tasks returned to pool and re-attached.")
     st.rerun()
