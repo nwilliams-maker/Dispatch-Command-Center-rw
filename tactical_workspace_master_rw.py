@@ -1356,7 +1356,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             st.session_state[rate_key] = round(new_pay / cluster['stops'], 2) if cluster['stops'] > 0 else 0
             st.session_state[last_sel_key] = selected_label
 
-    # --- 4. INITIAL SETUP (FIXED PREPOPULATION) ---
+    # --- 4. INITIAL SETUP (FIXED SAVING LOGIC) ---
     if pay_key not in st.session_state:
         prev_name = cluster.get('contractor_name', 'Unknown')
         default_label = list(ic_opts.keys())[0] if ic_opts else None
@@ -1366,23 +1366,22 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             for label, row in ic_opts.items():
                 if row.get('name') == prev_name:
                     default_label = label; break
-        
+
         if default_label:
             ic_init = ic_opts[default_label]
-            # Get travel time and mileage for the default IC
             _, h, _ = get_gmaps(ic_init.get('location', f"{cluster['center'][0]},{cluster['center'][1]}"), tuple(stop_metrics.keys()))
-            # Prepopulate with floor: Max of $18/stop OR $25/hr
+            # Floor calculation: Max of $18/stop or $25/hr
             initial_pay = float(round(max(cluster['stops'] * 18.0, h * 25.0), 2))
             st.session_state[sel_key] = default_label
             st.session_state[last_sel_key] = default_label
         else:
-            # Fallback to $18/stop floor if no IC is found
+            # Fallback floor if no IC is found
             initial_pay = float(round(cluster['stops'] * 18.0, 2))
-            
-        # 🌟 CRITICAL FIX: Ensure values are stored so UI can read them
+
+        # 🌟 THE FIX: Save the calculated pay OUTSIDE the if/else so it always saves
         st.session_state[pay_key] = initial_pay
         st.session_state[rate_key] = round(initial_pay / cluster['stops'], 2) if cluster['stops'] > 0 else 18.0
-
+    
     # --- 4. UI RENDERING & BUTTON LOGIC ---
     route_state = st.session_state.get(f"route_state_{cluster_hash}")
     col_a, col_b, col_c, col_d = st.columns([1.5, 1, 1, 1])
