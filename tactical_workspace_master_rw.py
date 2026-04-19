@@ -402,18 +402,6 @@ div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb
     font-weight: 800 !important;
 }}
 
-/* 4. Digital Tab (Light Blue BG / Dark Blue Text) */
-div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(4) {{
-    background-color: #dbeafe !important;
-    border: 2px solid #1e40af !important;
-    border-radius: 30px !important;
-    margin: 0 5px !important;
-}}
-div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(4) p {{
-    color: #1e40af !important;
-    font-weight: 800 !important;
-}}
-
 /* --- RIGHT COLUMN: Awaiting Tabs --- */
 /* Force the gap so they break apart into individual pills */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab-list"] {{
