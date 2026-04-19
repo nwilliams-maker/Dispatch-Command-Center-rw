@@ -507,29 +507,21 @@ def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", ch
     except Exception as e:
         st.toast(f"⚠️ Sheet Archive Note: {e}")
 
-    # --- 2. 🧠 RELEASE FROM LOCAL MEMORY ---
-    # We remove this specific cluster so the tasks are 'free' to be re-clustered
+    # 2. 🧠 RELEASE FROM LOCAL MEMORY
     if f"clusters_{pod_name}" in st.session_state:
         st.session_state[f"clusters_{pod_name}"] = [
             c for c in st.session_state[f"clusters_{pod_name}"] 
             if hashlib.md5("".join(sorted([str(t['id']).strip() for t in c['data']])).encode()).hexdigest() != cluster_hash
         ]
 
-    # Clear UI keys for this hash to prevent ghosting
-    for key in list(st.session_state.keys()):
-        if cluster_hash in key:
-            st.session_state.pop(key, None)
-
-    # --- 3. 📡 RE-RUN THE ENGINE (process_pod) ---
-    # This fetches fresh 'state=0' tasks from Onfleet and re-runs the math.
-    # Because those tasks are now unassigned, they will automatically 
-    # 'attach' to existing routes if they fall within your distance threshold.
+    # 3. 📡 RE-POOLING ENGINE
+    # This now pulls fresh State 0 tasks and re-attaches them to nearby routes.
     with st.spinner("Adding tasks back to pool..."):
         process_pod(pod_name)
     
     st.toast(f"✅ {action_label}! Tasks returned to pool and re-attached.")
     st.rerun()
-
+    
 def instant_revoke_handler(cluster_hash, ic_name, payload_json, pod_name):
     # We now enable Onfleet scrubbing (State 0 check) immediately
     move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=True, cluster_data=payload_json)
