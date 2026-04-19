@@ -1779,7 +1779,7 @@ def run_pod_tab(pod_name):
 <div style="display: flex; justify-content: center; flex-wrap: wrap; gap: 20px; background: #ffffff; padding: 12px; border-radius: 12px; border: 1px solid #cbd5e1; margin-top: -10px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
     <div style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; align-self: center; margin-right: 10px;">Route Key:</div>
     <div style="font-size: 13px; cursor: help;" title="Route is within distance limits (<60mi) and standard rate (<$25/stop).">🟢 Ready</div>
-    <div style="font-size: 13px; cursor: help;" title="Digital Service: Contains digital service requests.">🔵 Digital Service</div>
+    <div style="font-size: 13px; cursor: help;" title="Digital Service: Contains digital service requests."><span style="color:#0f766e;">●</span> Digital Service</div>
     <div style="font-size: 13px; cursor: help;" title="Route is frozen and requires manual authorization before sending.">🔒 Action Required</div>
     <div style="font-size: 13px; cursor: help;" title="The calculated price per stop is $25.00 or higher.">💰 High Rate</div>
     <div style="font-size: 13px; cursor: help;" title="The closest contractor is more than 60 miles away.">📡 Long Distance</div>
@@ -1845,18 +1845,18 @@ def run_pod_tab(pod_name):
             for i, c in enumerate(digital_ready):
                 # 🌟 SURGICAL INJECTION: TEAL BLOCKER UI
                 st.markdown(f"""
-                    <div style="background:{TB_DIGITAL_FILL}; border: 1px solid {TB_DIGITAL_BORDER}; border-radius: 8px; padding: 10px; margin-bottom: -35px;">
+                    <div style="background:#ffffff; border: 1px solid {TB_DIGITAL_BORDER}; border-radius: 8px; padding: 10px; margin-bottom: -35px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <span style="color:{TB_DIGITAL_TEXT}; font-weight: 900; font-size: 14px; text-transform: uppercase;">
                                 🔌 DIGITAL: {c['city']}, {c['state']}
                             </span>
-                            <span style="background: rgba(255,255,255,0.6); padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 800; color:{TB_DIGITAL_TEXT};">
+                            <span style="background: {TB_DIGITAL_FILL}; padding: 2px 10px; border-radius: 12px; font-size: 10px; font-weight: 800; color:{TB_DIGITAL_TEXT};">
                                 {c['stops']} STOPS
                             </span>
                         </div>
                     </div>
                 """, unsafe_allow_html=True)
-                
+                                
                 with st.expander(""): # Empty label because the header is above
                     render_dispatch(i+7000, c, pod_name)
                     
