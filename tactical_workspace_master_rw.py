@@ -968,6 +968,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
 
 # --- DISPATCH RENDERING ---
 def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
+    # Capture current state identifiers
     task_ids = [str(t['id']).strip() for t in cluster['data']]
     cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
     sync_key = f"sync_{cluster_hash}"
@@ -978,47 +979,34 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     pay_key = f"pay_val_{cluster_hash}"
     rate_key = f"rate_val_{cluster_hash}"
     sel_key = f"sel_{cluster_hash}"
-    last_sel_key = f"last_sel_{cluster_hash}" # Tracks the "previous" selection
+    last_sel_key = f"last_sel_{cluster_hash}"
 
     st.write("### Route Stops")
 
-    # --- NEW: HISTORY LOG ---
+    # --- HISTORY LOG ---
     hist = st.session_state.get(f"history_{cluster_hash}", [])
     if hist:
         st.markdown(f"<p style='color: #94a3b8; font-size: 13px; margin-top: -10px; margin-bottom: 15px; font-weight: 600;'>↩️ Previously sent to: {', '.join(hist)}</p>", unsafe_allow_html=True)
 
     # --- 2. STOP METRICS & PILLS ---
     stop_metrics = {}
-    
-    # Unified Master Loop: One pass for accuracy
     for t in cluster['data']:
         addr = t['full']
-        
-        # 1. Initialize stop if seen for the first time
         if addr not in stop_metrics:
             stop_metrics[addr] = {
                 't_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 
                 'inst': 0, 'remov': 0, 'digi': 0, 'oth': 0, 'esc': False
             }
-        
-        # 2. Basic Metrics
         stop_metrics[addr]['t_count'] += 1
-        if t.get('escalated'): 
-            stop_metrics[addr]['esc'] = True
+        if t.get('escalated'): stop_metrics[addr]['esc'] = True
             
-        # 3. Task Type Text Cleaning (Omit "Escalation" if others exist)
         raw_tt = str(t.get('task_type', '')).strip()
         parts = [p.strip().lower() for p in raw_tt.split(',') if p.strip()]
-        
         if "escalation" in parts:
-            if len(parts) > 1:
-                parts.remove("escalation") 
-            else:
-                parts = ["new ad"] 
-        
+            if len(parts) > 1: parts.remove("escalation") 
+            else: parts = ["new ad"] 
         tt = ", ".join(parts)
 
-        # 4. Classification (Independent Ifs for accurate workload)
         found_category = False
         if any(x in tt for x in ["service", "offline", "skykit", "ins/re"]): 
             stop_metrics[addr]['digi'] += 1
@@ -1036,13 +1024,12 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             stop_metrics[addr]['d_ad'] += 1
             found_category = True
         
-        # Fallback Logic
         if any(x in tt for x in ["new ad", "art change", "top"]) or not tt:
             stop_metrics[addr]['n_ad'] += 1
         elif not found_category:
             stop_metrics[addr]['oth'] += 1
             
-    # --- UI RENDERING ---
+    # --- UI RENDERING (WITH BREAK-OFF FEATURE) ---
     for addr, metrics in stop_metrics.items():
         pill_parts = []
         if metrics['n_ad'] > 0: pill_parts.append(f"🆕 {metrics['n_ad']} New Ad")
@@ -1051,62 +1038,81 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if metrics['inst'] > 0: pill_parts.append(f"🛠️ {metrics['inst']} Kiosk Install")
         if metrics['remov'] > 0: pill_parts.append(f"🗑️ {metrics['remov']} Kiosk Removal")
         if metrics['digi'] > 0: pill_parts.append(f"🔌 {metrics['digi']} Digital Service")
-        if metrics['oth'] > 0: pill_parts.append(f"📦 {metrics['oth']} Other")
         
         pill_str = " | ".join(pill_parts)
         display_addr = f"⭐ {addr}" if metrics['esc'] else addr
         
-        # 🌟 UI FIX: Use <b> for address and colored badges for task counts
-        st.markdown(
-            f"<b>{display_addr}</b> &nbsp;"
-            f"<span style='color: #633094; background-color: #f3e8ff; padding: 2px 6px; border-radius: 10px; font-weight: 800; font-size: 11px;'>"
-            f"{metrics['t_count']} Tasks</span>&nbsp; "
-            f"<span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", 
-            unsafe_allow_html=True
-        )
+        # UI: Stop Info + Break-Off Button Layout
+        s_col, b_col = st.columns([0.9, 0.1], vertical_alignment="center")
+        with s_col:
+            st.markdown(
+                f"<b>{display_addr}</b> &nbsp;"
+                f"<span style='color: #633094; background-color: #f3e8ff; padding: 2px 6px; border-radius: 10px; font-weight: 800; font-size: 11px;'>"
+                f"{metrics['t_count']} Tasks</span>&nbsp; "
+                f"<span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", 
+                unsafe_allow_html=True
+            )
+        with b_col:
+            if not is_sent and not is_declined:
+                # 🌟 THE BREAK-OFF TOOL
+                if st.button("✂️", key=f"split_{cluster_hash}_{hashlib.md5(addr.encode()).hexdigest()[:6]}", help=f"Break this stop into its own route"):
+                    # 1. Identify tasks to move
+                    tasks_to_move = [t for t in cluster['data'] if t['full'] == addr]
+                    
+                    # 2. Create the new "Fragment" route
+                    new_fragment = {
+                        "data": tasks_to_move, 
+                        "center": [tasks_to_move[0]['lat'], tasks_to_move[0]['lon']], 
+                        "stops": 1, 
+                        "city": tasks_to_move[0]['city'], 
+                        "state": tasks_to_move[0]['state'],
+                        "status": "Ready",
+                        "has_ic": cluster.get('has_ic', False),
+                        "esc_count": sum(1 for x in tasks_to_move if x.get('escalated')),
+                        "is_digital": any(x.get('is_digital') for x in tasks_to_move),
+                        "inst_count": sum(1 for x in tasks_to_move if "install" in str(x.get('task_type', '')).lower()),
+                        "remov_count": sum(1 for x in tasks_to_move if "remove" in str(x.get('task_type', '')).lower()),
+                        "wo": "none"
+                    }
+
+                    # 3. Remove from current cluster
+                    cluster['data'] = [t for t in cluster['data'] if t['full'] != addr]
+                    cluster['stops'] = len(set(t['full'] for t in cluster['data']))
+                    
+                    # 4. Inject new route into Pod memory
+                    st.session_state[f"clusters_{pod_name}"].append(new_fragment)
+                    
+                    # 5. Clear pricing for parent route to force recalculation
+                    st.session_state.pop(pay_key, None)
+                    st.session_state.pop(rate_key, None)
+                    
+                    st.toast(f"📍 Stop broken off into a standalone route!")
+                    st.rerun()
         
     st.divider()
 
     # --- 3. CONTRACTOR FILTERING (100 MILES) ---
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
-    ic_opts = {} # Initialize this first
+    ic_opts = {} 
     v_ics = pd.DataFrame() 
 
     if not ic_df.empty:
-        # Standardize headers to lowercase/stripped to prevent KeyErrors
         ic_df.columns = [str(c).strip().lower() for c in ic_df.columns]
-        
         lat_col, lng_col = 'lat', 'lng'
-
         if lat_col in ic_df.columns and lng_col in ic_df.columns:
-            # Filter out 'Field Agent' types
             v_ics = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].copy()
             v_ics = v_ics.dropna(subset=[lat_col, lng_col])
-            
             if not v_ics.empty:
                 v_ics['d'] = v_ics.apply(lambda x: haversine(cluster['center'][0], cluster['center'][1], x[lat_col], x[lng_col]), axis=1)
                 v_ics = v_ics[v_ics['d'] <= 100].sort_values('d')
-                
-                # --- NEW: Inject the 🔌 for Digital Certified Contractors ---
-                # We use lowercase 'digital certified' and 'name' because of the standardization above
                 for _, r in v_ics.iterrows():
                     cert_val = str(r.get('digital certified', '')).strip().upper()
                     cert_icon = " 🔌" if cert_val in ['YES', 'Y', 'TRUE', '1', '1.0'] else ""
-                    
                     ic_name = r.get('name', 'Unknown')
                     label = f"{ic_name}{cert_icon} ({round(r['d'], 1)} mi)"
                     ic_opts[label] = r
-            else:
-                st.warning("📡 No local contractors found within 100 miles.")
-        else:
-            st.error(f"⚠️ Coordinate columns (lat/lng) not found. Headers: {ic_df.columns.tolist()}")
-    else:
-        st.warning("📂 Contractor database (ic_df) is empty.")
 
-    # ==========================================
-    # 🌟 MOVED UP: DYNAMIC PRICING & INITIAL SETUP
-    # This MUST happen before the selectbox is drawn!
-    # ==========================================
+    # --- DYNAMIC PRICING SYNC ---
     def sync_on_total():
         val = st.session_state.get(pay_key)
         if val is not None:
@@ -1121,57 +1127,42 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         selected_label = st.session_state.get(sel_key)
         if selected_label and selected_label != st.session_state.get(last_sel_key):
             ic_new = ic_opts[selected_label]
-            _, h, _ = get_gmaps(ic_new.get('location', f"{cluster['center'][0]},{cluster['center'][1]}"), list(stop_metrics.keys())[:25])
+            _, h, _ = get_gmaps(ic_new.get('location', f"{cluster['center'][0]},{cluster['center'][1]}"), tuple(stop_metrics.keys()))
             new_pay = float(round(max(cluster['stops'] * 18.0, h * 25.0), 2))
             st.session_state[pay_key] = new_pay
             st.session_state[rate_key] = round(new_pay / cluster['stops'], 2) if cluster['stops'] > 0 else 0
             st.session_state[last_sel_key] = selected_label
 
-    # Initial Setup (First time card is seen)
+    # Initial Setup
     if pay_key not in st.session_state:
         prev_name = cluster.get('contractor_name', 'Unknown')
         default_label = list(ic_opts.keys())[0] if ic_opts else None
-        
         if prev_name != 'Unknown' and ic_opts:
             for label, row in ic_opts.items():
                 if row.get('name') == prev_name:
                     default_label = label
                     break
-                    
         if default_label:
             ic_init = ic_opts[default_label]
-            _, h, _ = get_gmaps(ic_init.get('location', f"{cluster['center'][0]},{cluster['center'][1]}"), list(stop_metrics.keys())[:25])
+            _, h, _ = get_gmaps(ic_init.get('location', f"{cluster['center'][0]},{cluster['center'][1]}"), tuple(stop_metrics.keys()))
             initial_pay = float(round(max(cluster['stops'] * 18.0, h * 25.0), 2))
         else:
             initial_pay = float(round(cluster['stops'] * 18.0, 2))
-
         st.session_state[pay_key] = initial_pay
         st.session_state[rate_key] = round(initial_pay / cluster['stops'], 2) if cluster['stops'] > 0 else 0
-        
-        # Safely setting the widget keys BEFORE the widget exists!
         if default_label:
             st.session_state[sel_key] = default_label
             st.session_state[last_sel_key] = default_label
 
-    # ==========================================
     # --- 4. UI RENDERING & BUTTON LOGIC ---
-    # ==========================================
-    task_ids = [str(t['id']).strip() for t in cluster['data']]
-    cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
     route_state = st.session_state.get(f"route_state_{cluster_hash}")
-
     col_a, col_b, col_c, col_d = st.columns([1.5, 1, 1, 1])
-    
     with col_a:
         if ic_opts:
             selected_label = st.selectbox("Select IC", list(ic_opts.keys()), key=sel_key, on_change=update_for_new_contractor)
             ic = ic_opts[selected_label]
         else:
-            ic = {
-                "name": "Manual/FN", 
-                "location": f"{cluster['center'][0]},{cluster['center'][1]}",
-                "d": 0
-            }
+            ic = {"name": "Manual/FN", "location": f"{cluster['center'][0]},{cluster['center'][1]}", "d": 0}
             st.info("Use Field Nation checkbox below.")
 
     st.divider()
@@ -1528,6 +1519,10 @@ def run_pod_tab(pod_name):
     ready, review, sent, accepted, declined, finalized, field_nation = [], [], [], [], [], [], []
 
     for c in cls:
+        # 🌟 FIX: Skip empty routes that were trimmed to 0 stops
+        if not c.get('data') or len(c.get('data')) == 0:
+            continue
+            
         task_ids = [str(t['id']).strip() for t in c['data']]
         cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
         
