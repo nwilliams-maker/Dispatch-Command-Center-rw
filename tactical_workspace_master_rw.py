@@ -2231,17 +2231,25 @@ with tabs[6]:
 
         st.markdown("---")
 
-        # 6. 🚀 DISPATCH COLUMNS
+        # --- 6. 🚀 FULL FUNCTIONAL DISPATCH LAYOUT ---
         col_left, col_right = st.columns([4.5, 5.5])
         
+        # Define lists for all buckets to replicate pod functionality
+        d_ready = [c for c in global_digital if c.get('db_status', 'ready').lower() == 'ready' and c.get('status') != 'Flagged']
+        d_flagged = [c for c in global_digital if c.get('status') == 'Flagged']
+        d_fn = [c for c in global_digital if c.get('db_status', '').lower() == 'field_nation']
+        d_sent = [c for c in global_digital if c.get('db_status', '').lower() in ['sent', 'email_sent']]
+        d_acc = [c for c in global_digital if c.get('db_status', '').lower() == 'accepted']
+        d_dec = [c for c in global_digital if c.get('db_status', '').lower() == 'declined']
+        d_fin = [c for c in global_digital if c.get('db_status', '').lower() == 'finalized']
+
         with col_left:
             st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_DIGITAL_TEXT}; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
             t_ready, t_flagged, t_fn = st.tabs(["📥 Ready", "⚠️ Flagged", "🌐 Field Nation"])
             
             with t_ready:
-                pool_ready_list = [c for c in global_digital if c.get('db_status', 'ready').lower() == 'ready']
-                if not pool_ready_list: st.info("No digital tasks ready.")
-                for i, c in enumerate(pool_ready_list):
+                if not d_ready: st.info("No digital tasks ready.")
+                for i, c in enumerate(d_ready):
                     st.markdown(f"""
                         <div style="background:#ffffff; border: 1px solid {TB_DIGITAL_BORDER}; border-radius: 8px; padding: 10px; margin-bottom: -35px;">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -2254,20 +2262,53 @@ with tabs[6]:
                         render_dispatch(i+8000, c, "Global_Digital")
 
             with t_flagged:
-                if not pool_flagged: st.info("No digital tasks flagged.")
-                for i, c in enumerate([c for c in global_digital if c.get('db_status', '').lower() == 'flagged']):
+                if not d_flagged: st.info("No digital tasks flagged.")
+                for i, c in enumerate(d_flagged):
                     with st.expander(f"🔴 {c['city']}, {c['state']} | {c['stops']} Stops"):
                         render_dispatch(i+9000, c, "Global_Digital")
 
             with t_fn:
-                if not pool_fn: st.info("No digital tasks in Field Nation.")
-                for i, c in enumerate(pool_fn):
+                if not d_fn: st.info("No digital tasks in Field Nation.")
+                for i, c in enumerate(d_fn):
                     with st.expander(f"🌐 FN: {c['city']}, {c['state']} | {c['stops']} Stops"):
                         render_dispatch(i+9500, c, "Global_Digital")
 
         with col_right:
-            st.markdown("<div style='font-size: 1.5rem; font-weight: 800; color: #64748b; text-align: center;'>📋 Details</div>", unsafe_allow_html=True)
-            st.info("Select a digital route to view details.")
+            st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_GREEN}; margin-bottom: 5px; text-align: center;'>⏳ Awaiting Confirmation</div>", unsafe_allow_html=True)
+            t_sent, t_acc, t_dec, t_fin = st.tabs(["✉️ Sent", "✅ Accepted", "❌ Declined", "🏁 Finalized"])
+
+            with t_sent:
+                if not d_sent: st.info("No pending digital routes.")
+                for i, c in enumerate(d_sent):
+                    ic_name = c.get('contractor_name', 'Unknown')
+                    with st.expander(f"✉️ {ic_name} | {c['city']}, {c['state']} | {c['stops']} Stops"):
+                        render_dispatch(i+10000, c, "Global_Digital", is_sent=True)
+
+            with t_acc:
+                if not d_acc: st.info("No digital routes accepted.")
+                for i, c in enumerate(d_acc):
+                    ic_name = c.get('contractor_name', 'Unknown')
+                    cluster_hash = hashlib.md5("".join(sorted([str(t['id']).strip() for t in c['data']])).encode()).hexdigest()
+                    with st.expander(f"✅ {ic_name} | {c['city']}, {c['state']} | {c['stops']} Stops"):
+                        st.success("Digital route accepted.")
+                        if st.checkbox("Finalize Digital Route", key=f"d_fin_check_{cluster_hash}"):
+                            finalize_route_handler(cluster_hash)
+                            st.rerun()
+                        render_dispatch(i+11000, c, "Global_Digital", is_sent=True)
+
+            with t_dec:
+                if not d_dec: st.info("No declined digital routes.")
+                for i, c in enumerate(d_dec):
+                    ic_name = c.get('contractor_name', 'Unknown')
+                    with st.expander(f"❌ {ic_name} | {c['city']}, {c['state']} | {c['stops']} Stops"):
+                        render_dispatch(i+12000, c, "Global_Digital", is_declined=True)
+
+            with t_fin:
+                if not d_fin: st.info("No finalized digital routes.")
+                for i, c in enumerate(d_fin):
+                    ic_name = c.get('contractor_name', 'Unknown')
+                    with st.expander(f"🏁 {ic_name} | {c['city']}, {c['state']} | {c['stops']} Stops"):
+                        render_dispatch(i+13000, c, "Global_Digital", is_sent=True)
 
 # --- FINAL FOOTER (End of File) ---
 st.markdown("---")
