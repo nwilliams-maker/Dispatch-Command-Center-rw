@@ -221,7 +221,7 @@ div.refresh-btn-container > div > button:hover {{
 /* Red Pod */
 .stTabs [data-baseweb="tab"]:nth-of-type(6) {{ border: 2px solid #ef4444 !important; background-color: #fef2f2 !important; color: #7f1d1d !important; }}
 /* Digital Pool Tab */
-.stTabs [data-baseweb="tab"]:nth-of-type(7) {{ border: 2px solid #1e40af !important; color: #1e40af !important; background: #eff6ff !important; }}
+.stTabs [data-baseweb="tab"]:nth-of-type(7) {{ border: 2px solid #0f766e !important; color: #0f766e !important; background: #ccfbf1 !important; }}
 
 /* ACTIVE STATE - The "Full Glow" (No flat bottom border) */
 .stTabs [aria-selected="true"] {{ 
