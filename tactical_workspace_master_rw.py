@@ -691,7 +691,8 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
         esc_team_ids = [t['id'] for t in teams_res if 'escalation' in str(t.get('name', '')).lower()]
 
         all_tasks_raw = []
-        url = f"https://onfleet.com/api/v2/tasks/all?state=0&from={int(time.time()*1000)-(80*24*3600*1000)}"
+        # Change the 80 to 45 right here:
+        url = f"https://onfleet.com/api/v2/tasks/all?state=0&from={int(time.time()*1000)-(45*24*3600*1000)}"
         
         while url:
             response = requests.get(url, headers=headers)
@@ -705,7 +706,8 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             tasks_page = res_json.get('tasks', [])
             all_tasks_raw.extend(tasks_page)
             
-            url = f"https://onfleet.com/api/v2/tasks/all?state=0&from={int(time.time()*1000)-(80*24*3600*1000)}&lastId={res_json['lastId']}" if res_json.get('lastId') else None
+            # Change the 80 to 45 right here:
+            url = f"https://onfleet.com/api/v2/tasks/all?state=0&from={int(time.time()*1000)-(45*24*3600*1000)}"
             update_prog(min(len(all_tasks_raw)/500 * 0.4, 0.4), "📡 Fetching task pages...")
 
         unique_tasks_dict = {t['id']: t for t in all_tasks_raw}
