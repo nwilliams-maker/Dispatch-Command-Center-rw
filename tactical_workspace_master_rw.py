@@ -1620,11 +1620,17 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 subject_line = requests.utils.quote(f"Route Request | {wo_val}")
                 body_content = requests.utils.quote(final_sig)
                 gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={ic.get('email', '')}&su={subject_line}&body={body_content}"
+                
+                # Send the popup command to the frontend
                 st.components.v1.html(f"<script>window.open('{gmail_url}', '_blank');</script>", height=0)
                 
-                # 5. ⚡ INSTANT MOVE: Remove the 3-second timer loop
+                # 5. ⚡ INSTANT MOVE (With Render Buffer)
                 st.toast("🚀 Link Active! Moving route...")
-                st.rerun() # Move columns milliseconds after Gmail opens
+                
+                # 🛑 THE FIX: Give the browser exactly 1.5 seconds to open the tab before we wipe the screen
+                time.sleep(1.5) 
+                
+                st.rerun() # Now move the columns!
                     
 def run_pod_tab(pod_name):
     # Grab the contractor database from session state
