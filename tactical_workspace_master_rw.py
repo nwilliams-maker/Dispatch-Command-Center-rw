@@ -704,7 +704,16 @@ def process_digital_pool(master_bar=None):
         is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
         tt_val = str(t.get('taskType', '')).strip() or str(t.get('taskDetails', '')).strip()
         
+        # 1. SEARCH FOR REGULAR TASKS FIRST (EXEMPTIONS)
+        REGULAR_EXEMPTIONS = ["photo", "magnet", "continuity", "new ad"]
+        if any(ex in tt_val.lower() for ex in REGULAR_EXEMPTIONS):
+            continue # Immediately skip classification for Digital Pool
+
+        # 2. STRICT DIGITAL FILTER
+        DIGITAL_WHITELIST = ["service", "ins/rem", "offline"]
         is_digital_task = False 
+
+
         
         # A. Baseline: check native fields
         if any(trigger in tt_val.lower() for trigger in DIGITAL_WHITELIST):
@@ -724,6 +733,10 @@ def process_digital_pool(master_bar=None):
             # STRICT CHECK: If 'service', 'ins/rem', or 'offline' appears
             if any(trigger in f_val_lower for trigger in DIGITAL_WHITELIST): 
                 is_digital_task = True
+                break
+        
+        if not is_digital_task: 
+            continue
                 
             # Check for Escalation
             if 'escalation' in f_name or 'escalation' in f_key:
@@ -893,13 +906,30 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             stt = normalize_state(addr.get('state', ''))
             is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
             
-            # Base display name from Onfleet native fields
+            # --- 🔍 STRICT CLASSIFICATION ENGINE ---
             tt_val = str(t.get('taskType', '')).strip() or str(t.get('taskDetails', '')).strip()
-            
-            # --- 🔍 2. TARGETED CUSTOM FIELDS SCAN ---
-            # Prioritizing customFields bucket as requested
             custom_fields = t.get('customFields') or []
-            is_digital_task = False 
+
+            # 1. IDENTIFY REGULAR (STATIC) EXEMPTIONS FIRST
+            # If these words exist, it is NEVER a digital service call
+            REGULAR_EXEMPTIONS = ["photo", "magnet", "continuity", "new ad"]
+            is_exempt = any(ex in tt_val.lower() for ex in REGULAR_EXEMPTIONS)
+            
+            DIGITAL_WHITELIST = ["service", "ins/rem", "offline"]
+            is_digital_task = False
+
+            if not is_exempt:
+                # Check baseline native fields
+                if any(trigger in tt_val.lower() for trigger in DIGITAL_WHITELIST):
+                    is_digital_task = True
+
+                # Deep Scan Custom Fields
+                for f in custom_fields:
+                    f_val_lower = str(f.get('value', '')).strip().lower()
+                    if any(trigger in f_val_lower for trigger in DIGITAL_WHITELIST):
+                        is_digital_task = True
+                        break
+                        
             found_official_type = False
             
             # Baseline: Check native Onfleet title/details for keywords
