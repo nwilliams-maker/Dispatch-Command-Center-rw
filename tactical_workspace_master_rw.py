@@ -1628,7 +1628,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 st.toast("🚀 Link Active! Moving route...")
                 
                 # 🛑 THE FIX: Give the browser exactly 1.5 seconds to open the tab before we wipe the screen
-                time.sleep(1.5) 
+                time.sleep(5) 
                 
                 st.rerun() # Now move the columns!
                     
