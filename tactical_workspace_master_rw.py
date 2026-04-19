@@ -2208,4 +2208,30 @@ with tabs[6]:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
+    # Initialize Button below
+    d_btn = st.columns([1,2,1])[1]
+    if d_btn.button("🚀 Initialize Digital Data", key="digital_init_btn", use_container_width=True):
+        d_bar = st.progress(0, text="🎬 Initializing...")
+        process_digital_pool(master_bar=d_bar)
+        st.rerun()
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Pulls directly from the new dedicated session state
+    global_digital = st.session_state.get('global_digital_clusters', [])
+
+    if not global_digital:
+        st.info("No digital service tasks pending. Click Initialize above to fetch.")
+    else:
+        for i, c in enumerate(global_digital):
+            # Add status indicators so you know what's happening
+            status_icon = "🔌"
+            db_stat = c.get('db_status', 'ready').lower()
+            if db_stat in ["sent", "field_nation"]: status_icon = "✉️"
+            elif db_stat == "accepted": status_icon = "✅"
+            elif db_stat == "declined": status_icon = "❌"
+            
+            with st.expander(f"{status_icon} {c.get('state')} | {c['city']} — {c['stops']} Stops"):
+                render_dispatch(i+8000, c, "Global_Digital")
+
 # (THIS MUST BE THE ABSOLUTE END OF YOUR FILE)
