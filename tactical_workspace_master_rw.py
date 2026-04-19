@@ -2124,25 +2124,30 @@ for i, pod in enumerate(["Blue", "Green", "Orange", "Purple", "Red"], 1):
 
 # --- TAB 6: DIGITAL POOL ---
 with tabs[6]:
-    # Clean header with no background fill
+    # Ensure the pool is defined to prevent NameError
+    pool = st.session_state.get('digital_pool', [])
+
+    # Minimalist Header: Dark Teal Title + Teal Pill
     st.markdown(f"""
-        <div style='text-align:center; padding: 20px 0 10px 0;'>
-            <h2 style='color: #000000; margin: 0; font-weight: 800;'>🔌 National Digital Service Pool</h2>
-            <div style='margin-top: 12px;'>
+        <div style='text-align:center; padding: 25px 0 15px 0;'>
+            <h2 style='color: {TB_DIGITAL_TEXT}; margin: 0; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;'>
+                🔌 Digital Services
+            </h2>
+            <div style='margin-top: 15px;'>
                 <span style='background: {TB_DIGITAL_FILL}; color: {TB_DIGITAL_TEXT}; padding: 6px 20px; border-radius: 25px; font-weight: 800; font-size: 13px; border: 1px solid {TB_DIGITAL_BORDER};'>
                     {len(pool)} TOTAL TASKS PENDING
                 </span>
             </div>
         </div>
     """, unsafe_allow_html=True)
-    
-    # Action Button
+
+    # Initialize Button below
     d_btn = st.columns([1,2,1])[1]
     if d_btn.button("🚀 Initialize Digital Data", key="digital_init_btn", use_container_width=True):
         d_bar = st.progress(0, text="🎬 Initializing...")
         process_digital_pool(master_bar=d_bar)
         st.rerun()
-        
+
     st.markdown("<br>", unsafe_allow_html=True)
     
     # Pulls directly from the new dedicated session state
