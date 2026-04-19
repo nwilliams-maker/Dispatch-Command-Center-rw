@@ -702,7 +702,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
         while url:
             response = requests.get(url, headers=headers)
             
-            # 🌟 FIX 2: Handle Rate Limiting (Error 429)
+            # Handle Rate Limiting (Error 429) dynamically
             if response.status_code == 429:
                 st.toast("⚠️ Onfleet Throttling... waiting 2 seconds.")
                 time.sleep(2)
@@ -716,10 +716,8 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             tasks_page = res_json.get('tasks', [])
             all_tasks_raw.extend(tasks_page)
             
-            # 🌟 FIX 3: Add a 0.5s pause to avoid hitting limits again
-            time.sleep(0.5) 
+            # 🚀 OPTIMIZATION: Removed the time.sleep(0.5) here!
             
-            # 🌟 FIX 4: Ensure the pagination URL also uses the 45-day window
             url = f"https://onfleet.com/api/v2/tasks/all?state=0&from={time_window}&lastId={res_json['lastId']}" if res_json.get('lastId') else None
             update_prog(min(len(all_tasks_raw)/500 * 0.4, 0.4), "📡 Fetching tasks...")
 
@@ -881,18 +879,23 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             # 🌟 BRIDGE: Put spillover back and fix the 'd' column error
             rem.extend(spillover)
             
-            # --- 📡 1. IC SEARCH & DISTANCE CHECK ---
+            # --- 📡 1. IC SEARCH & DISTANCE CHECK (OPTIMIZED) ---
             has_ic = False
             ic_dist = 0
             closest_ic_loc = f"{anc['lat']},{anc['lon']}" 
             
             if not v_ics_base.empty:
-                # 🌟 CRITICAL FIX: Use the safe lat/lng variables, and lowercase 'location'
-                dists = v_ics_base.apply(lambda x: haversine(anc['lat'], anc['lon'], x[lat_col], x[lng_col]), axis=1)
-                valid_ics = v_ics_base[dists <= 100].copy()
+                # 🚀 OPTIMIZATION: Use list comprehension instead of pandas .apply(). It is ~100x faster.
+                dists = [
+                    haversine(anc['lat'], anc['lon'], lat, lng) 
+                    for lat, lng in zip(v_ics_base[lat_col], v_ics_base[lng_col])
+                ]
+                
+                valid_ics = v_ics_base.copy()
+                valid_ics['d'] = dists
+                valid_ics = valid_ics[valid_ics['d'] <= 100]
                 
                 if not valid_ics.empty:
-                    valid_ics['d'] = dists[valid_ics.index]
                     best_ic = valid_ics.sort_values('d').iloc[0]
                     has_ic = True
                     ic_dist = best_ic['d']
@@ -904,11 +907,10 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                     if x['full'] not in seen: seen.add(x['full']); u_locs.append(x['full'])
                 if not u_locs: return 0, 0
                 
-                # 🚀 SPEED FIX: Use heuristic math instead of the slow Google Maps API!
-                # Calculates drive time assuming 40mph + 15 mins (0.25 hrs) per stop
-                est_hrs = (ic_dist * 2 / 40.0) + (len(u_locs) * 0.25)
-                pay = round(max(len(u_locs) * 18.0, est_hrs * 25.0), 2)
-                
+                # 🚀 OPTIMIZATION: Reverted back to real Google Maps!
+                # Wrapping u_locs[:25] in a tuple() makes Streamlit's cache process it instantly.
+                _, hrs, _ = get_gmaps(closest_ic_loc, tuple(u_locs[:25]))
+                pay = round(max(len(u_locs) * 18.0, hrs * 25.0), 2)
                 return round(pay / len(u_locs), 2), len(u_locs)
             
             gate_avg, _ = check_viability(group)
