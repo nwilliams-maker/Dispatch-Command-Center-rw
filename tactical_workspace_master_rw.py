@@ -506,7 +506,10 @@ def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", ch
         }, timeout=15)
     except Exception as e:
         st.toast(f"⚠️ Sheet Archive Note: {e}")
-
+        
+    # 🌟 FIX 3: Clear the cache so the app instantly sees the tasks are free!
+    st.cache_data.clear()
+    
     # 2. 🧠 RELEASE FROM LOCAL MEMORY
     if f"clusters_{pod_name}" in st.session_state:
         st.session_state[f"clusters_{pod_name}"] = [
@@ -824,7 +827,8 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 if anc_is_digital == t_is_digital:
                     
                     # Rule 2: Sent and Accepted are FROZEN
-                    if anc_status in ['sent', 'accepted']:
+                    # 🌟 FIX 1: Add 'field_nation' so these routes stay grouped together!
+                    if anc_status in ['sent', 'accepted', 'field_nation']:
                         # Bypasses distance! ONLY groups if the Work Order matches perfectly.
                         if t_status == anc_status and t_wo == anc_wo:
                             candidates.append((0, t)) 
@@ -2007,7 +2011,9 @@ with tabs[0]:
                 # Combine Live data with Ghost History
                 pod_ghosts = ghost_db.get(pod, [])
                 total_accepted = len(accepted) + len(pod_ghosts)
-                true_sent_count = len(sent) + total_accepted + len(declined)
+                
+                # 🌟 FIX 2: Add Field Nation to the Total Sent tracking
+                true_sent_count = len(sent) + len(field_nation) + total_accepted + len(declined)
                 visual_total_routes = len(pod_cls) + len(pod_ghosts)
                 
                 # Metrics HTML (Flushed Left to prevent markdown code blocks)
