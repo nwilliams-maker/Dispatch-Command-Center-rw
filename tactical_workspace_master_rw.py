@@ -1662,73 +1662,73 @@ def run_pod_tab(pod_name):
                 review.append(c)
 
     # --- 📊 SEPARATE TASK MATH ---
+    # Ensure individual task counts and route counts are separate
     tasks_static = sum(len(c['data']) for c in cls if not c.get('is_digital'))
     tasks_digital = sum(len(c['data']) for c in cls if c.get('is_digital'))
+    
+    total_tasks = tasks_static + tasks_digital
     total_stops = sum(c['stops'] for c in cls)
     total_routes = len(cls)
-
+    
     total_accepted = len(accepted) + len(pod_ghosts)
     total_dispatched = len(sent) + total_accepted + len(declined)
 
-    # --- DASHBOARD SUPERCARDS (Split Task View) ---
-    c1, c2, c3 = st.columns([1.5, 1.8, 1.5]) 
+    # --- DASHBOARD SUPERCARDS ---
+    c1, c2, c3 = st.columns([2.2, 1.4, 1.4]) 
 
     with c1:
+        # 🌟 CARD 1: Pod Workflow & Identifier Totals
         st.markdown(f"""
-            <div class='dashboard-supercard' style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:10px; height: 110px;'>
-                <p style='margin:0 0 5px 0; font-size:11px; font-weight:800; color:#000000; text-transform:uppercase; text-align:center;'>Total Routes: {total_routes}</p>
-                <div style='display:flex; justify-content:space-between; gap:8px;'>
-                    <div style='background:{TB_GREEN_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
-                        <p style='margin:0; font-size:9px; font-weight:800;'>READY</p>
-                        <p style='margin:0; font-size:20px; font-weight:800;'>{len(ready)}</p>
+            <div class='dashboard-supercard' style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:12px; height: 135px;'>
+                <p style='margin:0 0 8px 0; font-size:11px; font-weight:800; color:#000000; text-transform:uppercase; text-align:center;'>Pod Overview: {total_routes} Total Routes</p>
+                <div style='display:flex; justify-content:space-between; gap:10px;'>
+                    <div style='background:{TB_GREEN_FILL}; flex:1; padding:10px; border-radius:8px; text-align:center;'>
+                        <p style='margin:0; font-size:9px; font-weight:800; color:#166534;'>READY ROUTES</p>
+                        <p style='margin:0; font-size:24px; font-weight:800; color:#166534;'>{len(ready)}</p>
                     </div>
-                    <div style='background:{TB_BLUE_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
-                        <p style='margin:0; font-size:9px; font-weight:800;'>DIGITAL</p>
-                        <p style='margin:0; font-size:20px; font-weight:800; color:#1e40af;'>{len(digital_ready)}</p>
+                    <div style='background:{TB_BLUE_FILL}; flex:1; padding:10px; border-radius:8px; text-align:center;'>
+                        <p style='margin:0; font-size:9px; font-weight:800; color:#1e40af;'>DIGITAL TASKS</p>
+                        <p style='margin:0; font-size:24px; font-weight:800; color:#1e40af;'>{tasks_digital}</p>
+                    </div>
+                </div>
+                <div style='margin-top: 12px; padding-top: 8px; border-top: 1.5px solid #f1f5f9; display: flex; justify-content: space-around; text-align: center;'>
+                    <div>
+                        <span style='font-size: 9px; font-weight: 800; color: #64748b; display: block;'>TOTAL TASKS</span>
+                        <span style='font-size: 15px; font-weight: 800; color: #000000;'>{total_tasks}</span>
+                    </div>
+                    <div style='border-left: 1px solid #cbd5e1; height: 22px; align-self: center;'></div>
+                    <div>
+                        <span style='font-size: 9px; font-weight: 800; color: #64748b; display: block;'>TOTAL STOPS</span>
+                        <span style='font-size: 15px; font-weight: 800; color: #000000;'>{total_stops}</span>
                     </div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
 
     with c2:
+        # 🌟 CARD 2: Accepted Records
         st.markdown(f"""
-            <div class='dashboard-supercard' style='background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:15px; height: 110px;'>
-                <div style='display:flex; justify-content:space-around; text-align:center; height:100%; align-items:center;'>
-                    <div style='flex: 1;'>
-                        <p style='margin:0; font-size:9px; font-weight:800; color:#64748b; text-transform:uppercase;'>Static Tasks</p>
-                        <p style='margin:0; font-size:24px; font-weight:800; color:#000000;'>{tasks_static}</p>
-                    </div>
-                    <div style='border-left: 2px solid #cbd5e1; height: 40px;'></div>
-                    <div style='flex: 1;'>
-                        <p style='margin:0; font-size:9px; font-weight:800; color:#1e40af; text-transform:uppercase;'>Digital Tasks</p>
-                        <p style='margin:0; font-size:24px; font-weight:800; color:#1e40af;'>{tasks_digital}</p>
-                    </div>
-                    <div style='border-left: 2px solid #cbd5e1; height: 40px;'></div>
-                    <div style='flex: 1;'>
-                        <p style='margin:0; font-size:9px; font-weight:800; color:#000000; text-transform:uppercase;'>Total Stops</p>
-                        <p style='margin:0; font-size:24px; font-weight:800; color:#000000;'>{total_stops}</p>
-                    </div>
+            <div class='dashboard-supercard' style='background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:15px; height: 135px;'>
+                <p style='margin:0 0 10px 0; font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; text-align:center;'>Accepted Records</p>
+                <div style='text-align:center; padding-top:5px;'>
+                    <p style='margin:0; font-size:36px; font-weight:800; color:#16a34a;'>{total_accepted}</p>
+                    <p style='margin:0; font-size:10px; color:#64748b;'>Confirmed by ICs</p>
                 </div>
             </div>
         """, unsafe_allow_html=True)
 
     with c3:
+        # 🌟 CARD 3: Outbound Records
         st.markdown(f"""
-            <div class='dashboard-supercard' style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:10px; height: 110px;'>
-                <p style='margin:0 0 5px 0; font-size:11px; font-weight:800; color:#000000; text-transform:uppercase; text-align:center;'>Sent Records: {total_dispatched}</p>
-                <div style='display:flex; justify-content:space-between; gap:8px;'>
-                    <div style='background:{TB_GREEN_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
-                        <p style='margin:0; font-size:9px; font-weight:800;'>ACCEPTED</p>
-                        <p style='margin:0; font-size:20px; font-weight:800;'>{total_accepted}</p>
-                    </div>
-                    <div style='background:{TB_RED_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
-                        <p style='margin:0; font-size:9px; font-weight:800;'>SENT/FN</p>
-                        <p style='margin:0; font-size:20px; font-weight:800;'>{len(sent) + len(field_nation)}</p>
-                    </div>
+            <div class='dashboard-supercard' style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:15px; height: 135px;'>
+                <p style='margin:0 0 10px 0; font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; text-align:center;'>Sent / Field Nation</p>
+                <div style='text-align:center; padding-top:5px;'>
+                    <p style='margin:0; font-size:36px; font-weight:800; color:#3b82f6;'>{len(sent) + len(field_nation)}</p>
+                    <p style='margin:0; font-size:10px; color:#64748b;'>Awaiting Response</p>
                 </div>
             </div>
         """, unsafe_allow_html=True)
-
+        
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("⚙️ Re-Optimize Routes", use_container_width=True, key=f"reopt_{pod_name}"):
         st.session_state.pop(f"clusters_{pod_name}", None)
