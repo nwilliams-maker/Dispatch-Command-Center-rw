@@ -230,6 +230,34 @@ div.refresh-btn-container > div > button:hover {{
     box-shadow: 0 10px 20px rgba(99, 48, 148, 0.25) !important; 
 }}
 
+/* TAB ACTION BUTTONS (Top Right - Initialize / Sync) */
+div.tab-action-btn {{
+    display: flex;
+    justify-content: flex-end;
+    width: 100%;
+    margin-top: 0px !important;
+}}
+div.tab-action-btn > div > button {{
+    height: 32px !important;
+    padding: 0 24px !important; /* Slightly wider as requested */
+    font-size: 13px !important;
+    border-radius: 20px !important;
+    border: 1.2px solid #633094 !important;
+    background-color: transparent !important;
+    color: #633094 !important;
+    font-weight: 700 !important;
+    transition: all 0.2s ease-in-out !important;
+    white-space: nowrap !important; 
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}}
+div.tab-action-btn > div > button:hover {{
+    background-color: #633094 !important;
+    color: white !important;
+    box-shadow: 0 2px 8px rgba(99, 48, 148, 0.3) !important;
+}}
+
 /* PRIMARY & SECONDARY BUTTONS */
 button[kind="primary"] {{
     background-color: #76bc21 !important;
@@ -1581,22 +1609,34 @@ def run_pod_tab(pod_name):
     
     # Grab the matching "Midnight" text color for the current pod
     text_color = {
-        "Blue": "#1e3a8a",
-        "Green": "#064e3b",
-        "Orange": "#7c2d12",
-        "Purple": "#4c1d95",
-        "Red": "#7f1d1d"
-    }.get(pod_name, "#633094") # Defaults to TB Purple if not found
+        "Blue": "#1e3a8a", "Green": "#064e3b", "Orange": "#7c2d12",
+        "Purple": "#4c1d95", "Red": "#7f1d1d"
+    }.get(pod_name, "#633094")
     
-    # Inject the dynamic color into the centered header
-    st.markdown(f"<h2 style='color: {text_color}; text-align:center;'>{pod_name} Pod Dashboard</h2>", unsafe_allow_html=True)
-    st.markdown("<br>", unsafe_allow_html=True)
+    # Check if data exists for this pod to determine button state
+    is_initialized = f"clusters_{pod_name}" in st.session_state
+    
+    # 🌟 HEADER ROW: Title Centered, Dynamic Button Top Right
+    h_col1, h_col2, h_col3 = st.columns([2, 6, 2])
+    with h_col2:
+        st.markdown(f"<h2 style='color: {text_color}; text-align:center; margin-top: 0;'>{pod_name} Pod Dashboard</h2>", unsafe_allow_html=True)
+    with h_col3:
+        st.markdown("<div class='tab-action-btn'>", unsafe_allow_html=True)
+        if not is_initialized:
+            # STATE 1: Not loaded yet
+            if st.button(f"🚀 Initialize Data", key=f"init_{pod_name}", use_container_width=True):
+                process_pod(pod_name)
+                st.rerun()
+        else:
+            # STATE 2: Loaded (Replaces the old Re-Optimize button)
+            if st.button("🚀 Sync Routes", key=f"reopt_{pod_name}", use_container_width=True):
+                st.session_state.pop(f"clusters_{pod_name}", None)
+                process_pod(pod_name) 
+                st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    # Check if data exists for this pod
-    if f"clusters_{pod_name}" not in st.session_state:
-        if st.button(f"🚀 Initialize {pod_name} Data", key=f"init_{pod_name}"):
-            process_pod(pod_name)
-            st.rerun()
+    # Halt execution if data isn't loaded yet
+    if not is_initialized:
         return
         
     # Load cluster data
@@ -1761,12 +1801,6 @@ def run_pod_tab(pod_name):
                 </div>
             </div>
         """, unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("⚙️ Re-Optimize Routes", use_container_width=True, key=f"reopt_{pod_name}"):
-        st.session_state.pop(f"clusters_{pod_name}", None)
-        process_pod(pod_name) 
-        st.rerun()
 
     m = folium.Map(location=cls[0]['center'], zoom_start=6, tiles="cartodbpositron")
     for c in ready: folium.CircleMarker(c['center'], radius=8, color=TB_GREEN, fill=True, opacity=0.8).add_to(m)
@@ -2022,12 +2056,21 @@ with col_ref:
 tabs = st.tabs(["Global", "Blue Pod", "Green Pod", "Orange Pod", "Purple Pod", "Red Pod", "Digital Pool"])
 # --- TAB 0: GLOBAL CONTROL ---
 with tabs[0]:
-    st.markdown("<h2 style='color: #633094; text-align:center;'>🌍 Global Command Overview</h2>", unsafe_allow_html=True)
+    # Check if ANY pod is loaded to toggle button state
+    has_global_data = any(f"clusters_{p}" in st.session_state for p in POD_CONFIGS.keys())
     
-    c_btn = st.columns([1,2,1])[1]
-    if c_btn.button("🚀 Initialize All Pods", key="global_init_btn", use_container_width=True):
-        st.session_state.sent_db, st.session_state.ghost_db = fetch_sent_records_from_sheet()
-        st.session_state.trigger_pull = True
+    # 🌟 NEW HEADER: Title Centered, Dynamic Button Top Right
+    gh_col1, gh_col2, gh_col3 = st.columns([2, 6, 2])
+    with gh_col2:
+        st.markdown("<h2 style='color: #633094; text-align:center; margin-top: 0;'>🌍 Global Command Overview</h2>", unsafe_allow_html=True)
+    with gh_col3:
+        st.markdown("<div class='tab-action-btn'>", unsafe_allow_html=True)
+        btn_label = "🚀 Sync Routes" if has_global_data else "🚀 Initialize All Pods"
+        if st.button(btn_label, key="global_init_btn", use_container_width=True):
+            st.session_state.sent_db, st.session_state.ghost_db = fetch_sent_records_from_sheet()
+            st.session_state.trigger_pull = True
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("---")
     loading_placeholder = st.empty()
@@ -2148,8 +2191,21 @@ with tabs[6]:
     pool_flagged = len(d_flagged)
     pool_total_sent = len(d_sent) + len(d_acc) + len(d_dec) + len(d_fn)
 
-    # 2. 🃏 SUPERCARDS
-    st.markdown(f"<div style='text-align:center; padding-bottom:15px;'><h2 style='color:{TB_DIGITAL_TEXT}; margin:0;'>🔌 Digital Services Pool</h2></div>", unsafe_allow_html=True)
+    # 2. ⚡ DIGITAL HEADER & DYNAMIC BUTTON
+    dh_col1, dh_col2, dh_col3 = st.columns([2, 6, 2])
+    with dh_col2:
+        st.markdown(f"<div style='text-align:center; padding-bottom:15px;'><h2 style='color:{TB_DIGITAL_TEXT}; margin:0;'>🔌 Digital Services Pool</h2></div>", unsafe_allow_html=True)
+    with dh_col3:
+        st.markdown("<div class='tab-action-btn'>", unsafe_allow_html=True)
+        # Dynamic Button logic
+        btn_label = "🚀 Sync Routes" if global_digital else "🚀 Initialize Data"
+        if st.button(btn_label, key="digital_init_btn", use_container_width=True):
+            d_bar = st.progress(0, text="🎬 Initializing...")
+            process_digital_pool(master_bar=d_bar)
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # 3. 🃏 SUPERCARDS
     dc1, dc2, dc3 = st.columns([1, 1, 1])
     with dc1:
         st.markdown(f"<div class='dashboard-supercard' style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:12px; height:110px;'><p style='margin:0 0 8px 0; font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; text-align:center;'>Status</p><div style='display:flex; justify-content:space-around; gap:8px;'><div style='background:{TB_GREEN_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'><p style='margin:0; font-size:8px; font-weight:800; color:{TB_GREEN_TEXT};'>READY</p><p style='margin:0; font-size:22px; font-weight:800;'>{pool_ready}</p></div><div style='background:{TB_RED_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'><p style='margin:0; font-size:8px; font-weight:800; color:{TB_RED_TEXT};'>FLAGGED</p><p style='margin:0; font-size:22px; font-weight:800;'>{pool_flagged}</p></div></div></div>", unsafe_allow_html=True)
@@ -2158,14 +2214,8 @@ with tabs[6]:
     with dc3:
         st.markdown(f"<div class='dashboard-supercard' style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:12px; height:110px;'><p style='margin:0 0 8px 0; font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; text-align:center;'>Sent: {pool_total_sent}</p><div style='display:flex; justify-content:space-around; gap:8px;'><div style='background:{TB_GREEN_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'><p style='margin:0; font-size:8px; font-weight:800; color:{TB_GREEN_TEXT};'>ACCEPTED</p><p style='margin:0; font-size:22px; font-weight:800;'>{len(d_acc)}</p></div><div style='background:{TB_RED_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'><p style='margin:0; font-size:8px; font-weight:800; color:{TB_RED_TEXT};'>DECLINED</p><p style='margin:0; font-size:22px; font-weight:800;'>{len(d_dec)}</p></div></div></div>", unsafe_allow_html=True)
 
-    # 3. 🚀 INITIALIZE
-    if st.columns([1,2,1])[1].button("🚀 Initialize Digital Data", key="digital_init_btn", use_container_width=True):
-        d_bar = st.progress(0, text="🎬 Initializing...")
-        process_digital_pool(master_bar=d_bar)
-        st.rerun()
-
     if not global_digital:
-        st.info("No digital service tasks pending.")
+        st.info("No digital service tasks pending. Click '🚀 Sync Routes' at the top right to fetch data.")
     else:
         # 4. 🗺️ MAP & LEGEND
         m_digi = folium.Map(location=global_digital[0]['center'], zoom_start=4, tiles="cartodbpositron")
