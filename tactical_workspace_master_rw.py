@@ -1356,26 +1356,32 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             st.session_state[rate_key] = round(new_pay / cluster['stops'], 2) if cluster['stops'] > 0 else 0
             st.session_state[last_sel_key] = selected_label
 
-    # Initial Setup
+    # --- 4. INITIAL SETUP (FIXED PREPOPULATION) ---
     if pay_key not in st.session_state:
         prev_name = cluster.get('contractor_name', 'Unknown')
         default_label = list(ic_opts.keys())[0] if ic_opts else None
+        
+        # Match previous contractor if possible
         if prev_name != 'Unknown' and ic_opts:
             for label, row in ic_opts.items():
                 if row.get('name') == prev_name:
-                    default_label = label
-                    break
+                    default_label = label; break
+        
         if default_label:
             ic_init = ic_opts[default_label]
+            # Get travel time and mileage for the default IC
             _, h, _ = get_gmaps(ic_init.get('location', f"{cluster['center'][0]},{cluster['center'][1]}"), tuple(stop_metrics.keys()))
+            # Prepopulate with floor: Max of $18/stop OR $25/hr
             initial_pay = float(round(max(cluster['stops'] * 18.0, h * 25.0), 2))
-        else:
-            initial_pay = float(round(cluster['stops'] * 18.0, 2))
-        st.session_state[pay_key] = initial_pay
-        st.session_state[rate_key] = round(initial_pay / cluster['stops'], 2) if cluster['stops'] > 0 else 0
-        if default_label:
             st.session_state[sel_key] = default_label
             st.session_state[last_sel_key] = default_label
+        else:
+            # Fallback to $18/stop floor if no IC is found
+            initial_pay = float(round(cluster['stops'] * 18.0, 2))
+            
+        # 🌟 CRITICAL FIX: Ensure values are stored so UI can read them
+        st.session_state[pay_key] = initial_pay
+        st.session_state[rate_key] = round(initial_pay / cluster['stops'], 2) if cluster['stops'] > 0 else 18.0
 
     # --- 4. UI RENDERING & BUTTON LOGIC ---
     route_state = st.session_state.get(f"route_state_{cluster_hash}")
@@ -1474,16 +1480,15 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         st.date_input("Deadline", datetime.now().date()+timedelta(14), key=f"dd_{pod_name}_{cluster_hash}", disabled=not is_unlocked)
 
     # --- 6. UPDATED FINANCIALS & PREVIEW ---
-    final_pay = st.session_state[pay_key]
-    final_rate = st.session_state[rate_key]
+    final_pay = st.session_state.get(pay_key, 0.0)
+    final_rate = st.session_state.get(rate_key, 0.0)
 
     m1, m2 = st.columns(2)
     with m1: 
         status_color = TB_GREEN if 18.0 <= final_rate <= 23.0 else "#ef4444"
-        st.markdown(f"<div style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:15px; margin-bottom:10px;'><p style='font-size:11px; font-weight:800; text-transform:uppercase;'>Financials</p><p style='margin:0; font-size:24px; font-weight:800; color:{status_color};'>Total: ${final_pay:,.2f}</p><p style='margin:0; font-size:13px; color:#000000;'>Breakdown: ${final_rate}/stop</p></div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:15px; margin-bottom:10px;'><p style='font-size:11px; font-weight:800; text-transform:uppercase;'>Financials</p><p style='margin:0; font-size:24px; font-weight:800; color:{status_color};'>Total: ${final_pay:,.2f}</p><p style='margin:0; font-size:13px;'>Breakdown: ${final_rate}/stop</p></div>", unsafe_allow_html=True)
     with m2: 
-        st.markdown(f"<div style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:15px; margin-bottom:10px;'><p style='font-size:11px; font-weight:800; text-transform:uppercase;'>Logistics</p><p style='margin:0; font-size:24px; font-weight:800; color:#000000;'>{t_str}</p><p style='margin:0; font-size:13px; color:#000000;'>Round Trip: {mi} mi</p></div>", unsafe_allow_html=True)
-
+        st.markdown(f"<div style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:15px; margin-bottom:10px;'><p style='font-size:11px; font-weight:800; text-transform:uppercase;'>Logistics</p><p style='margin:0; font-size:24px; font-weight:800;'>{t_str}</p><p style='margin:0; font-size:13px;'>Round Trip: {mi} mi</p></div>", unsafe_allow_html=True)
     stops_text = ""
     for i, (addr, metrics) in enumerate(list(stop_metrics.items())[:2], start=1):
         esc_star = "⭐ " if metrics['esc'] else ""
@@ -1491,11 +1496,6 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         
     if len(stop_metrics) > 2:
         stops_text += f"   ... and {len(stop_metrics) - 2} more stops.\n"
-
-    total_digital = sum(1 for t in cluster['data'] if t.get('is_digital'))
-    total_installs = sum(1 for t in cluster['data'] if "install" in str(t.get('task_type','')).lower())
-    
-    install_warning = "⚠️ NOTE: This route contains Kiosk Installs. Please ensure you have adequate vehicle space.\n\n" if total_installs > 0 else ""
 
     loc_pills = {}
     for t in cluster['data']:
@@ -1516,10 +1516,13 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     if ic_name == prev_ic_name and cluster.get('wo', 'none') != 'none':
         wo_val = cluster['wo']
     else:
-        wo_val = f"{ic_name} - {datetime.now().strftime('%m%d%Y')}"
+        wo_val = f"{ic.get('name', 'Unknown')}-{datetime.now().strftime('%m%d%Y')}"
+    total_digital = sum(1 for t in cluster['data'] if t.get('is_digital'))
+    total_installs = sum(1 for t in cluster['data'] if "install" in str(t.get('task_type','')).lower())
+    install_warning = "⚠️ NOTE: This route contains Kiosk Installs. Please ensure you have adequate vehicle space.\n\n" if total_installs > 0 else ""
     
     sig_preview = (
-        f"Hello {ic.get('name', 'Unknown Contractor')},\n\n"
+        f"Hello {ic.get('name', 'Contractor')},\n\n"
         f"We have a new route available for you to review.\n\n"
         f" Work Order: {wo_val}\n"
         f"📅 Due Date: {due.strftime('%A, %b %d, %Y')}\n"
@@ -1554,7 +1557,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     elif real_id and "LINK_PENDING" in st.session_state[active_tx_key]:
         st.session_state[active_tx_key] = st.session_state[active_tx_key].replace("LINK_PENDING", real_id)
     
-    email_body_content = st.text_area("Email Content Preview", height=180, key=active_tx_key, disabled=not is_unlocked)
+    email_body_content = st.text_area("Email Content Preview", value=sig_preview, height=180, key=f"txt_area_{current_data_fingerprint}_{cluster_hash}", disabled=not is_unlocked)
 
     btn_label = "✉️ RESEND LINK & OPEN GMAIL" if is_already_sent else "🚀 GENERATE LINK & OPEN GMAIL"
 
@@ -2156,13 +2159,13 @@ for i, pod in enumerate(["Blue", "Green", "Orange", "Purple", "Red"], 1):
 
 # --- TAB 6: DIGITAL POOL ---
 with tabs[6]:
-    # 1. 📊 GRAB DATA & CALCULATE MATH
+    # 1. 📊 GRAB DATA & CALCULATE MATH (FIXED)
     global_digital = st.session_state.get('global_digital_clusters', [])
     
-    # 🌟 FIX: Calculate math from clusters instead of the empty pool key
+    # Calculate totals from the processed clusters
     tasks_total = sum(len(c['data']) for c in global_digital)
-    # This counts unique addresses across all digital clusters
-    unique_stops = len(set(t['full'] for c in global_digital for t in c['data']))
+    # Count unique addresses across all digital clusters
+    unique_stops_total = len(set(t['full'] for c in global_digital for t in c['data']))
     
     # Bucket digital clusters exactly like Pod logic for Parity
     d_ready, d_flagged, d_fn, d_sent, d_acc, d_dec, d_fin = [], [], [], [], [], [], []
@@ -2181,7 +2184,7 @@ with tabs[6]:
     pool_ready = len(d_ready)
     pool_flagged = len(d_flagged)
     pool_total_sent = len(d_sent) + len(d_acc) + len(d_dec) + len(d_fn)
-
+    
     # 2. ⚡ DIGITAL HEADER & DYNAMIC BUTTON
     dh_col1, dh_col2, dh_col3 = st.columns([2, 6, 2])
     with dh_col2:
