@@ -202,21 +202,18 @@ div.refresh-btn-container > div > button:hover {{
 
 /* Global Tab */
 .stTabs [data-baseweb="tab"]:nth-of-type(1) {{ border: 2px solid #633094 !important; color: #3b1d58 !important; background: white !important; }}
-
 /* Blue Pod */
 .stTabs [data-baseweb="tab"]:nth-of-type(2) {{ border: 2px solid #3b82f6 !important; background-color: #f0f7ff !important; color: #1e3a8a !important; }}
-
 /* Green Pod */
 .stTabs [data-baseweb="tab"]:nth-of-type(3) {{ border: 2px solid #22c55e !important; background-color: #f0fdf4 !important; color: #064e3b !important; }}
-
 /* Orange Pod */
 .stTabs [data-baseweb="tab"]:nth-of-type(4) {{ border: 2px solid #f97316 !important; background-color: #fffaf5 !important; color: #7c2d12 !important; }}
-
 /* Purple Pod */
 .stTabs [data-baseweb="tab"]:nth-of-type(5) {{ border: 2px solid #a855f7 !important; background-color: #faf5ff !important; color: #4c1d95 !important; }}
-
 /* Red Pod */
 .stTabs [data-baseweb="tab"]:nth-of-type(6) {{ border: 2px solid #ef4444 !important; background-color: #fef2f2 !important; color: #7f1d1d !important; }}
+/* Digital Pool Tab */
+.stTabs [data-baseweb="tab"]:nth-of-type(7) {{ border: 2px solid #1e40af !important; color: #1e40af !important; background: #eff6ff !important; }}
 
 /* ACTIVE STATE - The "Full Glow" (No flat bottom border) */
 .stTabs [aria-selected="true"] {{ 
@@ -1895,7 +1892,7 @@ with col_ref:
     st.markdown("</div>", unsafe_allow_html=True)
 
 # Updated Main Tabs
-tabs = st.tabs(["Global", "Digital", "Blue Pod", "Green Pod", "Orange Pod", "Purple Pod", "Red Pod"])
+tabs = st.tabs(["Global", "Blue Pod", "Green Pod", "Orange Pod", "Purple Pod", "Red Pod", "Digital Pool"])
 # --- TAB 0: GLOBAL CONTROL ---
 with tabs[0]:
     st.markdown("<h2 style='color: #633094; text-align:center;'>🌍 Global Command Overview</h2>", unsafe_allow_html=True)
@@ -1993,9 +1990,27 @@ with tabs[0]:
     st.markdown("<br> 🗺️ Master Route Map", unsafe_allow_html=True)
     st_folium(global_map, height=500, use_container_width=True, key="global_master_map")
 
-# --- TAB 1: DIGITAL POOL ---
-with tabs[1]:
+# --- INDIVIDUAL POD TABS ---
+# 🌟 FIX: Using 2 instead of 1 to account for the new Digital Pool tab!
+for i, pod in enumerate(["Blue", "Green", "Orange", "Purple", "Red"], 1):
+    with tabs[i]: run_pod_tab(pod)
+
+# --- TAB 6: DIGITAL POOL ---
+with tabs[6]:
     st.markdown("<h2 style='color: #1e40af; text-align:center;'>🔌 National Digital Service Pool</h2>", unsafe_allow_html=True)
+    
+    # 🌟 NEW: Dedicated Initialize Button with Progress Bar for the Digital Tab
+    d_btn = st.columns([1,2,1])[1]
+    if d_btn.button("🚀 Initialize Digital Data", key="digital_init_btn", use_container_width=True):
+        st.session_state.sent_db, st.session_state.ghost_db = fetch_sent_records_from_sheet()
+        d_bar = st.progress(0, text="🎬 Initializing Digital Data...")
+        pod_keys = list(POD_CONFIGS.keys())
+        for idx, p in enumerate(pod_keys):
+            process_pod(p, master_bar=d_bar, pod_idx=idx, total_pods=len(pod_keys))
+        d_bar.empty()
+        st.rerun()
+        
+    st.markdown("---")
     
     global_digital = []
     for pod in POD_CONFIGS.keys():
@@ -2003,13 +2018,10 @@ with tabs[1]:
             global_digital.extend([c for c in st.session_state[f"clusters_{pod}"] if c.get('is_digital')])
 
     if not global_digital:
-        st.info("No digital tasks pending nationwide.")
+        st.info("No digital service tasks pending nationwide.")
     else:
         for i, c in enumerate(global_digital):
-            with st.expander(f"🔌 {c.get('state')} | {c['city']} — {c['stops']} Stops"):
+            with st.expander(f"🔌 DIGITAL: {c['city']}, {c['state']} | {c['stops']} Stops"):
                 render_dispatch(i+8000, c, "Global_Digital")
 
-# --- INDIVIDUAL POD TABS ---
-# 🌟 FIX: Using 2 instead of 1 to account for the new Digital Pool tab!
-for i, pod in enumerate(["Blue", "Green", "Orange", "Purple", "Red"], 2):
-    with tabs[i]: run_pod_tab(pod)
+# (THIS MUST BE THE ABSOLUTE END OF YOUR FILE)
