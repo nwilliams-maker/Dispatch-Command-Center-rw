@@ -1983,7 +1983,9 @@ with tabs[0]:
                 total_stops = sum(c['stops'] for c in pod_cls)
                 
                 # --- EXACT SYNC LOGIC FROM POD TABS ---
-                sent, accepted, declined = [], [], []
+                # 🌟 FIX: Add field_nation here so the Global tab knows it exists!
+                sent, accepted, declined, field_nation = [], [], [], []
+                
                 for c in pod_cls:
                     task_ids = [str(t['id']).strip() for t in c['data']]
                     cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
@@ -1995,7 +1997,10 @@ with tabs[0]:
                     # --- NEW PRIORITY: LIVE DATABASE OVERRIDES LOCAL STATE ---
                     if sheet_match and not is_reverted:
                         raw_status = sheet_match.get('status')
-                        if raw_status == 'declined':
+                        # 🌟 FIX: Add the Field Nation catch
+                        if raw_status == 'field_nation':
+                            field_nation.append(c)
+                        elif raw_status == 'declined':
                             declined.append(c)
                         elif raw_status == 'accepted':
                             accepted.append(c)
@@ -2003,6 +2008,8 @@ with tabs[0]:
                             sent.append(c)
                     elif route_state == "email_sent" and not is_reverted:
                         sent.append(c)
+                    elif route_state == "field_nation" and not is_reverted:
+                        field_nation.append(c)
                     elif route_state == "link_generated" and not is_reverted:
                         orig = st.session_state.get(f"orig_status_{cluster_hash}")
                         if orig == "declined":
@@ -2012,7 +2019,7 @@ with tabs[0]:
                 pod_ghosts = ghost_db.get(pod, [])
                 total_accepted = len(accepted) + len(pod_ghosts)
                 
-                # 🌟 FIX 2: Add Field Nation to the Total Sent tracking
+                # 🌟 FIX: The math will now work because field_nation is defined
                 true_sent_count = len(sent) + len(field_nation) + total_accepted + len(declined)
                 visual_total_routes = len(pod_cls) + len(pod_ghosts)
                 
