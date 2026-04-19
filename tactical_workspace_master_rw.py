@@ -1664,13 +1664,14 @@ def run_pod_tab(pod_name):
     # --- 📊 SEPARATE TASK MATH ---
     tasks_static = sum(len(c['data']) for c in cls if not c.get('is_digital'))
     tasks_digital = sum(len(c['data']) for c in cls if c.get('is_digital'))
+    total_tasks = tasks_static + tasks_digital
     total_stops = sum(c['stops'] for c in cls)
     total_routes = len(cls)
 
     total_accepted = len(accepted) + len(pod_ghosts)
     total_dispatched = len(sent) + total_accepted + len(declined)
 
-    # --- DASHBOARD SUPERCARDS (Split Task View) ---
+    # --- DASHBOARD SUPERCARDS (Reverted to Compact Layout) ---
     c1, c2, c3 = st.columns([1.5, 1.8, 1.5]) 
 
     with c1:
@@ -1695,18 +1696,18 @@ def run_pod_tab(pod_name):
             <div class='dashboard-supercard' style='background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:15px; height: 110px;'>
                 <div style='display:flex; justify-content:space-around; text-align:center; height:100%; align-items:center;'>
                     <div style='flex: 1;'>
-                        <p style='margin:0; font-size:9px; font-weight:800; color:#64748b; text-transform:uppercase;'>Static Tasks</p>
+                        <p style='margin:0; font-size:9px; font-weight:800; color:#64748b; text-transform:uppercase;'>Static</p>
                         <p style='margin:0; font-size:24px; font-weight:800; color:#000000;'>{tasks_static}</p>
                     </div>
                     <div style='border-left: 2px solid #cbd5e1; height: 40px;'></div>
                     <div style='flex: 1;'>
-                        <p style='margin:0; font-size:9px; font-weight:800; color:#1e40af; text-transform:uppercase;'>Digital Tasks</p>
+                        <p style='margin:0; font-size:9px; font-weight:800; color:#1e40af; text-transform:uppercase;'>Digital</p>
                         <p style='margin:0; font-size:24px; font-weight:800; color:#1e40af;'>{tasks_digital}</p>
                     </div>
                     <div style='border-left: 2px solid #cbd5e1; height: 40px;'></div>
-                    <div style='flex: 1;'>
-                        <p style='margin:0; font-size:9px; font-weight:800; color:#000000; text-transform:uppercase;'>Total Stops</p>
-                        <p style='margin:0; font-size:24px; font-weight:800; color:#000000;'>{total_stops}</p>
+                    <div style='flex: 1.2;'>
+                        <p style='margin:0; font-size:9px; font-weight:800; color:#000000; text-transform:uppercase;'>Tasks : Stops</p>
+                        <p style='margin:0; font-size:24px; font-weight:800; color:#000000;'>{total_tasks}:{total_stops}</p>
                     </div>
                 </div>
             </div>
