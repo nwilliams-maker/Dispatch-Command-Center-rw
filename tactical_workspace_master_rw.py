@@ -1680,7 +1680,7 @@ def run_pod_tab(pod_name):
     total_sent = len(sent) + accepted_count + declined_count + len(field_nation)
 
     # --- DASHBOARD SUPERCARDS ---
-    c1, c2, c3 = st.columns([1, 1.8, 1]) 
+    c1, c2, c3 = st.columns([.5, 2.5, .5]) 
 
     with c1:
         # CARD 1: ROUTE STATUS (Ready | Flagged)
