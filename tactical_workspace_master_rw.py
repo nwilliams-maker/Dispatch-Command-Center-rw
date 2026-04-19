@@ -1571,27 +1571,22 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
    # 🌟 THE FIX: Injected {pod_name} so Streamlit knows which tab this box belongs to
     email_body_content = st.text_area("Email Content Preview", value=sig_preview, height=180, key=f"txt_area_{pod_name}_{current_data_fingerprint}_{cluster_hash}", disabled=not is_unlocked)
 
-    btn_label = "✉️ RESEND LINK & OPEN GMAIL" if is_already_sent else "🚀 GENERATE LINK & OPEN GMAIL"
+   btn_label = "✉️ RESEND LINK & OPEN GMAIL" if is_already_sent else "🚀 GENERATE LINK & OPEN GMAIL"
 
     with st.container():
         if st.button(btn_label, type="primary", key=f"gbtn_{pod_name}_{cluster_hash}", disabled=not is_unlocked, use_container_width=True):
-            # 🛡️ STEP 1: PRE-FLIGHT COLLISION CHECK
-            with st.spinner("Verifying route availability..."):
-                # Fresh pull to see if another dispatcher just claimed this
-                latest_sent_db, _ = fetch_sent_records_from_sheet() 
-                
-                # Check if ANY task in this cluster was JUST sent by someone else
-                collision = next((tid for tid in task_ids if tid in latest_sent_db), None)
-                
-                if collision:
-                    st.error(f"🚫 COLLISION: This route was just dispatched by someone else ({latest_sent_db[collision]['name']}).")
-                    st.info("The dashboard will refresh to show the updated status.")
-                    time.sleep(3)
-                    st.rerun()
-                    return # Halt execution
+            # 🛡️ STEP 1: FAST COLLISION CHECK (Memory-based)
+            # Use the data already in session state instead of fetching CSVs again
+            local_sent_db = st.session_state.get('sent_db', {})
+            collision = next((tid for tid in task_ids if tid in local_sent_db), None)
+            
+            if collision:
+                st.error(f"🚫 COLLISION: Dispatched by someone else ({local_sent_db[collision]['name']}).")
+                st.rerun() # Immediate refresh to clear the UI
+                return
 
-            # 🚀 STEP 2: PROCEED WITH DISPATCH (If no collision)
-            with st.spinner("Syncing latest data & generating link..."):
+            # 🚀 STEP 2: PROCEED WITH DISPATCH
+            with st.spinner("Generating link..."):
                 home = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
                 payload = {
                     "cluster_hash": cluster_hash,
@@ -1606,8 +1601,6 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                     "jobOnly": " | ".join([f"{addr} {pills}" for addr, pills in loc_pills.items()])
                 }
 
-                # (Keep the rest of your requests.post and Gmail logic exactly the same)
-
                 try:
                     res = requests.post(GAS_WEB_APP_URL, json={"action": "saveRoute", "payload": payload}, timeout=10).json()
                 except Exception as e:
@@ -1615,26 +1608,25 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                     st.stop()
                 
                 if res.get("success"):
+                    # 3. 🧠 UPDATE STATE INSTANTLY
                     final_route_id = res.get("routeId")
-                    final_sig = email_body_content.replace("LINK_PENDING", final_route_id)
-                    subject_line = f"Route Request | {wo_val}"
-                    gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={ic.get('email', '')}&su={requests.utils.quote(subject_line)}&body={requests.utils.quote(final_sig)}"
-                    
-                    st.components.v1.html(f"<script>window.open('{gmail_url}', '_blank');</script>", height=0)
-                    
                     st.session_state[sync_key] = final_route_id
                     st.session_state[f"sent_ts_{cluster_hash}"] = datetime.now().strftime('%m/%d %I:%M %p')
                     st.session_state[f"contractor_{cluster_hash}"] = ic.get('name', 'Unknown')
                     st.session_state[f"route_state_{cluster_hash}"] = "email_sent"
                     st.session_state[f"reverted_{cluster_hash}"] = False
                     
-                    timer_placeholder = st.empty()
-                    for seconds in range(3, 0, -1):
-                        timer_placeholder.success(f"✅ Link Live! Moving to 'Sent' in {seconds}s...")
-                        time.sleep(1)
-                    timer_placeholder.empty()
-                    st.rerun()
-            
+                    # 4. ✉️ TRIGGER GMAIL WINDOW
+                    final_sig = email_body_content.replace("LINK_PENDING", final_route_id)
+                    subject_line = requests.utils.quote(f"Route Request | {wo_val}")
+                    body_content = requests.utils.quote(final_sig)
+                    gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={ic.get('email', '')}&su={subject_line}&body={body_content}"
+                    st.components.v1.html(f"<script>window.open('{gmail_url}', '_blank');</script>", height=0)
+                    
+                    # 5. ⚡ THE SPEED FIX: Remove the 3-second timer loop
+                    st.toast("🚀 Link Active! Moving route...")
+                    st.rerun() # Move columns milliseconds after Gmail opens
+                    
 def run_pod_tab(pod_name):
     # Grab the contractor database from session state
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
