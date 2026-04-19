@@ -53,14 +53,13 @@ TB_RED_FILL = "#fee2e2"   # Flagged
 TB_YELLOW_FILL = "#FEF9C3"     # Field Nation
 TB_STATIC_FILL = "#f1f5f9"
 TB_DIGITAL_FILL = "#ccfbf1"
-DIGITAL_TEAL_TEXT = "#0f766e"
+TB_DIGITAL_BORDER = "#99f6e4" # Teal border
 
 # Standardized Dark Text (for readability)
 TB_GREEN_TEXT = "#166534"
 TB_RED_TEXT = "#991b1b"
 TB_STATIC_TEXT = "#475569"
-TB_DIGITAL_TEXT = "#0f766e"
-
+DIGITAL_TEAL_TEXT = "#0f766e"
 
 POD_CONFIGS = {
     "Blue": {"states": {"AL", "AR", "FL", "IL", "IA", "LA", "MI", "MN", "MS", "MO", "NC", "SC", "WI"}},
@@ -1771,7 +1770,7 @@ def run_pod_tab(pod_name):
 
     m = folium.Map(location=cls[0]['center'], zoom_start=6, tiles="cartodbpositron")
     for c in ready: folium.CircleMarker(c['center'], radius=8, color=TB_GREEN, fill=True, opacity=0.8).add_to(m)
-    for c in digital_ready: folium.CircleMarker(c['center'], radius=8, color="#1e40af", fill=True, opacity=0.8).add_to(m)
+    for c in digital_ready: folium.CircleMarker(c['center'], radius=8, color="#0f766e", fill=True, opacity=0.8).add_to(m)
     for c in sent: folium.CircleMarker(c['center'], radius=8, color="#3b82f6", fill=True, opacity=0.8).add_to(m)
     for c in review: folium.CircleMarker(c['center'], radius=8, color="#ef4444", fill=True, opacity=0.8).add_to(m)
     st_folium(m, height=400, use_container_width=True, key=f"map_{pod_name}")
@@ -1844,7 +1843,21 @@ def run_pod_tab(pod_name):
         with t_digital:
             if not digital_ready: st.info("No digital service tasks pending.")
             for i, c in enumerate(digital_ready):
-                with st.expander(f"🔌 DIGITAL: {c['city']}, {c['state']} | {c['stops']} Stops"):
+                # 🌟 SURGICAL INJECTION: TEAL BLOCKER UI
+                st.markdown(f"""
+                    <div style="background:{TB_DIGITAL_FILL}; border: 1px solid {TB_DIGITAL_BORDER}; border-radius: 8px; padding: 10px; margin-bottom: -35px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="color:{TB_DIGITAL_TEXT}; font-weight: 900; font-size: 14px; text-transform: uppercase;">
+                                🔌 DIGITAL: {c['city']}, {c['state']}
+                            </span>
+                            <span style="background: rgba(255,255,255,0.6); padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 800; color:{TB_DIGITAL_TEXT};">
+                                {c['stops']} STOPS
+                            </span>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                with st.expander(""): # Empty label because the header is above
                     render_dispatch(i+7000, c, pod_name)
                     
     with col_right:
@@ -2111,8 +2124,14 @@ for i, pod in enumerate(["Blue", "Green", "Orange", "Purple", "Red"], 1):
 
 # --- TAB 6: DIGITAL POOL ---
 with tabs[6]:
-    st.markdown("<h2 style='color: #1e40af; text-align:center;'>🔌 National Digital Service Pool</h2>", unsafe_allow_html=True)
-    
+    st.markdown(f"""
+        <div style='background: {TB_DIGITAL_FILL}; border: 1px solid {TB_DIGITAL_BORDER}; border-radius: 12px; padding: 20px; margin-bottom: 20px;'>
+            <h2 style='color: {TB_DIGITAL_TEXT}; text-align:center; margin:0;'>🔌 Digital Services</h2>
+            <p style='color: {TB_DIGITAL_TEXT}; text-align:center; font-size: 14px; margin-top: 5px; font-weight: 600;'>
+                Centralized management for service, offline, and digital-only tasks.
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
     # 🌟 NEW: Uses the lightning-fast dedicated digital function
     d_btn = st.columns([1,2,1])[1]
     if d_btn.button("🚀 Initialize Digital Data", key="digital_init_btn", use_container_width=True):
