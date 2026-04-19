@@ -2125,17 +2125,35 @@ with tabs[0]:
                     route_state = st.session_state.get(f"route_state_{cluster_hash}")
                     is_reverted = st.session_state.get(f"reverted_{cluster_hash}", False)
                     
+                    # --- PRIORITY: LIVE DATABASE OVERRIDES LOCAL STATE ---
                     if sheet_match and not is_reverted:
-                        raw_status = sheet_match.get('status')
-                        if raw_status == 'field_nation': field_nation.append(c)
-                        elif raw_status == 'declined': declined.append(c)
-                        elif raw_status == 'accepted': accepted.append(c)
-                        else: sent.append(c)
-                    elif route_state == "email_sent" and not is_reverted: sent.append(c)
-                    elif route_state == "field_nation" and not is_reverted: field_nation.append(c)
+                        raw_status = str(sheet_match.get('status', '')).lower()
+                        if raw_status == 'field_nation':
+                            field_nation.append(c)
+                        elif raw_status == 'declined':
+                            declined.append(c)
+                        elif raw_status == 'accepted':
+                            accepted.append(c)
+                        elif raw_status == 'finalized': 
+                            finalized.append(c)
+                        else:
+                            sent.append(c)
+                    # 🌟 THE FIX: Added "email_sent" to route the locally generated links to the Sent bucket
+                    elif route_state == "email_sent" and not is_reverted:
+                        sent.append(c)
+                    elif route_state == "field_nation" and not is_reverted: 
+                        field_nation.append(c)
                     elif route_state == "link_generated" and not is_reverted:
                         orig = st.session_state.get(f"orig_status_{cluster_hash}")
-                        if orig == "declined": declined.append(c)
+                        if orig == "declined":
+                            declined.append(c)
+                        else:
+                            ready.append(c)
+                    else:
+                        if c.get('status') == 'Ready': 
+                            ready.append(c)
+                        else: 
+                            review.append(c)
                 
                 pod_ghosts = ghost_db.get(pod, [])
                 total_accepted = len(accepted) + len(pod_ghosts)
@@ -2194,12 +2212,26 @@ with tabs[6]:
     # Bucket digital clusters exactly like Pod logic for Parity
     d_ready, d_flagged, d_fn, d_sent, d_acc, d_dec, d_fin = [], [], [], [], [], [], []
     for c in global_digital:
+        # 🌟 THE FIX: Generate the hash to track local state changes in the Digital Pool
+        task_ids = [str(t['id']).strip() for t in c['data']]
+        cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+        route_state = st.session_state.get(f"route_state_{cluster_hash}")
+        is_reverted = st.session_state.get(f"reverted_{cluster_hash}", False)
+        
         db_stat = c.get('db_status', 'ready').lower()
-        if db_stat in ['sent', 'email_sent']: d_sent.append(c)
-        elif db_stat == 'accepted': d_acc.append(c)
-        elif db_stat == 'declined': d_dec.append(c)
-        elif db_stat == 'finalized': d_fin.append(c)
-        elif db_stat == 'field_nation': d_fn.append(c)
+        
+        # 🌟 THE FIX: Respect local session state (Instant moves) before falling back to Database state
+        if db_stat in ['sent', 'email_sent'] and not is_reverted: d_sent.append(c)
+        elif db_stat == 'accepted' and not is_reverted: d_acc.append(c)
+        elif db_stat == 'declined' and not is_reverted: d_dec.append(c)
+        elif db_stat == 'finalized' and not is_reverted: d_fin.append(c)
+        elif db_stat == 'field_nation' and not is_reverted: d_fn.append(c)
+        elif route_state == 'email_sent' and not is_reverted: d_sent.append(c)
+        elif route_state == 'field_nation' and not is_reverted: d_fn.append(c)
+        elif route_state == 'link_generated' and not is_reverted:
+            orig = st.session_state.get(f"orig_status_{cluster_hash}")
+            if orig == "declined": d_dec.append(c)
+            else: d_ready.append(c)
         else:
             if c.get('status') == 'Ready': d_ready.append(c)
             else: d_flagged.append(c)
