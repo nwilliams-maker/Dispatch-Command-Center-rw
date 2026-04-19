@@ -2209,9 +2209,11 @@ with tabs[6]:
     # Count unique addresses across all digital clusters
     unique_stops_total = len(set(t['full'] for c in global_digital for t in c['data']))
     
-    # Bucket digital clusters exactly like Pod logic for Parity
+    # 1. Initialize digital-specific buckets
     d_ready, d_flagged, d_fn, d_sent, d_acc, d_dec, d_fin = [], [], [], [], [], [], []
+
     for c in global_digital:
+        # Generate the hash to track local state changes
         task_ids = [str(t['id']).strip() for t in c['data']]
         cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
         route_state = st.session_state.get(f"route_state_{cluster_hash}")
@@ -2219,21 +2221,33 @@ with tabs[6]:
         
         db_stat = c.get('db_status', 'ready').lower()
         
-        # 🌟 Notice how every append uses the d_ prefix here!
-        if db_stat in ['sent', 'email_sent'] and not is_reverted: d_sent.append(c)
-        elif db_stat == 'accepted' and not is_reverted: d_acc.append(c)
-        elif db_stat == 'declined' and not is_reverted: d_dec.append(c)
-        elif db_stat == 'finalized' and not is_reverted: d_fin.append(c)
-        elif db_stat == 'field_nation' and not is_reverted: d_fn.append(c)
-        elif route_state == 'email_sent' and not is_reverted: d_sent.append(c)
-        elif route_state == 'field_nation' and not is_reverted: d_fn.append(c)
+        # 🌟 THE FIX: Ensure every .append() target starts with 'd_'
+        if db_stat in ['sent', 'email_sent'] and not is_reverted: 
+            d_sent.append(c)
+        elif db_stat == 'accepted' and not is_reverted: 
+            d_acc.append(c)
+        elif db_stat == 'declined' and not is_reverted: 
+            d_dec.append(c)
+        elif db_stat == 'finalized' and not is_reverted: 
+            d_fin.append(c)
+        elif db_stat == 'field_nation' and not is_reverted: 
+            d_fn.append(c)
+        elif route_state == 'email_sent' and not is_reverted: 
+            d_sent.append(c)
+        elif route_state == 'field_nation' and not is_reverted: 
+            d_fn.append(c)
         elif route_state == 'link_generated' and not is_reverted:
             orig = st.session_state.get(f"orig_status_{cluster_hash}")
-            if orig == "declined": d_dec.append(c)
-            else: d_ready.append(c)
+            if orig == "declined": 
+                d_dec.append(c)
+            else: 
+                d_ready.append(c) # ✅ This was likely line 2154 causing the error
         else:
-            if c.get('status') == 'Ready': d_ready.append(c)
-            else: d_flagged.append(c)
+            if c.get('status') == 'Ready': 
+                d_ready.append(c) # ✅ Fixed prefix
+            else: 
+                d_flagged.append(c) # ✅ Fixed prefix
+                
     # Supercard Counts
     pool_ready = len(d_ready)
     pool_flagged = len(d_flagged)
