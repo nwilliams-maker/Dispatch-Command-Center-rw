@@ -702,51 +702,60 @@ def process_digital_pool(master_bar=None):
         addr = t.get('destination', {}).get('address', {})
         stt = normalize_state(addr.get('state', ''))
         is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
-        tt_val = str(t.get('taskType', '')).strip() or str(t.get('taskDetails', '')).strip()
         
-        # 1. SEARCH FOR REGULAR TASKS FIRST (EXEMPTIONS)
-        REGULAR_EXEMPTIONS = ["photo", "magnet", "continuity", "new ad"]
-        if any(ex in tt_val.lower() for ex in REGULAR_EXEMPTIONS):
-            continue # Immediately skip classification for Digital Pool
-
-        # 2. STRICT DIGITAL FILTER
-        DIGITAL_WHITELIST = ["service", "ins/rem", "offline"]
-        is_digital_task = False 
-
-
+        # --- 🔍 STRICT CLASSIFICATION ENGINE (v4 - Final) ---
+        native_details = str(t.get('taskDetails', '')).strip()
+        custom_fields = t.get('customFields') or []
         
-        # A. Baseline: check native fields
-        if any(trigger in tt_val.lower() for trigger in DIGITAL_WHITELIST):
-            is_digital_task = True
-            
-        # B. Check Custom Fields
-        for f in t.get('customFields', []):
+        # 1. EXTRACT OFFICIAL CUSTOM FIELDS
+        custom_task_type = ""
+        custom_boosted = ""
+        
+        # Default UI display to native details unless a custom field overwrites it
+        tt_val = native_details 
+        
+        for f in custom_fields:
             f_name = str(f.get('name', '')).strip().lower()
             f_key = str(f.get('key', '')).strip().lower()
             f_val = str(f.get('value', '')).strip()
             f_val_lower = f_val.lower()
             
-            # Capture Display Name for UI badges
+            # Capture Official 'Task Type' Custom Field
             if f_name in ['task type', 'tasktype'] or f_key in ['tasktype', 'task_type']:
-                tt_val = f_val 
+                custom_task_type = f_val_lower
+                tt_val = f_val # 🌟 UI Display is now officially the Custom Field
                 
-            # STRICT CHECK: If 'service', 'ins/rem', or 'offline' appears
-            if any(trigger in f_val_lower for trigger in DIGITAL_WHITELIST): 
-                is_digital_task = True
-                break
-        
-        if not is_digital_task: 
-            continue
+            # Capture 'Boosted Standard' Custom Field
+            if f_name in ['boosted standard', 'boostedstandard'] or f_key in ['boostedstandard', 'boosted_standard']:
+                custom_boosted = f_val_lower
                 
-            # Check for Escalation
+            # Capture Escalation
             if 'escalation' in f_name or 'escalation' in f_key:
                 if f_val_lower in ['1', '1.0', 'true', 'yes'] or 'escalation' in f_val_lower:
                     is_esc = True
+
+        # 2. CHECK REGULAR (STATIC) EXEMPTIONS FIRST
+        # Expanded to include "escalation" to prevent crossing over
+        search_string = f"{native_details} {custom_task_type}".lower()
+        REGULAR_EXEMPTIONS = ["photo", "magnet", "continuity", "new ad", "pull down", "kiosk install", "kiosk removal", "escalation"]
+        is_exempt = any(ex in search_string for ex in REGULAR_EXEMPTIONS)
         
-        # 🌟 SPEED FIX: Skip routing math entirely if it's not digital
+        # 3. STRICT DIGITAL CHECK
+        is_digital_task = False
+
+        if not is_exempt:
+            # Rule A: Task Type contains service, ins/rem, or offline
+            if any(trigger in custom_task_type for trigger in ["service", "ins/rem", "offline"]):
+                is_digital_task = True
+            # 🌟 Rule B: Boosted Standard contains the word 'digital' (Matches 'Premium_Digital')
+            elif "digital" in custom_boosted:
+                is_digital_task = True
+        
+        # 🌟 SPEED FIX: Skip routing math entirely if it's not strictly digital
         if not is_digital_task: 
             continue
-
+            
+        # --- 4. ASSIGN STATUS & POOL ---
         t_status = fresh_sent_db.get(t['id'], {}).get('status', 'ready').lower() if t['id'] in fresh_sent_db else 'ready'
         t_wo = fresh_sent_db.get(t['id'], {}).get('wo', 'none') if t['id'] in fresh_sent_db else 'none'
         
@@ -906,56 +915,53 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             stt = normalize_state(addr.get('state', ''))
             is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
             
-            # --- 🔍 STRICT CLASSIFICATION ENGINE ---
-            tt_val = str(t.get('taskType', '')).strip() or str(t.get('taskDetails', '')).strip()
+            # --- 🔍 STRICT CLASSIFICATION ENGINE (v5) ---
+            native_details = str(t.get('taskDetails', '')).strip()
             custom_fields = t.get('customFields') or []
-
-            # 1. IDENTIFY REGULAR (STATIC) EXEMPTIONS FIRST
-            # If these words exist, it is NEVER a digital service call
-            REGULAR_EXEMPTIONS = ["photo", "magnet", "continuity", "new ad"]
-            is_exempt = any(ex in tt_val.lower() for ex in REGULAR_EXEMPTIONS)
             
-            DIGITAL_WHITELIST = ["service", "ins/rem", "offline"]
-            is_digital_task = False
-
-            if not is_exempt:
-                # Check baseline native fields
-                if any(trigger in tt_val.lower() for trigger in DIGITAL_WHITELIST):
-                    is_digital_task = True
-
-                # Deep Scan Custom Fields
-                for f in custom_fields:
-                    f_val_lower = str(f.get('value', '')).strip().lower()
-                    if any(trigger in f_val_lower for trigger in DIGITAL_WHITELIST):
-                        is_digital_task = True
-                        break
-                        
-            found_official_type = False
+            # 1. EXTRACT OFFICIAL CUSTOM FIELDS
+            custom_task_type = ""
+            custom_boosted = ""
+            tt_val = native_details # Fallback UI display
             
-            # Baseline: Check native Onfleet title/details for keywords
-            if any(trigger in tt_val.lower() for trigger in DIGITAL_WHITELIST):
-                is_digital_task = True
-
-            # Deep Scan: Check every value inside the customFields array
             for f in custom_fields:
                 f_name = str(f.get('name', '')).strip().lower()
                 f_key = str(f.get('key', '')).strip().lower()
                 f_val = str(f.get('value', '')).strip()
                 f_val_lower = f_val.lower()
                 
-                # A. CAPTURE DISPLAY NAME: Use the field specifically labeled 'Task Type'
+                # Capture Official 'Task Type'
                 if f_name in ['task type', 'tasktype'] or f_key in ['tasktype', 'task_type']:
-                    tt_val = f_val 
-                    found_official_type = True
-                
-                # B. 🔌 TRIGGER: If any keyword appears in THIS custom field, flag as Digital
-                if any(trigger in f_val_lower for trigger in DIGITAL_WHITELIST):
-                    is_digital_task = True
-
-                # C. Check for Escalation (Standard Metadata check)
+                    custom_task_type = f_val_lower
+                    tt_val = f_val # Set the UI badge text
+                    
+                # Capture Official 'Boosted Standard'
+                if f_name in ['boosted standard', 'boostedstandard'] or f_key in ['boostedstandard', 'boosted_standard']:
+                    custom_boosted = f_val_lower
+                    
+                # Capture Escalation (Adds the ⭐)
                 if 'escalation' in f_name or 'escalation' in f_key:
                     if f_val_lower in ['1', '1.0', 'true', 'yes'] or 'escalation' in f_val_lower:
                         is_esc = True
+
+            # 2. CHECK REGULAR (STATIC) EXEMPTIONS FIRST
+            # Combines native and custom type to ensure "Magnet" or "Photo" are never missed
+            search_string = f"{native_details} {custom_task_type}".lower()
+            REGULAR_EXEMPTIONS = ["photo", "magnet", "continuity", "new ad", "pull down", "kiosk", "escalation"]
+            is_exempt = any(ex in search_string for ex in REGULAR_EXEMPTIONS)
+            
+            # 3. APPLY DIGITAL RULES
+            # Locked strictly to the triggers you defined
+            DIGITAL_WHITELIST = ["service", "ins/rem", "offline"]
+            is_digital_task = False
+
+            if not is_exempt:
+                # Rule A: Official Task Type matches whitelist
+                if any(trigger in custom_task_type for trigger in DIGITAL_WHITELIST):
+                    is_digital_task = True
+                # 🌟 Rule B: Boosted Standard contains the word 'digital' (matches 'Premium_Digital')
+                elif "digital" in custom_boosted:
+                    is_digital_task = True
 
             # --- 3. ASSIGN STATUS & POOL ---
             t_status = 'ready'
