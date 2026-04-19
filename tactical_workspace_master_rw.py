@@ -1556,13 +1556,29 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     elif real_id and "LINK_PENDING" in st.session_state[active_tx_key]:
         st.session_state[active_tx_key] = st.session_state[active_tx_key].replace("LINK_PENDING", real_id)
     
-    email_body_content = st.text_area("Email Content Preview", value=sig_preview, height=180, key=f"txt_area_{current_data_fingerprint}_{cluster_hash}", disabled=not is_unlocked)
+   # 🌟 THE FIX: Injected {pod_name} so Streamlit knows which tab this box belongs to
+    email_body_content = st.text_area("Email Content Preview", value=sig_preview, height=180, key=f"txt_area_{pod_name}_{current_data_fingerprint}_{cluster_hash}", disabled=not is_unlocked)
 
     btn_label = "✉️ RESEND LINK & OPEN GMAIL" if is_already_sent else "🚀 GENERATE LINK & OPEN GMAIL"
 
     with st.container():
-        # 🌟 UNIQUE KEY
         if st.button(btn_label, type="primary", key=f"gbtn_{pod_name}_{cluster_hash}", disabled=not is_unlocked, use_container_width=True):
+            # 🛡️ STEP 1: PRE-FLIGHT COLLISION CHECK
+            with st.spinner("Verifying route availability..."):
+                # Fresh pull to see if another dispatcher just claimed this
+                latest_sent_db, _ = fetch_sent_records_from_sheet() 
+                
+                # Check if ANY task in this cluster was JUST sent by someone else
+                collision = next((tid for tid in task_ids if tid in latest_sent_db), None)
+                
+                if collision:
+                    st.error(f"🚫 COLLISION: This route was just dispatched by someone else ({latest_sent_db[collision]['name']}).")
+                    st.info("The dashboard will refresh to show the updated status.")
+                    time.sleep(3)
+                    st.rerun()
+                    return # Halt execution
+
+            # 🚀 STEP 2: PROCEED WITH DISPATCH (If no collision)
             with st.spinner("Syncing latest data & generating link..."):
                 home = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
                 payload = {
@@ -1577,6 +1593,8 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                     "tCnt": len(task_ids),
                     "jobOnly": " | ".join([f"{addr} {pills}" for addr, pills in loc_pills.items()])
                 }
+
+                # (Keep the rest of your requests.post and Gmail logic exactly the same)
 
                 try:
                     res = requests.post(GAS_WEB_APP_URL, json={"action": "saveRoute", "payload": payload}, timeout=10).json()
