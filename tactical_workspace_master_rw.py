@@ -49,8 +49,17 @@ TB_HOVER_GRAY = "#e2e8f0"
 # Status Fills
 TB_GREEN_FILL = "#dcfce7" # Ready
 TB_BLUE_FILL = "#dbeafe"  # Sent
-TB_RED_FILL = "#ffcccc"   # Flagged
+TB_RED_FILL = "#fee2e2"   # Flagged
 TB_YELLOW_FILL = "#FEF9C3"     # Field Nation
+TB_STATIC_FILL = "#f1f5f9"
+TB_DIGITAL_FILL = "#ccfbf1"
+DIGITAL_TEAL_TEXT = "#0f766e"
+
+# Standardized Dark Text (for readability)
+TB_GREEN_TEXT = "#166534"
+TB_RED_TEXT = "#991b1b"
+TB_STATIC_TEXT = "#475569"
+TB_DIGITAL_TEXT = "#0f766e"
 
 
 POD_CONFIGS = {
@@ -1679,61 +1688,58 @@ def run_pod_tab(pod_name):
     declined_count = len(declined)
     total_sent = len(sent) + accepted_count + declined_count + len(field_nation)
 
-    # --- DASHBOARD SUPERCARDS (4-Column Layout) ---
+    # --- DASHBOARD SUPERCARDS (Standardized 4-Card Layout) ---
     c1, c2, c3, c4 = st.columns([1, 1, 1, 1]) 
 
     with c1:
         # CARD 1: ROUTE STATUS (Ready | Flagged)
         st.markdown(f"""
-            <div class='dashboard-supercard' style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:10px; height: 110px;'>
-                <p style='margin:0 0 5px 0; font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; text-align:center;'>Route Status</p>
-                <div style='display:flex; justify-content:space-evenly; align-items:center; height: 70px;'>
-                    <div style='text-align:center;'>
-                        <p style='margin:0; font-size:9px; font-weight:800; color:#166534;'>READY</p>
-                        <p style='margin:0; font-size:24px; font-weight:800; color:#166534;'>{ready_count}</p>
+            <div class='dashboard-supercard' style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:12px; height: 120px;'>
+                <p style='margin:0 0 10px 0; font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; text-align:center;'>Route Status</p>
+                <div style='display:flex; justify-content:space-around; align-items:center; gap:8px;'>
+                    <div style='background:{TB_GREEN_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
+                        <p style='margin:0; font-size:9px; font-weight:800; color:{TB_GREEN_TEXT};'>READY</p>
+                        <p style='margin:0; font-size:24px; font-weight:800; color:{TB_GREEN_TEXT};'>{ready_count}</p>
                     </div>
-                    <div style='border-left: 1px solid #cbd5e1; height: 35px;'></div>
-                    <div style='text-align:center;'>
-                        <p style='margin:0; font-size:9px; font-weight:800; color:#991b1b;'>FLAGGED</p>
-                        <p style='margin:0; font-size:24px; font-weight:800; color:#991b1b;'>{flagged_count}</p>
+                    <div style='background:{TB_RED_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
+                        <p style='margin:0; font-size:9px; font-weight:800; color:{TB_RED_TEXT};'>FLAGGED</p>
+                        <p style='margin:0; font-size:24px; font-weight:800; color:{TB_RED_TEXT};'>{flagged_count}</p>
                     </div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
 
     with c2:
-        # CARD 2: STATIC TASKS & STOPS
+        # CARD 2: STATIC WORKLOAD (Tasks | Stops)
         st.markdown(f"""
-            <div class='dashboard-supercard' style='background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:10px; height: 110px;'>
-                <p style='margin:0 0 5px 0; font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; text-align:center;'>Static Workload</p>
-                <div style='display:flex; justify-content:space-evenly; align-items:center; height: 70px;'>
-                    <div style='text-align:center;'>
-                        <p style='margin:0; font-size:9px; font-weight:800; color:#64748b;'>TASKS</p>
-                        <p style='margin:0; font-size:24px; font-weight:800; color:#000000;'>{tasks_static}</p>
+            <div class='dashboard-supercard' style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:12px; height: 120px;'>
+                <p style='margin:0 0 10px 0; font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; text-align:center;'>Static Workload</p>
+                <div style='display:flex; justify-content:space-around; align-items:center; gap:8px;'>
+                    <div style='background:{TB_STATIC_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
+                        <p style='margin:0; font-size:9px; font-weight:800; color:{TB_STATIC_TEXT};'>TASKS</p>
+                        <p style='margin:0; font-size:24px; font-weight:800; color:{TB_STATIC_TEXT};'>{tasks_static}</p>
                     </div>
-                    <div style='border-left: 1px solid #cbd5e1; height: 35px;'></div>
-                    <div style='text-align:center;'>
-                        <p style='margin:0; font-size:9px; font-weight:800; color:#64748b;'>STOPS</p>
-                        <p style='margin:0; font-size:24px; font-weight:800; color:#000000;'>{stops_static}</p>
+                    <div style='background:{TB_STATIC_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
+                        <p style='margin:0; font-size:9px; font-weight:800; color:{TB_STATIC_TEXT};'>STOPS</p>
+                        <p style='margin:0; font-size:24px; font-weight:800; color:{TB_STATIC_TEXT};'>{stops_static}</p>
                     </div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
 
     with c3:
-        # CARD 3: DIGITAL TASKS & STOPS
+        # CARD 3: DIGITAL WORKLOAD (Teal Theme)
         st.markdown(f"""
-            <div class='dashboard-supercard' style='background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:10px; height: 110px;'>
-                <p style='margin:0 0 5px 0; font-size:10px; font-weight:800; color:#1e40af; text-transform:uppercase; text-align:center;'>Digital Workload</p>
-                <div style='display:flex; justify-content:space-evenly; align-items:center; height: 70px;'>
-                    <div style='text-align:center;'>
-                        <p style='margin:0; font-size:9px; font-weight:800; color:#1e40af;'>TASKS</p>
-                        <p style='margin:0; font-size:24px; font-weight:800; color:#1e40af;'>{tasks_digital}</p>
+            <div class='dashboard-supercard' style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:12px; height: 120px;'>
+                <p style='margin:0 0 10px 0; font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; text-align:center;'>Digital Workload</p>
+                <div style='display:flex; justify-content:space-around; align-items:center; gap:8px;'>
+                    <div style='background:{TB_DIGITAL_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
+                        <p style='margin:0; font-size:9px; font-weight:800; color:{TB_DIGITAL_TEXT};'>TASKS</p>
+                        <p style='margin:0; font-size:24px; font-weight:800; color:{TB_DIGITAL_TEXT};'>{tasks_digital}</p>
                     </div>
-                    <div style='border-left: 1px solid #93c5fd; height: 35px;'></div>
-                    <div style='text-align:center;'>
-                        <p style='margin:0; font-size:9px; font-weight:800; color:#1e40af;'>STOPS</p>
-                        <p style='margin:0; font-size:24px; font-weight:800; color:#1e40af;'>{stops_digital}</p>
+                    <div style='background:{TB_DIGITAL_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
+                        <p style='margin:0; font-size:9px; font-weight:800; color:{TB_DIGITAL_TEXT};'>STOPS</p>
+                        <p style='margin:0; font-size:24px; font-weight:800; color:{TB_DIGITAL_TEXT};'>{stops_digital}</p>
                     </div>
                 </div>
             </div>
@@ -1742,17 +1748,16 @@ def run_pod_tab(pod_name):
     with c4:
         # CARD 4: SENT RECORDS (Accepted | Declined)
         st.markdown(f"""
-            <div class='dashboard-supercard' style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:10px; height: 110px;'>
-                <p style='margin:0 0 5px 0; font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; text-align:center;'>Sent: {total_sent}</p>
-                <div style='display:flex; justify-content:space-evenly; align-items:center; height: 70px;'>
-                    <div style='text-align:center;'>
-                        <p style='margin:0; font-size:9px; font-weight:800; color:#166534;'>ACCEPTED</p>
-                        <p style='margin:0; font-size:24px; font-weight:800; color:#166534;'>{accepted_count}</p>
+            <div class='dashboard-supercard' style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:12px; height: 120px;'>
+                <p style='margin:0 0 10px 0; font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; text-align:center;'>Sent: {total_sent}</p>
+                <div style='display:flex; justify-content:space-around; align-items:center; gap:8px;'>
+                    <div style='background:{TB_GREEN_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
+                        <p style='margin:0; font-size:9px; font-weight:800; color:{TB_GREEN_TEXT};'>ACCEPTED</p>
+                        <p style='margin:0; font-size:24px; font-weight:800; color:{TB_GREEN_TEXT};'>{accepted_count}</p>
                     </div>
-                    <div style='border-left: 1px solid #cbd5e1; height: 35px;'></div>
-                    <div style='text-align:center;'>
-                        <p style='margin:0; font-size:9px; font-weight:800; color:#991b1b;'>DECLINED</p>
-                        <p style='margin:0; font-size:24px; font-weight:800; color:#991b1b;'>{declined_count}</p>
+                    <div style='background:{TB_RED_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
+                        <p style='margin:0; font-size:9px; font-weight:800; color:{TB_RED_TEXT};'>DECLINED</p>
+                        <p style='margin:0; font-size:24px; font-weight:800; color:{TB_RED_TEXT};'>{declined_count}</p>
                     </div>
                 </div>
             </div>
