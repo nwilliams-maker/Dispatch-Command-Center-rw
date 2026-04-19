@@ -2212,7 +2212,6 @@ with tabs[6]:
     # Bucket digital clusters exactly like Pod logic for Parity
     d_ready, d_flagged, d_fn, d_sent, d_acc, d_dec, d_fin = [], [], [], [], [], [], []
     for c in global_digital:
-        # 🌟 THE FIX: Generate the hash to track local state changes in the Digital Pool
         task_ids = [str(t['id']).strip() for t in c['data']]
         cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
         route_state = st.session_state.get(f"route_state_{cluster_hash}")
@@ -2220,7 +2219,7 @@ with tabs[6]:
         
         db_stat = c.get('db_status', 'ready').lower()
         
-        # 🌟 THE FIX: Respect local session state (Instant moves) before falling back to Database state
+        # 🌟 Notice how every append uses the d_ prefix here!
         if db_stat in ['sent', 'email_sent'] and not is_reverted: d_sent.append(c)
         elif db_stat == 'accepted' and not is_reverted: d_acc.append(c)
         elif db_stat == 'declined' and not is_reverted: d_dec.append(c)
@@ -2235,7 +2234,6 @@ with tabs[6]:
         else:
             if c.get('status') == 'Ready': d_ready.append(c)
             else: d_flagged.append(c)
-
     # Supercard Counts
     pool_ready = len(d_ready)
     pool_flagged = len(d_flagged)
