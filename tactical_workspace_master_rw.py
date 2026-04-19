@@ -59,7 +59,7 @@ TB_DIGITAL_BORDER = "#99f6e4" # Teal border
 TB_GREEN_TEXT = "#166534"
 TB_RED_TEXT = "#991b1b"
 TB_STATIC_TEXT = "#475569"
-DIGITAL_TEAL_TEXT = "#0f766e"
+TB_DIGITAL_TEXT = "#0f766e"
 
 POD_CONFIGS = {
     "Blue": {"states": {"AL", "AR", "FL", "IL", "IA", "LA", "MI", "MN", "MS", "MO", "NC", "SC", "WI"}},
