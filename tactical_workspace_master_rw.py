@@ -497,6 +497,7 @@ div.mini-btn button {{
 </style>
 """, unsafe_allow_html=True)
 
+# --- 1. BACKGROUND THREAD WORKER ---
 def background_sheet_move(cluster_hash, payload_json):
     """Silent worker to update Google Sheets without freezing the UI."""
     try:
@@ -507,9 +508,32 @@ def background_sheet_move(cluster_hash, payload_json):
             "payload": payload_json if payload_json else {} 
         }, timeout=15)
     except:
-        # Threads cannot update the Streamlit UI, so we pass silently on errors
-        pass
+        pass 
         
+# --- 2. INSTANT REVOKE LOGIC ---
+def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=True, cluster_data=None):
+    """Moves route to Dispatch column instantly and schedules a background Onfleet scrub."""
+    
+    # 1. 🚀 FIRE AND FORGET: 
+    # Launch the slow Google Sheets update in a separate lane so the app doesn't freeze
+    threading.Thread(target=background_sheet_move, args=(cluster_hash, cluster_data), daemon=True).start()
+        
+    # 2. 🛡️ THE FIX: Set the reverted flag to True
+    # This forces the UI logic to ignore the Google Sheet record for 15 seconds
+    st.session_state[f"reverted_{cluster_hash}"] = True
+    
+    # 3. 🧠 INSTANT RESET: Clear column-shifting flags
+    st.session_state.pop(f"route_state_{cluster_hash}", None)
+    st.session_state.pop(f"sent_ts_{cluster_hash}", None)
+    st.session_state.pop(f"contractor_{cluster_hash}", None)
+    st.session_state.pop(f"sync_{cluster_hash}", None)
+    
+    # 4. 🛡️ SCHEDULE SCRUB: 5-second deferred check for Onfleet
+    st.session_state[f"scrub_timer_{cluster_hash}"] = time.time() + 5
+    
+    st.toast(f"✅ {action_label}! Route moved back to Dispatch.")
+    st.rerun()   
+    
 def finalize_route_handler(cluster_hash):
     # This fires the command to your Google Sheet to change status to 'finalized'
     try:
@@ -524,24 +548,7 @@ def finalize_route_handler(cluster_hash):
     except Exception as e:
         st.error(f"Finalization Error: {e}")
         
-def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=True, cluster_data=None):
-    """Moves route to Dispatch column instantly and schedules a background Onfleet scrub."""
-    
-    # 1. 🚀 FIRE AND FORGET (The Speed Fix): 
-    # Launch the slow Google Sheets update in a separate lane so the app doesn't freeze
-    threading.Thread(target=background_sheet_move, args=(cluster_hash, cluster_data), daemon=True).start()
-        
-    # 2. 🧠 INSTANT RESET: Clear column-shifting flags so it falls to the left side instantly
-    st.session_state.pop(f"route_state_{cluster_hash}", None)
-    st.session_state.pop(f"sent_ts_{cluster_hash}", None)
-    st.session_state.pop(f"contractor_{cluster_hash}", None)
-    st.session_state.pop(f"sync_{cluster_hash}", None)
-    
-    # 3. 🛡️ SCHEDULE SCRUB: Set the 5-second deferred check for Onfleet
-    st.session_state[f"scrub_timer_{cluster_hash}"] = time.time() + 5
-    
-    st.toast(f"✅ {action_label}! Route moved back to Dispatch.")
-    st.rerun()
+
     
 def instant_revoke_handler(cluster_hash, ic_name, payload_json, pod_name):
     # We now enable Onfleet scrubbing (State 0 check) immediately
