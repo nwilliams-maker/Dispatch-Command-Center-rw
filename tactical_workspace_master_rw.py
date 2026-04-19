@@ -548,14 +548,16 @@ def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", ch
             if hashlib.md5("".join(sorted([str(t['id']).strip() for t in c['data']])).encode()).hexdigest() != cluster_hash
         ]
 
-    # 3. 📡 RE-POOLING ENGINE
-    with st.spinner("Adding tasks back to pool..."):
-        if pod_name == "Global_Digital":
-            process_digital_pool() # 🌟 FIX: Routes to the digital engine
-        else:
-            process_pod(pod_name) # Routes to the standard pod engine
+    # 🧠 INSTANT RESET: Clear flags that move route to the right column
+    st.session_state.pop(f"route_state_{cluster_hash}", None)
+    st.session_state.pop(f"sent_ts_{cluster_hash}", None)
+    st.session_state.pop(f"contractor_{cluster_hash}", None)
+    st.session_state.pop(f"sync_{cluster_hash}", None)
     
-    st.toast(f"✅ {action_label}! Tasks returned to pool and re-attached.")
+    # 🛡️ SCHEDULE SCRUB: Set timer for 5 seconds from now
+    st.session_state[f"scrub_timer_{cluster_hash}"] = time.time() + 5
+    
+    st.toast(f"✅ {action_label}! Route moved back to Dispatch.")
     st.rerun()
     
 def instant_revoke_handler(cluster_hash, ic_name, payload_json, pod_name):
