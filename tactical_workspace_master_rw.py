@@ -903,8 +903,12 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 for x in grp:
                     if x['full'] not in seen: seen.add(x['full']); u_locs.append(x['full'])
                 if not u_locs: return 0, 0
-                _, hrs, _ = get_gmaps(closest_ic_loc, u_locs[:25])
-                pay = round(max(len(u_locs) * 18.0, hrs * 25.0), 2)
+                
+                # 🚀 SPEED FIX: Use heuristic math instead of the slow Google Maps API!
+                # Calculates drive time assuming 40mph + 15 mins (0.25 hrs) per stop
+                est_hrs = (ic_dist * 2 / 40.0) + (len(u_locs) * 0.25)
+                pay = round(max(len(u_locs) * 18.0, est_hrs * 25.0), 2)
+                
                 return round(pay / len(u_locs), 2), len(u_locs)
             
             gate_avg, _ = check_viability(group)
@@ -1854,7 +1858,7 @@ def run_pod_tab(pod_name):
                     # 🌟 FIX: Safety popup with live Onfleet scrubbing
                     with st.popover("↩️ Revoke", use_container_width=True):
                         st.error(f"Are you sure you want to remove this route?")
-                        if st.button("🚨 Yes, Remove route", key=f"rev_ghost_{ghost_hash}", type="primary", use_container_width=True):
+                        if st.button("🚨 Yes, Remove route", key=f"rev_ghost_{ghost_hash}_{i}", type="primary", use_container_width=True):
                             # 🌟 check_onfleet=True: Performs the same state check as active routes
                             move_to_dispatch(
                                 cluster_hash=ghost_hash, 
