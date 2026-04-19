@@ -686,7 +686,8 @@ def process_digital_pool(master_bar=None):
     prog_bar.progress(0.4, text="🔍 Isolating Digital Service Calls...")
     
     # 🌟 STRICT DIGITAL FILTER
-    DIGITAL_WHITELIST = ["service", "ins/rem", "offline", "digital offline", "digital service", "digital ins/rem"]
+    # --- 🌟 STRICT DIGITAL FILTER ---
+    DIGITAL_WHITELIST = ["service", "ins/rem", "offline"]
     fresh_sent_db, _ = fetch_sent_records_from_sheet()
     st.session_state.sent_db = fresh_sent_db
 
@@ -705,12 +706,29 @@ def process_digital_pool(master_bar=None):
         
         is_digital_task = False 
         
-        # Check Custom Fields
+        # A. Baseline: check native fields
+        if any(trigger in tt_val.lower() for trigger in DIGITAL_WHITELIST):
+            is_digital_task = True
+            
+        # B. Check Custom Fields
         for f in t.get('customFields', []):
-            f_val_lower = str(f.get('value', '')).strip().lower()
+            f_name = str(f.get('name', '')).strip().lower()
+            f_key = str(f.get('key', '')).strip().lower()
+            f_val = str(f.get('value', '')).strip()
+            f_val_lower = f_val.lower()
+            
+            # Capture Display Name for UI badges
+            if f_name in ['task type', 'tasktype'] or f_key in ['tasktype', 'task_type']:
+                tt_val = f_val 
+                
+            # STRICT CHECK: If 'service', 'ins/rem', or 'offline' appears
             if any(trigger in f_val_lower for trigger in DIGITAL_WHITELIST): 
                 is_digital_task = True
-                break
+                
+            # Check for Escalation
+            if 'escalation' in f_name or 'escalation' in f_key:
+                if f_val_lower in ['1', '1.0', 'true', 'yes'] or 'escalation' in f_val_lower:
+                    is_esc = True
         
         # 🌟 SPEED FIX: Skip routing math entirely if it's not digital
         if not is_digital_task: 
