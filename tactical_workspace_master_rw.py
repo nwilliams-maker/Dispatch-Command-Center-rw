@@ -498,15 +498,17 @@ div.mini-btn button {{
 """, unsafe_allow_html=True)
 
 def background_sheet_move(cluster_hash, payload_json):
+    """Silent worker to update Google Sheets without freezing the UI."""
     try:
-        # --- 1. 🚀 DATABASE ARCHIVE (Increased Timeout) ---
+        # Sends data silently in the background
         requests.post(GAS_WEB_APP_URL, json={
             "action": "archiveRoute", 
             "cluster_hash": cluster_hash,
-            "payload": payload_json if payload_json else {} # 🌟 FIXED VARIABLE NAME
+            "payload": payload_json if payload_json else {} 
         }, timeout=15)
-    except Exception as e:
-        st.toast(f"⚠️ Archive Note: {e}")
+    except:
+        # Threads cannot update the Streamlit UI, so we pass silently on errors
+        pass
         
 def finalize_route_handler(cluster_hash):
     # This fires the command to your Google Sheet to change status to 'finalized'
@@ -524,23 +526,18 @@ def finalize_route_handler(cluster_hash):
         
 def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=True, cluster_data=None):
     """Moves route to Dispatch column instantly and schedules a background Onfleet scrub."""
-    # 1. 🚀 ARCHIVE IN GOOGLE SHEETS
-    try:
-        requests.post(GAS_WEB_APP_URL, json={
-            "action": "archiveRoute", 
-            "cluster_hash": cluster_hash,
-            "payload": cluster_data if cluster_data else {}
-        }, timeout=15)
-    except Exception as e:
-        st.toast(f"⚠️ Sheet Archive Note: {e}")
+    
+    # 1. 🚀 FIRE AND FORGET (The Speed Fix): 
+    # Launch the slow Google Sheets update in a separate lane so the app doesn't freeze
+    threading.Thread(target=background_sheet_move, args=(cluster_hash, cluster_data), daemon=True).start()
         
-    # 2. 🧠 INSTANT RESET: Clear column-shifting flags so it falls to the left side
+    # 2. 🧠 INSTANT RESET: Clear column-shifting flags so it falls to the left side instantly
     st.session_state.pop(f"route_state_{cluster_hash}", None)
     st.session_state.pop(f"sent_ts_{cluster_hash}", None)
     st.session_state.pop(f"contractor_{cluster_hash}", None)
     st.session_state.pop(f"sync_{cluster_hash}", None)
     
-    # 3. 🛡️ SCHEDULE SCRUB: 5-second deferred check for Onfleet
+    # 3. 🛡️ SCHEDULE SCRUB: Set the 5-second deferred check for Onfleet
     st.session_state[f"scrub_timer_{cluster_hash}"] = time.time() + 5
     
     st.toast(f"✅ {action_label}! Route moved back to Dispatch.")
