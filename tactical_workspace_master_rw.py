@@ -2126,19 +2126,19 @@ for i, pod in enumerate(["Blue", "Green", "Orange", "Purple", "Red"], 1):
 with tabs[6]:
     # 1. 📊 GRAB DATA & CALCULATE MATH
     pool = st.session_state.get('digital_pool', [])
+    # Grab the actual clusters for the list rendering
+    global_digital = st.session_state.get('global_digital_clusters', [])
     
-    # Calculate Unique Stops
     unique_stops = len(set(t.get('full', '') for t in pool))
+    pool_ready = len([t for t in global_digital if t.get('db_status', 'ready').lower() == 'ready'])
+    pool_flagged = len([t for t in global_digital if t.get('db_status', '').lower() == 'flagged'])
+    pool_accepted = len([t for t in global_digital if t.get('db_status', '').lower() == 'accepted'])
+    pool_declined = len([t for t in global_digital if t.get('db_status', '').lower() == 'declined'])
     
-    # Calculate Status Splits (Assuming pool tasks have a 'db_status' or 'status' key)
-    # If not yet sent, they default to Ready
-    pool_ready = len([t for t in pool if t.get('db_status', 'ready').lower() == 'ready'])
-    pool_flagged = len([t for t in pool if t.get('db_status', '').lower() == 'flagged'])
-    
-    # Calculate Sent Stats (Cross-referencing with fresh_sent_db if needed)
-    pool_accepted = len([t for t in pool if t.get('db_status', '').lower() == 'accepted'])
-    pool_declined = len([t for t in pool if t.get('db_status', '').lower() == 'declined'])
-    pool_sent = len([t for t in pool if t.get('db_status', '').lower() in ['sent', 'email_sent', 'field_nation']])
+    # Calculate Total Sent (FN + Sent + Accepted + Declined)
+    pool_fn = [t for t in global_digital if t.get('db_status', '').lower() == 'field_nation']
+    pool_sent_only = [t for t in global_digital if t.get('db_status', '').lower() in ['sent', 'email_sent']]
+    pool_total_sent_count = len(pool_fn) + len(pool_sent_only) + pool_accepted + pool_declined
 
     # 2. ⚡ DIGITAL HEADER
     st.markdown(f"""
@@ -2151,9 +2151,7 @@ with tabs[6]:
 
     # 3. 🃏 SUPERCARDS (3-Column Layout)
     dc1, dc2, dc3 = st.columns([1, 1, 1])
-
     with dc1:
-        # REPLICATE C1: STATUS
         st.markdown(f"""
             <div class='dashboard-supercard' style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:12px; height: 110px;'>
                 <p style='margin:0 0 8px 0; font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; text-align:center;'>Pool Status</p>
@@ -2171,7 +2169,6 @@ with tabs[6]:
         """, unsafe_allow_html=True)
 
     with dc2:
-        # MIDDLE: TOTAL TASKS & STOPS
         st.markdown(f"""
             <div class='dashboard-supercard' style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:12px; height: 110px;'>
                 <p style='margin:0 0 8px 0; font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; text-align:center;'>Workload Identifier</p>
@@ -2189,10 +2186,9 @@ with tabs[6]:
         """, unsafe_allow_html=True)
 
     with dc3:
-        # REPLICATE C4: SENT RECORDS
         st.markdown(f"""
             <div class='dashboard-supercard' style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:12px; height: 110px;'>
-                <p style='margin:0 0 8px 0; font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; text-align:center;'>Sent: {pool_sent}</p>
+                <p style='margin:0 0 8px 0; font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; text-align:center;'>Sent: {pool_total_sent_count}</p>
                 <div style='display:flex; justify-content:space-around; align-items:center; gap:8px;'>
                     <div style='background:{TB_GREEN_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
                         <p style='margin:0; font-size:8px; font-weight:800; color:{TB_GREEN_TEXT};'>ACCEPTED</p>
@@ -2206,9 +2202,7 @@ with tabs[6]:
             </div>
         """, unsafe_allow_html=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # Initialize Button below
+    # 4. 🚀 INITIALIZE BUTTON
     d_btn = st.columns([1,2,1])[1]
     if d_btn.button("🚀 Initialize Digital Data", key="digital_init_btn", use_container_width=True):
         d_bar = st.progress(0, text="🎬 Initializing...")
@@ -2216,22 +2210,73 @@ with tabs[6]:
         st.rerun()
 
     st.markdown("<br>", unsafe_allow_html=True)
-    
-    # Pulls directly from the new dedicated session state
-    global_digital = st.session_state.get('global_digital_clusters', [])
 
     if not global_digital:
         st.info("No digital service tasks pending. Click Initialize above to fetch.")
     else:
-        for i, c in enumerate(global_digital):
-            # Add status indicators so you know what's happening
-            status_icon = "🔌"
-            db_stat = c.get('db_status', 'ready').lower()
-            if db_stat in ["sent", "field_nation"]: status_icon = "✉️"
-            elif db_stat == "accepted": status_icon = "✅"
-            elif db_stat == "declined": status_icon = "❌"
-            
-            with st.expander(f"{status_icon} {c.get('state')} | {c['city']} — {c['stops']} Stops"):
-                render_dispatch(i+8000, c, "Global_Digital")
+        # 5. 🗺️ MAP & KEY
+        m_digi = folium.Map(location=global_digital[0]['center'], zoom_start=4, tiles="cartodbpositron")
+        for c in global_digital:
+            folium.CircleMarker(c['center'], radius=8, color="#0f766e", fill=True, opacity=0.8).add_to(m_digi)
+        st_folium(m_digi, height=400, use_container_width=True, key="digital_pool_map")
+        
+        st.markdown(f"""
+            <div style="display: flex; justify-content: center; gap: 20px; background: #ffffff; padding: 12px; border-radius: 12px; border: 1px solid #cbd5e1; margin-top: -10px; margin-bottom: 25px;">
+                <div style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; align-self: center;">Digital Key:</div>
+                <div style="font-size: 13px;"><span style="color:#0f766e;">●</span> Digital Ready</div>
+                <div style="font-size: 13px;"><span style="color:#ef4444;">●</span> Flagged</div>
+                <div style="font-size: 13px;"><span style="color:#3b82f6;">●</span> Sent / FN</div>
+            </div>
+        """, unsafe_allow_html=True)
 
-# (THIS MUST BE THE ABSOLUTE END OF YOUR FILE)
+        st.markdown("---")
+
+        # 6. 🚀 DISPATCH COLUMNS
+        col_left, col_right = st.columns([4.5, 5.5])
+        
+        with col_left:
+            st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_DIGITAL_TEXT}; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
+            t_ready, t_flagged, t_fn = st.tabs(["📥 Ready", "⚠️ Flagged", "🌐 Field Nation"])
+            
+            with t_ready:
+                pool_ready_list = [c for c in global_digital if c.get('db_status', 'ready').lower() == 'ready']
+                if not pool_ready_list: st.info("No digital tasks ready.")
+                for i, c in enumerate(pool_ready_list):
+                    st.markdown(f"""
+                        <div style="background:#ffffff; border: 1px solid {TB_DIGITAL_BORDER}; border-radius: 8px; padding: 10px; margin-bottom: -35px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="color:{TB_DIGITAL_TEXT}; font-weight: 900; font-size: 13px; text-transform: uppercase;">🔌 {c['city']}, {c['state']}</span>
+                                <span style="background: {TB_DIGITAL_FILL}; padding: 2px 10px; border-radius: 12px; font-size: 10px; font-weight: 800; color:{TB_DIGITAL_TEXT}; border: 1px solid {TB_DIGITAL_FILL};">{c['stops']} STOPS</span>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    with st.expander(""):
+                        render_dispatch(i+8000, c, "Global_Digital")
+
+            with t_flagged:
+                if not pool_flagged: st.info("No digital tasks flagged.")
+                for i, c in enumerate([c for c in global_digital if c.get('db_status', '').lower() == 'flagged']):
+                    with st.expander(f"🔴 {c['city']}, {c['state']} | {c['stops']} Stops"):
+                        render_dispatch(i+9000, c, "Global_Digital")
+
+            with t_fn:
+                if not pool_fn: st.info("No digital tasks in Field Nation.")
+                for i, c in enumerate(pool_fn):
+                    with st.expander(f"🌐 FN: {c['city']}, {c['state']} | {c['stops']} Stops"):
+                        render_dispatch(i+9500, c, "Global_Digital")
+
+        with col_right:
+            st.markdown("<div style='font-size: 1.5rem; font-weight: 800; color: #64748b; text-align: center;'>📋 Details</div>", unsafe_allow_html=True)
+            st.info("Select a digital route to view details.")
+
+# --- FINAL FOOTER (End of File) ---
+st.markdown("---")
+st.markdown(
+    """
+    <div style="text-align: center; color: #94a3b8; font-size: 12px; padding: 20px;">
+        Tactical Workspace Master • 2026 Digital Logistics Interface • <b>v2.4.0</b><br>
+        <i>All digital and static route data is synced in real-time.</i>
+    </div>
+    """, 
+    unsafe_allow_html=True
+)
