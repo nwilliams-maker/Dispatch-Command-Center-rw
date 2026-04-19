@@ -479,7 +479,7 @@ div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb
 div[data-testid="stHorizontalBlock"] {{ align-items: flex-start !important; }}
 
 /* TIGHTEN GAPS BETWEEN CARDS */
-div[data-testid="stVerticalBlock"] {{ gap: 0.2rem !important; }}
+div[data-testid="stVerticalBlock"] {{ gap: 1rem !important; }}
 div[data-testid="stExpander"] {{ margin-top: 0px !important; margin-bottom: 2px !important; }}
 
 /* MINI REVOKE BUTTON (Single Line, Right Aligned) */
@@ -1801,7 +1801,9 @@ def run_pod_tab(pod_name):
                 </div>
             </div>
         """, unsafe_allow_html=True)
-
+    # 🌟 THE FIX: Force spacing before the Map
+    st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
+    
     m = folium.Map(location=cls[0]['center'], zoom_start=6, tiles="cartodbpositron")
     for c in ready: folium.CircleMarker(c['center'], radius=8, color=TB_GREEN, fill=True, opacity=0.8).add_to(m)
     for c in digital_ready: folium.CircleMarker(c['center'], radius=8, color="#0f766e", fill=True, opacity=0.8).add_to(m)
@@ -2213,7 +2215,9 @@ with tabs[6]:
         st.markdown(f"<div class='dashboard-supercard' style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:12px; height:110px;'><p style='margin:0 0 8px 0; font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; text-align:center;'>Workload</p><div style='display:flex; justify-content:space-around; gap:8px;'><div style='background:{TB_STATIC_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'><p style='margin:0; font-size:8px; font-weight:800; color:{TB_STATIC_TEXT};'>TASKS</p><p style='margin:0; font-size:22px; font-weight:800;'>{len(pool)}</p></div><div style='background:{TB_STATIC_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'><p style='margin:0; font-size:8px; font-weight:800; color:{TB_STATIC_TEXT};'>STOPS</p><p style='margin:0; font-size:22px; font-weight:800;'>{unique_stops}</p></div></div></div>", unsafe_allow_html=True)
     with dc3:
         st.markdown(f"<div class='dashboard-supercard' style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:12px; height:110px;'><p style='margin:0 0 8px 0; font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; text-align:center;'>Sent: {pool_total_sent}</p><div style='display:flex; justify-content:space-around; gap:8px;'><div style='background:{TB_GREEN_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'><p style='margin:0; font-size:8px; font-weight:800; color:{TB_GREEN_TEXT};'>ACCEPTED</p><p style='margin:0; font-size:22px; font-weight:800;'>{len(d_acc)}</p></div><div style='background:{TB_RED_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'><p style='margin:0; font-size:8px; font-weight:800; color:{TB_RED_TEXT};'>DECLINED</p><p style='margin:0; font-size:22px; font-weight:800;'>{len(d_dec)}</p></div></div></div>", unsafe_allow_html=True)
-
+    # 🌟 THE FIX: Force spacing after the cards
+    st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
+    
     if not global_digital:
         st.info("No digital service tasks pending. Click '🚀 Sync Routes' at the top right to fetch data.")
     else:
