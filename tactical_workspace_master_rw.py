@@ -1702,37 +1702,41 @@ def run_pod_tab(pod_name):
 
     with c2:
         st.markdown(f"""
-            <div class='dashboard-supercard' style='background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:12px; height: 120px;'>
-                <div style='display:flex; justify-content:space-between; height:100%; gap:15px;'>
+            <div class='dashboard-supercard' style='background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:10px; height: 110px;'>
+                <div style='display:flex; justify-content:space-around; align-items:center; height:100%; text-align:center;'>
                     
-                    <div style='flex:1;'>
-                        <p style='margin:0 0 5px 0; font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; text-align:center;'>STATIC</p>
-                        <div style='display:flex; justify-content:space-between; gap:5px;'>
-                            <div style='background:#ffffff; border:1px solid #e2e8f0; flex:1; padding:5px; border-radius:8px; text-align:center;'>
-                                <p style='margin:0; font-size:9px; font-weight:800;'>TASKS</p>
-                                <p style='margin:0; font-size:20px; font-weight:800;'>{tasks_static}</p>
+                    <div style='flex: 1;'>
+                        <p style='margin:0 0 5px 0; font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase;'>Static</p>
+                        <div style='display:flex; justify-content:space-evenly; align-items:center;'>
+                            <div>
+                                <p style='margin:0; font-size:9px; font-weight:800; color:#64748b;'>TASKS</p>
+                                <p style='margin:0; font-size:22px; font-weight:800; color:#000000;'>{tasks_static}</p>
                             </div>
-                            <div style='background:#ffffff; border:1px solid #e2e8f0; flex:1; padding:5px; border-radius:8px; text-align:center;'>
-                                <p style='margin:0; font-size:9px; font-weight:800;'>STOPS</p>
-                                <p style='margin:0; font-size:20px; font-weight:800;'>{stops_static}</p>
+                            <div style='border-left: 1px solid #cbd5e1; height: 30px;'></div>
+                            <div>
+                                <p style='margin:0; font-size:9px; font-weight:800; color:#64748b;'>STOPS</p>
+                                <p style='margin:0; font-size:22px; font-weight:800; color:#000000;'>{stops_static}</p>
                             </div>
                         </div>
                     </div>
-
-                    <div style='flex:1;'>
-                        <p style='margin:0 0 5px 0; font-size:11px; font-weight:800; color:#1e40af; text-transform:uppercase; text-align:center;'>DIGITAL</p>
-                        <div style='display:flex; justify-content:space-between; gap:5px;'>
-                            <div style='background:#eff6ff; border:1px solid #bfdbfe; flex:1; padding:5px; border-radius:8px; text-align:center;'>
+                    
+                    <div style='border-left: 2px solid #cbd5e1; height: 60px;'></div>
+                    
+                    <div style='flex: 1;'>
+                        <p style='margin:0 0 5px 0; font-size:10px; font-weight:800; color:#1e40af; text-transform:uppercase;'>Digital</p>
+                        <div style='display:flex; justify-content:space-evenly; align-items:center;'>
+                            <div>
                                 <p style='margin:0; font-size:9px; font-weight:800; color:#1e40af;'>TASKS</p>
-                                <p style='margin:0; font-size:20px; font-weight:800; color:#1e40af;'>{tasks_digital}</p>
+                                <p style='margin:0; font-size:22px; font-weight:800; color:#1e40af;'>{tasks_digital}</p>
                             </div>
-                            <div style='background:#eff6ff; border:1px solid #bfdbfe; flex:1; padding:5px; border-radius:8px; text-align:center;'>
+                            <div style='border-left: 1px solid #cbd5e1; height: 30px;'></div>
+                            <div>
                                 <p style='margin:0; font-size:9px; font-weight:800; color:#1e40af;'>STOPS</p>
-                                <p style='margin:0; font-size:20px; font-weight:800; color:#1e40af;'>{stops_digital}</p>
+                                <p style='margin:0; font-size:22px; font-weight:800; color:#1e40af;'>{stops_digital}</p>
                             </div>
                         </div>
                     </div>
-
+                    
                 </div>
             </div>
         """, unsafe_allow_html=True)
