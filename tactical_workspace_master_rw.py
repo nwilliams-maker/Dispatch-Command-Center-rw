@@ -405,6 +405,18 @@ div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb
     font-weight: 800 !important;
 }}
 
+/* 4. Digital Tab (Light Blue BG / Dark Blue Text) */
+div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(4) {{
+    background-color: #dbeafe !important;
+    border: 2px solid #1e40af !important;
+    border-radius: 30px !important;
+    margin: 0 5px !important;
+}}
+div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(4) p {{
+    color: #1e40af !important;
+    font-weight: 800 !important;
+}}
+
 /* --- RIGHT COLUMN: Awaiting Tabs --- */
 /* Force the gap so they break apart into individual pills */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab-list"] {{
@@ -1516,152 +1528,131 @@ def run_pod_tab(pod_name):
     pod_ghosts = ghost_db.get(pod_name, [])
 
     # 1. 📂 DEFINE BUCKETS
-    ready, review, sent, accepted, declined, finalized, field_nation = [], [], [], [], [], [], []
+ready, review, sent, accepted, declined, finalized, field_nation, digital_ready = [], [], [], [], [], [], [], []
 
-    for c in cls:
-        # 🌟 FIX: Skip empty routes that were trimmed to 0 stops
-        if not c.get('data') or len(c.get('data')) == 0:
-            continue
-            
-        task_ids = [str(t['id']).strip() for t in c['data']]
-        cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+for c in cls:
+    # 🌟 FIX: Skip empty routes that were trimmed to 0 stops
+    if not c.get('data') or len(c.get('data')) == 0:
+        continue
         
-        sheet_match = sent_db.get(next((tid for tid in task_ids if tid in sent_db), None))
-        route_state = st.session_state.get(f"route_state_{cluster_hash}")
-        local_ts = st.session_state.get(f"sent_ts_{cluster_hash}", "")
-        local_contractor = st.session_state.get(f"contractor_{cluster_hash}", "Unknown")
-        
-        is_reverted = st.session_state.get(f"reverted_{cluster_hash}", False)
-        
-        if sheet_match and not is_reverted:
-            c['contractor_name'] = sheet_match.get('name', 'Unknown')
-            c['route_ts'] = sheet_match.get('time', '') or local_ts
-            c['wo'] = sheet_match.get('wo', c['contractor_name'])
-        else:
-            c['contractor_name'] = local_contractor
-            c['route_ts'] = local_ts
-        
-        # --- PRIORITY: LIVE DATABASE OVERRIDES LOCAL STATE ---
-        if sheet_match and not is_reverted:
-            raw_status = str(sheet_match.get('status', '')).lower()
-            if raw_status == 'field_nation': # 🌟 FIXED: Send FN status to FN list
-                field_nation.append(c)
-            elif raw_status == 'declined':
-                declined.append(c)
-            elif raw_status == 'accepted':
-                accepted.append(c)
-            elif raw_status == 'finalized': 
-                finalized.append(c)
-            else:
-                sent.append(c)
-        elif route_state == "field_nation" and not is_reverted: 
-            field_nation.append(c)
-        elif route_state == "link_generated" and not is_reverted:
-            orig = st.session_state.get(f"orig_status_{cluster_hash}")
-            if orig == "declined":
-                declined.append(c)
-            else:
-                ready.append(c)
-        else:
-            if c.get('status') == 'Ready': 
-                ready.append(c)
-            else: 
-                review.append(c)
-
-    total_tasks = sum(len(c['data']) for c in cls)
-    total_stops = sum(c['stops'] for c in cls)
-    total_routes = len(cls)
-
-    # 🌟 RESTORED: Ghosts and Tracking Math
-    total_accepted = len(accepted) + len(pod_ghosts)
-    total_dispatched = len(sent) + total_accepted + len(declined)
-
-    # 🌟 RESTORED: Dashboard Supercards (Hover Glow)
-    c1, c2, c3 = st.columns([1.5, 1, 1.5])
-
-    with c1:
-        st.markdown(f"""
-            <div class='dashboard-supercard' style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:10px; box-shadow:0 2px 4px rgba(0,0,0,0.05); margin-bottom:20px; height: 110px;'>
-                <p style='margin:0 0 5px 0; font-size:11px; font-weight:800; color:#000000; text-transform:uppercase; text-align:center;'>Total Routes: {total_routes}</p>
-                <div style='display:flex; justify-content:space-between; gap:8px;'>
-                    <div style='background:{TB_GREEN_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
-                        <p style='margin:0; font-size:9px; font-weight:800; color:#000000;'>READY</p>
-                        <p style='margin:0; font-size:20px; font-weight:800; color:#000000;'>{len(ready)}</p>
-                    </div>
-                    <div style='background:{TB_BLUE_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
-                        <p style='margin:0; font-size:9px; font-weight:800; color:#000000;'>SENT (PENDING)</p>
-                        <p style='margin:0; font-size:20px; font-weight:800; color:#000000;'>{len(sent)}</p>
-                    </div>
-                    <div style='background:{TB_RED_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
-                        <p style='margin:0; font-size:9px; font-weight:800; color:#000000;'>FLAGGED</p>
-                        <p style='margin:0; font-size:20px; font-weight:800; color:#000000;'>{len(review)}</p>
-                    </div>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
-
-    with c2:
-        st.markdown(f"""
-            <div class='dashboard-supercard' style='background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:15px; box-shadow:0 2px 4px rgba(0,0,0,0.05); margin-bottom:20px; height: 110px;'>
-                <div style='display:flex; justify-content:space-around; text-align:center; height:100%; align-items:center;'>
-                    <div>
-                        <p style='margin:0; font-size:11px; font-weight:800; color:#000000; text-transform:uppercase;'>Total Tasks</p>
-                        <p style='margin:0; font-size:26px; font-weight:800; color:#000000;'>{total_tasks}</p>
-                    </div>
-                    <div style='border-left: 2px solid #cbd5e1; height: 40px;'></div>
-                    <div>
-                        <p style='margin:0; font-size:11px; font-weight:800; color:#000000; text-transform:uppercase;'>Total Stops</p>
-                        <p style='margin:0; font-size:26px; font-weight:800; color:#000000;'>{total_stops}</p>
-                    </div>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
-
-    with c3:
-        st.markdown(f"""
-            <div class='dashboard-supercard' style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:10px; box-shadow:0 2px 4px rgba(0,0,0,0.05); height: 110px;'>
-                <p style='margin:0 0 5px 0; font-size:11px; font-weight:800; color:#000000; text-transform:uppercase; text-align:center;'>Dispatched Tracking: {total_dispatched}</p>
-                <div style='display:flex; justify-content:space-between; gap:8px;'>
-                    <div style='background:{TB_GREEN_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
-                        <p style='margin:0; font-size:9px; font-weight:800; color:#000000;'>ACCEPTED</p>
-                        <p style='margin:0; font-size:20px; font-weight:800; color:#000000;'>{total_accepted}</p>
-                    </div>
-                    <div style='background:{TB_RED_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
-                        <p style='margin:0; font-size:9px; font-weight:800; color:#000000;'>DECLINED</p>
-                        <p style='margin:0; font-size:20px; font-weight:800; color:#000000;'>{len(declined)}</p>
-                    </div>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
-        
-    # 🌟 RESTORED: Action Button
-    st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("⚙️ Re-Optimize Routes", use_container_width=True, key=f"reopt_{pod_name}"):
-        st.session_state.pop(f"clusters_{pod_name}", None)
-        process_pod(pod_name) 
-        st.rerun()
-
-    # 🌟 RESTORED: Map Rendering
-    m = folium.Map(location=cls[0]['center'], zoom_start=6, tiles="cartodbpositron")
-    for c in ready: folium.CircleMarker(c['center'], radius=8, color=TB_GREEN, fill=True, opacity=0.8).add_to(m)
-    for c in sent: folium.CircleMarker(c['center'], radius=8, color="#3b82f6", fill=True, opacity=0.8).add_to(m)
-    for c in review: folium.CircleMarker(c['center'], radius=8, color="#ef4444", fill=True, opacity=0.8).add_to(m)
-    st_folium(m, height=400, use_container_width=True, key=f"map_{pod_name}")
+    task_ids = [str(t['id']).strip() for t in c['data']]
+    cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
     
-    # 🌟 RESTORED: Icon Key (Legend)
-    st.markdown("""
-<div style="display: flex; justify-content: center; flex-wrap: wrap; gap: 20px; background: #ffffff; padding: 12px; border-radius: 12px; border: 1px solid #cbd5e1; margin-top: -10px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-    <div style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; align-self: center; margin-right: 10px;">Route Key:</div>
-    <div style="font-size: 13px; cursor: help;" title="Route is within distance limits (<60mi) and standard rate (<$25/stop).">🟢 Ready</div>
-    <div style="font-size: 13px; cursor: help;" title="Route is frozen and requires manual authorization before sending.">🔒 Action Required</div>
-    <div style="font-size: 13px; cursor: help;" title="The calculated price per stop is $25.00 or higher.">💰 High Rate</div>
-    <div style="font-size: 13px; cursor: help;" title="The closest contractor is more than 60 miles away.">📡 Long Distance</div>
-    <div style="font-size: 13px; cursor: help;" title="Route was flagged for review (e.g., low density).">🔴 Flagged</div>
-    <div style="font-size: 13px; cursor: help;" title="Priority: Contains escalated tasks.">⭐ Escalated</div>
-    <div style="font-size: 13px; cursor: help;" title="Digital Service: Contains digital service requests.">🔌Digital Service</div>
-    <div style="font-size: 13px; cursor: help;" title="Route request has been sent to the contractor.">✉️ Sent</div>
-</div>
-""", unsafe_allow_html=True)
+    sheet_match = sent_db.get(next((tid for tid in task_ids if tid in sent_db), None))
+    route_state = st.session_state.get(f"route_state_{cluster_hash}")
+    local_ts = st.session_state.get(f"sent_ts_{cluster_hash}", "")
+    local_contractor = st.session_state.get(f"contractor_{cluster_hash}", "Unknown")
+    is_reverted = st.session_state.get(f"reverted_{cluster_hash}", False)
+    
+    if sheet_match and not is_reverted:
+        c['contractor_name'] = sheet_match.get('name', 'Unknown')
+        c['route_ts'] = sheet_match.get('time', '') or local_ts
+        c['wo'] = sheet_match.get('wo', c['contractor_name'])
+    else:
+        c['contractor_name'] = local_contractor
+        c['route_ts'] = local_ts
+    
+    # --- 🚦 THE NEW DIGITAL FLOW ---
+    # If it's digital and not already in the sheet (Sent/Acc), it goes to the Digital tab [cite: 1]
+    if c.get('is_digital') and not sheet_match and route_state != "email_sent" and not is_reverted:
+        digital_ready.append(c)
+        continue 
+
+    # --- PRIORITY: LIVE DATABASE OVERRIDES LOCAL STATE ---
+    if sheet_match and not is_reverted:
+        raw_status = str(sheet_match.get('status', '')).lower()
+        if raw_status == 'field_nation':
+            field_nation.append(c)
+        elif raw_status == 'declined':
+            declined.append(c)
+        elif raw_status == 'accepted':
+            accepted.append(c)
+        elif raw_status == 'finalized': 
+            finalized.append(c)
+        else:
+            sent.append(c)
+    elif route_state == "field_nation" and not is_reverted: 
+        field_nation.append(c)
+    elif route_state == "link_generated" and not is_reverted:
+        orig = st.session_state.get(f"orig_status_{cluster_hash}")
+        if orig == "declined":
+            declined.append(c)
+        else:
+            ready.append(c)
+    else:
+        if c.get('status') == 'Ready': 
+            ready.append(c)
+        else: 
+            review.append(c)
+
+# --- 📊 SEPARATE TASK MATH ---
+# Filters the raw task lists to count Static vs Digital for the supercards [cite: 1]
+tasks_static = sum(len(c['data']) for c in cls if not c.get('is_digital'))
+tasks_digital = sum(len(c['data']) for c in cls if c.get('is_digital'))
+total_stops = sum(c['stops'] for c in cls)
+total_routes = len(cls)
+
+total_accepted = len(accepted) + len(pod_ghosts)
+total_dispatched = len(sent) + total_accepted + len(declined)
+
+# --- DASHBOARD SUPERCARDS (Split Task View) ---
+c1, c2, c3 = st.columns([1.5, 1.8, 1.5]) # Slightly wider middle column for the split
+
+with c1:
+    st.markdown(f"""
+        <div class='dashboard-supercard' style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:10px; height: 110px;'>
+            <p style='margin:0 0 5px 0; font-size:11px; font-weight:800; color:#000000; text-transform:uppercase; text-align:center;'>Total Routes: {total_routes}</p>
+            <div style='display:flex; justify-content:space-between; gap:8px;'>
+                <div style='background:{TB_GREEN_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
+                    <p style='margin:0; font-size:9px; font-weight:800;'>READY</p>
+                    <p style='margin:0; font-size:20px; font-weight:800;'>{len(ready)}</p>
+                </div>
+                <div style='background:{TB_BLUE_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
+                    <p style='margin:0; font-size:9px; font-weight:800;'>DIGITAL</p>
+                    <p style='margin:0; font-size:20px; font-weight:800; color:#1e40af;'>{len(digital_ready)}</p>
+                </div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+with c2:
+    st.markdown(f"""
+        <div class='dashboard-supercard' style='background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:15px; height: 110px;'>
+            <div style='display:flex; justify-content:space-around; text-align:center; height:100%; align-items:center;'>
+                <div style='flex: 1;'>
+                    <p style='margin:0; font-size:9px; font-weight:800; color:#64748b; text-transform:uppercase;'>Static Tasks</p>
+                    <p style='margin:0; font-size:24px; font-weight:800; color:#000000;'>{tasks_static}</p>
+                </div>
+                <div style='border-left: 2px solid #cbd5e1; height: 40px;'></div>
+                <div style='flex: 1;'>
+                    <p style='margin:0; font-size:9px; font-weight:800; color:#1e40af; text-transform:uppercase;'>Digital Tasks</p>
+                    <p style='margin:0; font-size:24px; font-weight:800; color:#1e40af;'>{tasks_digital}</p>
+                </div>
+                <div style='border-left: 2px solid #cbd5e1; height: 40px;'></div>
+                <div style='flex: 1;'>
+                    <p style='margin:0; font-size:9px; font-weight:800; color:#000000; text-transform:uppercase;'>Total Stops</p>
+                    <p style='margin:0; font-size:24px; font-weight:800; color:#000000;'>{total_stops}</p>
+                </div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+with c3:
+    st.markdown(f"""
+        <div class='dashboard-supercard' style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:10px; height: 110px;'>
+            <p style='margin:0 0 5px 0; font-size:11px; font-weight:800; color:#000000; text-transform:uppercase; text-align:center;'>Sent Records: {total_dispatched}</p>
+            <div style='display:flex; justify-content:space-between; gap:8px;'>
+                <div style='background:{TB_GREEN_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
+                    <p style='margin:0; font-size:9px; font-weight:800;'>ACCEPTED</p>
+                    <p style='margin:0; font-size:20px; font-weight:800;'>{total_accepted}</p>
+                </div>
+                <div style='background:{TB_RED_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
+                    <p style='margin:0; font-size:9px; font-weight:800;'>SENT/FN</p>
+                    <p style='margin:0; font-size:20px; font-weight:800;'>{len(sent) + len(field_nation)}</p>
+                </div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
 
     st.markdown("---")
 
@@ -1671,8 +1662,10 @@ def run_pod_tab(pod_name):
         # ==========================================
         # SECTION 1: DISPATCH (LEFT SIDE - CENTERED)
         # ==========================================
-        st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_PURPLE}; margin-bottom: 5px; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
-        t_ready, t_flagged, t_fn = st.tabs(["📥 Ready", "⚠️ Flagged", "🌐 Field Nation"])
+        st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_PURPLE}; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
+
+        # 🌟 ADDED: 4th Tab for Digital
+        t_ready, t_flagged, t_fn, t_digital = st.tabs(["📥 Ready", "⚠️ Flagged", "🌐 Field Nation", "🔌 Digital"])
 
         with t_ready:
             if not ready: st.info("No tasks ready for dispatch.")
@@ -1726,6 +1719,12 @@ def run_pod_tab(pod_name):
                 inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else ""
                 with st.expander(f"🌐 FN: {c['city']}, {c['state']} | {c['stops']} Stops{digi_pill}{inst_pill}{esc_pill}"):
                     render_dispatch(i+5000, c, pod_name)
+        with t_digital:
+            if not digital_ready: st.info("No digital service tasks pending.")
+            for i, c in enumerate(digital_ready):
+                # Using the plug emoji for the expander title [cite: 1]
+                with st.expander(f"🔌 DIGITAL: {c['city']}, {c['state']} | {c['stops']} Stops"):
+                    render_dispatch(i+7000, c, pod_name)
                     
     with col_right:
         # ==========================================
@@ -1950,9 +1949,8 @@ with col_ref:
         st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
-# Define the tabs for the entire app
-tabs = st.tabs(["Global", "Blue Pod", "Green Pod", "Orange Pod", "Purple Pod", "Red Pod"])
-
+# Updated Main Tabs
+tabs = st.tabs(["Global", "Digital", "Blue Pod", "Green Pod", "Orange Pod", "Purple Pod", "Red Pod"])
 # --- TAB 0: GLOBAL CONTROL ---
 with tabs[0]:
     st.markdown("<h2 style='color: #633094; text-align:center;'>🌍 Global Command Overview</h2>", unsafe_allow_html=True)
@@ -1964,6 +1962,22 @@ with tabs[0]:
         st.session_state.trigger_pull = True
 
     st.markdown("---")
+
+# --- TAB 1: DIGITAL POOL ---
+with tabs[1]:
+    st.markdown("<h2 style='color: #1e40af; text-align:center;'>🔌 National Digital Service Pool</h2>", unsafe_allow_html=True)
+    
+    global_digital = []
+    for pod in POD_CONFIGS.keys():
+        if f"clusters_{pod}" in st.session_state:
+            global_digital.extend([c for c in st.session_state[f"clusters_{pod}"] if c.get('is_digital')])
+
+    if not global_digital:
+        st.info("No digital tasks pending nationwide.")
+    else:
+        for i, c in enumerate(global_digital):
+            with st.expander(f"🔌 {c.get('state')} | {c['city']} — {c['stops']} Stops"):
+                render_dispatch(i+8000, c, "Global_Digital")
     
     # NEW: Placeholder to anchor the progress bar ABOVE the cards
     loading_placeholder = st.empty()
