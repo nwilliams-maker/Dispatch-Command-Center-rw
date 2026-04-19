@@ -1879,21 +1879,8 @@ def run_pod_tab(pod_name):
         with t_digital:
             if not digital_ready: st.info("No digital service tasks pending.")
             for i, c in enumerate(digital_ready):
-                # 🌟 SURGICAL INJECTION: TEAL BLOCKER UI
-                st.markdown(f"""
-                    <div style="background:#ffffff; border: 1px solid {TB_DIGITAL_BORDER}; border-radius: 8px; padding: 10px; margin-bottom: -35px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span style="color:{TB_DIGITAL_TEXT}; font-weight: 900; font-size: 14px; text-transform: uppercase;">
-                                🔌 DIGITAL: {c['city']}, {c['state']}
-                            </span>
-                            <span style="background: {TB_DIGITAL_FILL}; padding: 2px 10px; border-radius: 12px; font-size: 10px; font-weight: 800; color:{TB_DIGITAL_TEXT};">
-                                {c['stops']} STOPS
-                            </span>
-                        </div>
-                    </div>
-                """, unsafe_allow_html=True)
-                                
-                with st.expander(""): # Empty label because the header is above
+                # 🌟 FIXED: Labels moved into the expander, margin-hack deleted
+                with st.expander(f"🔌 DIGITAL: {c['city']}, {c['state']} | {c['stops']} Stops"):
                     render_dispatch(i+7000, c, pod_name)
                     
     with col_right:
