@@ -2124,47 +2124,88 @@ for i, pod in enumerate(["Blue", "Green", "Orange", "Purple", "Red"], 1):
 
 # --- TAB 6: DIGITAL POOL ---
 with tabs[6]:
-    # Ensure the pool is defined to prevent NameError
+    # 1. 📊 GRAB DATA & CALCULATE MATH
     pool = st.session_state.get('digital_pool', [])
+    
+    # Calculate Unique Stops
+    unique_stops = len(set(t.get('full', '') for t in pool))
+    
+    # Calculate Status Splits (Assuming pool tasks have a 'db_status' or 'status' key)
+    # If not yet sent, they default to Ready
+    pool_ready = len([t for t in pool if t.get('db_status', 'ready').lower() == 'ready'])
+    pool_flagged = len([t for t in pool if t.get('db_status', '').lower() == 'flagged'])
+    
+    # Calculate Sent Stats (Cross-referencing with fresh_sent_db if needed)
+    pool_accepted = len([t for t in pool if t.get('db_status', '').lower() == 'accepted'])
+    pool_declined = len([t for t in pool if t.get('db_status', '').lower() == 'declined'])
+    pool_sent = len([t for t in pool if t.get('db_status', '').lower() in ['sent', 'email_sent', 'field_nation']])
 
-    # Minimalist Header: Dark Teal Title + Teal Pill
+    # 2. ⚡ DIGITAL HEADER
     st.markdown(f"""
-        <div style='text-align:center; padding: 25px 0 15px 0;'>
+        <div style='text-align:center; padding: 10px 0 20px 0;'>
             <h2 style='color: {TB_DIGITAL_TEXT}; margin: 0; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;'>
-                🔌 Digital Services
+                🔌 Digital Services Pool
             </h2>
-            <div style='margin-top: 15px;'>
-                <span style='background: {TB_DIGITAL_FILL}; color: {TB_DIGITAL_TEXT}; padding: 6px 20px; border-radius: 25px; font-weight: 800; font-size: 13px; border: 1px solid {TB_DIGITAL_BORDER};'>
-                    {len(pool)} TOTAL TASKS PENDING
-                </span>
-            </div>
         </div>
     """, unsafe_allow_html=True)
 
-    # Initialize Button below
-    d_btn = st.columns([1,2,1])[1]
-    if d_btn.button("🚀 Initialize Digital Data", key="digital_init_btn", use_container_width=True):
-        d_bar = st.progress(0, text="🎬 Initializing...")
-        process_digital_pool(master_bar=d_bar)
-        st.rerun()
+    # 3. 🃏 SUPERCARDS (3-Column Layout)
+    dc1, dc2, dc3 = st.columns([1, 1, 1])
+
+    with dc1:
+        # REPLICATE C1: STATUS
+        st.markdown(f"""
+            <div class='dashboard-supercard' style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:12px; height: 110px;'>
+                <p style='margin:0 0 8px 0; font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; text-align:center;'>Pool Status</p>
+                <div style='display:flex; justify-content:space-around; align-items:center; gap:8px;'>
+                    <div style='background:{TB_GREEN_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
+                        <p style='margin:0; font-size:8px; font-weight:800; color:{TB_GREEN_TEXT};'>READY</p>
+                        <p style='margin:0; font-size:22px; font-weight:800; color:{TB_GREEN_TEXT};'>{pool_ready}</p>
+                    </div>
+                    <div style='background:{TB_RED_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
+                        <p style='margin:0; font-size:8px; font-weight:800; color:{TB_RED_TEXT};'>FLAGGED</p>
+                        <p style='margin:0; font-size:22px; font-weight:800; color:{TB_RED_TEXT};'>{pool_flagged}</p>
+                    </div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    with dc2:
+        # MIDDLE: TOTAL TASKS & STOPS
+        st.markdown(f"""
+            <div class='dashboard-supercard' style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:12px; height: 110px;'>
+                <p style='margin:0 0 8px 0; font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; text-align:center;'>Workload Identifier</p>
+                <div style='display:flex; justify-content:space-around; align-items:center; gap:8px;'>
+                    <div style='background:{TB_DIGITAL_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
+                        <p style='margin:0; font-size:8px; font-weight:800; color:{TB_DIGITAL_TEXT};'>TASKS</p>
+                        <p style='margin:0; font-size:22px; font-weight:800; color:{TB_DIGITAL_TEXT};'>{len(pool)}</p>
+                    </div>
+                    <div style='background:{TB_DIGITAL_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
+                        <p style='margin:0; font-size:8px; font-weight:800; color:{TB_DIGITAL_TEXT};'>STOPS</p>
+                        <p style='margin:0; font-size:22px; font-weight:800; color:{TB_DIGITAL_TEXT};'>{unique_stops}</p>
+                    </div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    with dc3:
+        # REPLICATE C4: SENT RECORDS
+        st.markdown(f"""
+            <div class='dashboard-supercard' style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:12px; height: 110px;'>
+                <p style='margin:0 0 8px 0; font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; text-align:center;'>Sent: {pool_sent}</p>
+                <div style='display:flex; justify-content:space-around; align-items:center; gap:8px;'>
+                    <div style='background:{TB_GREEN_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
+                        <p style='margin:0; font-size:8px; font-weight:800; color:{TB_GREEN_TEXT};'>ACCEPTED</p>
+                        <p style='margin:0; font-size:22px; font-weight:800; color:{TB_GREEN_TEXT};'>{pool_accepted}</p>
+                    </div>
+                    <div style='background:{TB_RED_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
+                        <p style='margin:0; font-size:8px; font-weight:800; color:{TB_RED_TEXT};'>DECLINED</p>
+                        <p style='margin:0; font-size:22px; font-weight:800; color:{TB_RED_TEXT};'>{pool_declined}</p>
+                    </div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
-    
-    # Pulls directly from the new dedicated session state
-    global_digital = st.session_state.get('global_digital_clusters', [])
-
-    if not global_digital:
-        st.info("No digital service tasks pending. Click Initialize above to fetch.")
-    else:
-        for i, c in enumerate(global_digital):
-            # Add status indicators so you know what's happening
-            status_icon = "🔌"
-            db_stat = c.get('db_status', 'ready').lower()
-            if db_stat in ["sent", "field_nation"]: status_icon = "✉️"
-            elif db_stat == "accepted": status_icon = "✅"
-            elif db_stat == "declined": status_icon = "❌"
-            
-            with st.expander(f"{status_icon} {c.get('state')} | {c['city']} — {c['stops']} Stops"):
-                render_dispatch(i+8000, c, "Global_Digital")
 
 # (THIS MUST BE THE ABSOLUTE END OF YOUR FILE)
