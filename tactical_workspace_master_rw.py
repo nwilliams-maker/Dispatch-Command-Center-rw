@@ -1728,18 +1728,18 @@ def run_pod_tab(pod_name):
         """, unsafe_allow_html=True)
 
     with c3:
-        # CARD 3: DIGITAL WORKLOAD (Teal Theme)
+        # CARD 3: DIGITAL WORKLOAD (Updated to Static Theme)
         st.markdown(f"""
             <div class='dashboard-supercard' style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:12px; height: 120px;'>
                 <p style='margin:0 0 10px 0; font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; text-align:center;'>Digital Workload</p>
                 <div style='display:flex; justify-content:space-around; align-items:center; gap:8px;'>
-                    <div style='background:{TB_DIGITAL_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
-                        <p style='margin:0; font-size:9px; font-weight:800; color:{TB_DIGITAL_TEXT};'>TASKS</p>
-                        <p style='margin:0; font-size:24px; font-weight:800; color:{TB_DIGITAL_TEXT};'>{tasks_digital}</p>
+                    <div style='background:{TB_STATIC_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
+                        <p style='margin:0; font-size:9px; font-weight:800; color:{TB_STATIC_TEXT};'>TASKS</p>
+                        <p style='margin:0; font-size:24px; font-weight:800; color:{TB_STATIC_TEXT};'>{tasks_digital}</p>
                     </div>
-                    <div style='background:{TB_DIGITAL_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
-                        <p style='margin:0; font-size:9px; font-weight:800; color:{TB_DIGITAL_TEXT};'>STOPS</p>
-                        <p style='margin:0; font-size:24px; font-weight:800; color:{TB_DIGITAL_TEXT};'>{stops_digital}</p>
+                    <div style='background:{TB_STATIC_FILL}; flex:1; padding:8px; border-radius:8px; text-align:center;'>
+                        <p style='margin:0; font-size:9px; font-weight:800; color:{TB_STATIC_TEXT};'>STOPS</p>
+                        <p style='margin:0; font-size:24px; font-weight:800; color:{TB_STATIC_TEXT};'>{stops_digital}</p>
                     </div>
                 </div>
             </div>
