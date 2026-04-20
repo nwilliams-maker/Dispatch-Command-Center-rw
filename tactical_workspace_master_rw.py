@@ -1581,7 +1581,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         
         if collision:
             st.error(f"🚫 COLLISION: Dispatched by someone else ({local_sent_db[collision]['name']}).")
-            st.rerun() # Immediate refresh to clear the UI
+            st.rerun() 
             return
 
         # 🚀 STEP 2: PROCEED WITH DISPATCH
@@ -1624,7 +1624,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 
                 # 5. ⏳ VISUAL COUNTDOWN & MOVE (Restored)
                 timer_placeholder = st.empty()
-                for seconds in range(2, 0, -1): # 2 seconds is the perfect sweet spot!
+                for seconds in range(2, 0, -1):
                     timer_placeholder.success(f"✅ Link Live! Moving to 'Sent' in {seconds}s...")
                     time.sleep(1)
                 timer_placeholder.empty()
