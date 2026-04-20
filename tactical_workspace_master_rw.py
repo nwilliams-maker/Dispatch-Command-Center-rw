@@ -1916,8 +1916,8 @@ def run_pod_tab(pod_name):
 
     # --- 📊 CATEGORIZED MATH ---
     # Routes
-    ready_count = len([c for c in cls if c.get('status') == 'Ready'])
-    flagged_count = len([c for c in cls if c.get('status') == 'Flagged'])
+    ready_count = len(ready)     # 🌟 THE FIX: Count the actual bucket, not the raw data!
+    flagged_count = len(review)  # 🌟 THE FIX: Count the actual bucket, not the raw data!
     
     # Tasks
     tasks_static = sum(len(c['data']) for c in cls if not c.get('is_digital'))
