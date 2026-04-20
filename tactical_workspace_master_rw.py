@@ -2332,10 +2332,10 @@ with tabs[6]:
                     
                     exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                     with exp_col:
-                        with st.expander(f"✉️ {wo_display} | {c['city']}, {c['state']}"):
-                            render_dispatch(i+10000, c, "Global_Digital", is_sent=True)
+                        with st.expander(f"❌ {wo_display} | {c['city']}, {c['state']}"):
+                            render_dispatch(i+12000, c, "Global_Digital", is_declined=True)
                     with btn_col:
-                        if st.button("↩️", key=f"rev_d_sent_{cluster_hash}", help="Revoke Digital Route"):
+                        if st.button("↩️", key=f"rev_d_dec_{cluster_hash}", help="Revoke Declined Digital"):
                             move_to_dispatch(cluster_hash, wo_display, "Global_Digital", cluster_data=c)
             
             with t_fin:
@@ -2346,12 +2346,12 @@ with tabs[6]:
                     
                     exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                     with exp_col:
-                        with st.expander(f"✉️ {wo_display} | {c['city']}, {c['state']}"):
-                            render_dispatch(i+10000, c, "Global_Digital", is_sent=True)
+                        with st.expander(f"🏁 {wo_display} | {c['city']}, {c['state']}"):
+                            render_dispatch(i+13000, c, "Global_Digital", is_sent=True)
                     with btn_col:
-                        if st.button("↩️", key=f"rev_d_sent_{cluster_hash}", help="Revoke Digital Route"):
+                        if st.button("↩️", key=f"rev_d_fin_{cluster_hash}", help="Revoke Finalized Digital"):
                             move_to_dispatch(cluster_hash, wo_display, "Global_Digital", cluster_data=c)
-
+                            
 # --- FINAL FOOTER (End of File) ---
 st.markdown("---")
 st.markdown(
