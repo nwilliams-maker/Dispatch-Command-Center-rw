@@ -2337,10 +2337,11 @@ with tabs[6]:
                             st.rerun()
 
                 with btn_col:
+                    g_ic_name = g.get('contractor_name', 'Unknown') # 🌟 THE FIX: Define name locally
                     with st.popover("↩️ Revoke", use_container_width=True):
-                        st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
+                        st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{g_ic_name}</b>?</p>", unsafe_allow_html=True)
                         if st.button("🚨 Yes, Remove", key=f"rev_ghost_{ghost_hash}_{i}", type="primary", use_container_width=True):
-                            move_to_dispatch(cluster_hash=ghost_hash, ic_name=ic_name, pod_name=pod_name, action_label="Ghost Archived", check_onfleet=True, cluster_data=g)
+                            move_to_dispatch(cluster_hash=ghost_hash, ic_name=g_ic_name, pod_name=pod_name, action_label="Ghost Archived", check_onfleet=True, cluster_data=g)
                             st.rerun()
                     
         with t_dec:
