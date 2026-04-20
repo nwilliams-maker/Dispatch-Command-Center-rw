@@ -2200,8 +2200,6 @@ def run_pod_tab(pod_name):
                             st.rerun()
                     
         with t_dec:
-                    
-        with t_dec:
             if not declined: st.info("No declined routes.")
             for i, c in enumerate(declined):
                 ic_name = c.get('contractor_name', 'Unknown')
