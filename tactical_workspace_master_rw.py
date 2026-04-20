@@ -1830,12 +1830,9 @@ def run_pod_tab(pod_name):
                 st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # Halt execution if data isn't loaded yet
-    if not is_initialized:
-        return
-        
-    # Load cluster data
-    cls = st.session_state[f"clusters_{pod_name}"]
+    # 🌟 THE FIX: Remove the early return and safely default to an empty list
+    # Load cluster data safely so the Supercards can render 0's
+    cls = st.session_state.get(f"clusters_{pod_name}", [])
 
     if not cls:
         st.info(f"No tasks pending in the {pod_name} region.")
@@ -1996,6 +1993,15 @@ def run_pod_tab(pod_name):
     # 🌟 THE FIX: Force spacing before the Map
     st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
     
+    # 🌟 Halt execution HERE, right after the cards render!
+    if not is_initialized:
+        st.info(f"No {pod_name} tasks initialized. Click '🚀 Initialize Data' at the top right.")
+        return
+        
+    if not cls and not pod_ghosts:
+        st.info(f"No active tasks pending in the {pod_name} region.")
+        return
+
     m = folium.Map(location=cls[0]['center'], zoom_start=6, tiles="cartodbpositron")
     for c in ready: folium.CircleMarker(c['center'], radius=8, color=TB_GREEN, fill=True, opacity=0.8).add_to(m)
     for c in digital_ready: folium.CircleMarker(c['center'], radius=8, color="#0f766e", fill=True, opacity=0.8).add_to(m)
