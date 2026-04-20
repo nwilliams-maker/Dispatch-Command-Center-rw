@@ -1712,29 +1712,21 @@ def run_pod_tab(pod_name):
         # --- PRIORITY: LIVE DATABASE OVERRIDES LOCAL STATE ---
         if sheet_match and not is_reverted:
             raw_status = str(sheet_match.get('status', '')).lower()
-            if raw_status == 'field_nation':
-                field_nation.append(c)
-            elif raw_status == 'declined':
-                declined.append(c)
-            elif raw_status == 'accepted':
-                accepted.append(c)
-            elif raw_status == 'finalized': 
-                finalized.append(c)
-            else:
-                sent.append(c)
+            if raw_status == 'field_nation': field_nation.append(c) #
+            elif raw_status == 'declined': declined.append(c) #
+            elif raw_status == 'accepted': accepted.append(c) #
+            elif raw_status == 'finalized': finalized.append(c) #
+            else: sent.append(c) #
+        
+        # 🌟 Handle Local Session State (Instant UI Moves)
+        elif route_state == "email_sent" and not is_reverted:
+            sent.append(c) #
         elif route_state == "field_nation" and not is_reverted: 
-            field_nation.append(c)
-        elif route_state == "link_generated" and not is_reverted:
-            orig = st.session_state.get(f"orig_status_{cluster_hash}")
-            if orig == "declined":
-                declined.append(c)
-            else:
-                ready.append(c)
+            field_nation.append(c) #
         else:
-            if c.get('status') == 'Ready': 
-                ready.append(c)
-            else: 
-                review.append(c)
+            # Fallback to calculated status
+            if c.get('status') == 'Ready': ready.append(c) #
+            else: review.append(c) #
 
     # --- 📊 CATEGORIZED MATH ---
     # Routes
@@ -2229,27 +2221,17 @@ with tabs[6]:
         else:
             db_stat = c.get('db_status', 'ready').lower()
 
-        # Logic Gate: Sort into buckets
-        if db_stat in ['sent', 'email_sent'] and not is_reverted: d_sent.append(c)
-        elif db_stat == 'accepted' and not is_reverted: d_acc.append(c)
-        elif db_stat == 'declined' and not is_reverted: d_dec.append(c)
-        elif db_stat == 'finalized' and not is_reverted: d_fin.append(c)
-        elif db_stat == 'field_nation' and not is_reverted: d_fn.append(c)
-        elif route_state == 'email_sent' and not is_reverted: d_sent.append(c)
-        # ... (keep existing elif/else logic for field_nation/ready/flagged)
-        elif route_state == 'field_nation' and not is_reverted: 
-            d_fn.append(c)
-        elif route_state == 'link_generated' and not is_reverted:
-            orig = st.session_state.get(f"orig_status_{cluster_hash}")
-            if orig == "declined": 
-                d_dec.append(c)
-            else: 
-                d_ready.append(c) # ✅ This was likely line 2154 causing the error
+        # 🌟 LOGIC GATE: Every .append() target MUST start with 'd_'
+        if db_stat in ['sent', 'email_sent'] and not is_reverted: d_sent.append(c) #
+        elif db_stat == 'accepted' and not is_reverted: d_acc.append(c) #
+        elif db_stat == 'declined' and not is_reverted: d_dec.append(c) #
+        elif db_stat == 'finalized' and not is_reverted: d_fin.append(c) #
+        elif db_stat == 'field_nation' and not is_reverted: d_fn.append(c) #
+        elif route_state == 'email_sent' and not is_reverted: d_sent.append(c) #
+        elif route_state == 'field_nation' and not is_reverted: d_fn.append(c) #
         else:
-            if c.get('status') == 'Ready': 
-                d_ready.append(c) # ✅ Fixed prefix
-            else: 
-                d_flagged.append(c) # ✅ Fixed prefix
+            if c.get('status') == 'Ready': d_ready.append(c) #
+            else: d_flagged.append(c) #
                 
     # Supercard Counts
     pool_ready = len(d_ready)
