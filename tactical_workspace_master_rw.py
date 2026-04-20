@@ -2557,11 +2557,20 @@ with tabs[6]:
     # 1. 📊 GRAB DATA & INITIALIZE
     global_digital = st.session_state.get('global_digital_clusters', [])
     
-    # 🌟 THE FIX: Intercept Digital Ghost Routes from the Sheet
+    # 🌟 THE FIX: Grab the live Google Sheets databases
     sent_db, ghost_db = fetch_sent_records_from_sheet()
+    
+    # 🌟 THE FIX: Extract the Global_Digital ghosts specifically
+    digital_ghosts_list = ghost_db.get("Global_Digital", [])
+    
     pod_ghosts = []
     finalized_ghosts = []
-    for g in ghost_db.get("Global_Digital", []):
+    
+    for g in digital_ghosts_list:
+        if st.session_state.get(f"route_state_{g.get('hash')}") == "finalized" or g.get("status") == "finalized":
+            finalized_ghosts.append(g)
+        else:
+            pod_ghosts.append(g)
         if st.session_state.get(f"route_state_{g.get('hash')}") == "finalized" or g.get("status") == "finalized":
             finalized_ghosts.append(g)
         else:
@@ -2843,7 +2852,7 @@ with tabs[6]:
                     
             with t_fin:
                 if not d_fin and not finalized_ghosts: st.info("No finalized digital routes.") 
-                for i, c in enumerate(d_fin):                         
+                for i, c in enumerate(d_fin):                       
                     task_ids = [str(t['id']).strip() for t in c['data']]
                     cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
                     ic_name = c.get('contractor_name', 'Unknown')
