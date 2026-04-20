@@ -2380,6 +2380,10 @@ with tabs[0]:
         st.session_state.trigger_pull = False
         st.rerun()
 
+    # 🌟 THE FIX: Inject the blue prompt right above the map if no data exists
+    if not has_global_data:
+        st.info("No operational data initialized. Click '🚀 Initialize All Pods' at the top right to fetch tasks across all pods.")
+
     st.markdown("<br> 🗺️ Master Route Map", unsafe_allow_html=True)
     st_folium(global_map, height=500, use_container_width=True, key="global_master_map")
 
