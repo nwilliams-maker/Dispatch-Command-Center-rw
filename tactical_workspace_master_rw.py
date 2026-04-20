@@ -115,6 +115,45 @@ st.markdown(f"""
 .stApp {{ background-color: {TB_APP_BG} !important; color: #000000 !important; font-family: 'Inter', sans-serif !important; }}
 .main .block-container {{ max-width: 1100px !important; padding-top: 2rem; }}
 
+/* =========================================
+   WIDGET & INPUT STANDARDIZATION (Fixes the White Box Glitch)
+   ========================================= */
+/* Force clean white backgrounds on all inputs */
+div[data-baseweb="select"] > div,
+div[data-baseweb="input"],
+div[data-baseweb="input"] > div {{
+    background-color: #ffffff !important;
+    border-color: #cbd5e1 !important;
+}}
+
+/* Ensure text inside inputs is dark and legible */
+input[type="text"], 
+input[type="number"], 
+div[data-baseweb="select"] div {{
+    color: #0f172a !important;
+    -webkit-text-fill-color: #0f172a !important;
+    font-weight: 600 !important;
+}}
+
+/* Specifically target and neutralize the Number Input step container */
+div[data-testid="stNumberInputContainer"] {{
+    border-radius: 8px !important;
+    background-color: #ffffff !important;
+}}
+
+/* Kills the white box by forcing transparency on the button wrapper */
+div[data-testid="stNumberInputContainer"] div[data-baseweb="input"] > div:nth-child(2) {{
+    background-color: transparent !important;
+}}
+
+/* Style the + / - icons to match the theme */
+div[data-testid="stNumberInputContainer"] button, 
+div[data-testid="stNumberInputContainer"] svg {{
+    color: #64748b !important;
+    fill: #64748b !important;
+    background-color: transparent !important;
+}}
+
 /* GLOBAL TABS CONTAINER - Clean & Floating with Bottom Line */
 .stTabs [data-baseweb="tab-list"] {{ 
     justify-content: center; 
