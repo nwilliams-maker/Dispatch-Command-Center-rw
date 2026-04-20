@@ -1562,19 +1562,24 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     
     # --- 4. UI RENDERING & BUTTON LOGIC ---
     route_state = st.session_state.get(f"route_state_{cluster_hash}")
+    is_fn = (route_state == "field_nation") # 🌟 MOVED UP to control the Contractor field
+    
     col_a, col_b, col_c, col_d = st.columns([1.5, 1, 1, 1])
     with col_a:
-        if ic_opts:
+        # 🌟 THE FIX: If assigned to FN, lock the field. Otherwise, show the dropdown!
+        if is_fn:
+            ic = {"name": "Field Nation", "location": f"{cluster['center'][0]},{cluster['center'][1]}", "d": 0}
+            st.markdown("<div style='background:#FEF9C3; border:1px solid #EAB308; border-radius:8px; padding:10px; text-align:center; height:42px; display:flex; align-items:center; justify-content:center;'><span style='color:#854D0E; font-weight:800; font-size:14px;'>🌐 Field Nation</span></div>", unsafe_allow_html=True)
+        elif ic_opts:
             selected_label = st.selectbox("Select IC", list(ic_opts.keys()), key=sel_key, on_change=update_for_new_contractor)
             ic = ic_opts[selected_label]
         else:
             ic = {"name": "Manual/FN", "location": f"{cluster['center'][0]},{cluster['center'][1]}", "d": 0}
-            st.info("Use Field Nation checkbox below.")
+            st.info("No ICs within 100mi.")
 
     st.divider()
     
     # --- 🌐 FIELD NATION PERSISTENCE (CHECKBOX) ---
-    is_fn = (route_state == "field_nation")
     
     if route_state != "email_sent":
         # 🌟 UNIQUE KEY
