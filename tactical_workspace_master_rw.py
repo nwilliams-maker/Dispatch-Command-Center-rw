@@ -2483,7 +2483,7 @@ with tabs[6]:
     st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
     
     if not global_digital:
-        st.info("No digital service tasks pending. Click '🚀 Sync Routes' at the top right to fetch data.")
+        st.info("Click '🚀 Initialize Data' at the top right to fetch data.")
     else:
         # 4. 🗺️ MAP & LEGEND
         m_digi = folium.Map(location=global_digital[0]['center'], zoom_start=4, tiles="cartodbpositron")
