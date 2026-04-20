@@ -2727,21 +2727,22 @@ with tabs[6]:
                             # 🌟 CALLBACK FIX (No indented code underneath!)
                             st.button("🚨 Yes, Remove", key=f"rev_d_dec_{cluster_hash}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": cluster_hash, "ic_name": ic_name, "pod_name": "Global_Digital", "cluster_data": c})
                     
-           with t_fin:
-            if not finalized and not finalized_ghosts: st.info("No finalized routes.") 
-            for i, c in enumerate(finalized):                 
-                ic_name = c.get('contractor_name', 'Unknown')
-                task_ids = [str(tid['id']).strip() for tid in c['data']]
-                cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
-                exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
-                with exp_col:
-                    with st.expander(f"🏁 {ic_name} | {c['city']}, {c['state']}"):
-                        render_dispatch(i+4000, c, pod_name, is_sent=True)
-                with btn_col:
-                    with st.popover("↩️ Re-Route", use_container_width=True):
-                        st.markdown(f"<p style='font-size:13px; text-align:center;'>Re-route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
-                        # 🌟 CALLBACK FIX
-                        st.button("🚨 Yes, Re-Route", key=f"quick_reroute_{cluster_hash}_{pod_name}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": cluster_hash, "ic_name": ic_name, "pod_name": pod_name, "action_label": "Re-Routed", "check_onfleet": True, "cluster_data": c})
+            with t_fin:
+                if not d_fin: st.info("No finalized digital routes.") 
+                for i, c in enumerate(d_fin):                         
+                    task_ids = [str(t['id']).strip() for t in c['data']]
+                    cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+                    ic_name = c.get('contractor_name', 'Unknown')
+                    wo_display = c.get('wo', ic_name)
+                    exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                    with exp_col:
+                        with st.expander(f"🏁 {wo_display} | {c['city']}, {c['state']}"):
+                            render_dispatch(i+13000, c, "Global_Digital", is_sent=True)
+                    with btn_col:
+                        with st.popover("↩️ Re-Route", use_container_width=True):
+                            st.markdown(f"<p style='font-size:13px; text-align:center;'>Re-route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
+                            # 🌟 CALLBACK FIX
+                            st.button("🚨 Yes, Re-Route", key=f"rev_d_fin_{cluster_hash}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": cluster_hash, "ic_name": ic_name, "pod_name": "Global_Digital", "action_label": "Re-Routed", "check_onfleet": True, "cluster_data": c})
                         
             # 🌟 THE FIX: Render Ghost Routes that were just finalized
             for i, g in enumerate(finalized_ghosts):
