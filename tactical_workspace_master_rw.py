@@ -649,8 +649,21 @@ def finalize_route_handler(cluster_hash):
     
     # 2. 🧠 INSTANT UI OVERRIDE: Force the UI to immediately move it to the Finalized tab
     st.session_state[f"route_state_{cluster_hash}"] = "finalized"
-    st.session_state[f"reverted_{cluster_hash}"] = True # 🌟 THE FIX: Forces the UI to completely ignore the Sheet lag!
+    st.session_state[f"reverted_{cluster_hash}"] = True 
     st.toast("🏁 Route Finalized! Moving to Finalized tab...")
+    st.rerun() # 🌟 CRITICAL: Forces the whole app to refresh and move the card!
+
+@st.fragment
+def render_finalization_checklist(cluster_hash, pod_name, prefix="chk"):
+    """Isolates checkbox reruns so the whole page doesn't reload, making checks instant."""
+    st.markdown("<p style='font-size: 13px; font-weight: 600;'>Finalization Checklist:</p>", unsafe_allow_html=True)
+    cc1, cc2, cc3 = st.columns(3)
+    chk1 = cc1.checkbox("Optimized Route in OnFleet.", key=f"{prefix}1_{cluster_hash}_{pod_name}")
+    chk2 = cc2.checkbox("Dispatched in Route Planning.", key=f"{prefix}2_{cluster_hash}_{pod_name}")
+    chk3 = cc3.checkbox("Packing list created.", key=f"{prefix}3_{cluster_hash}_{pod_name}")
+    
+    if chk1 and chk2 and chk3:
+        st.button("🏁 Finalize Route", key=f"finbtn_{prefix}_{cluster_hash}_{pod_name}", type="primary", use_container_width=True, on_click=finalize_route_handler, args=(cluster_hash,))
         
 
     
@@ -2225,15 +2238,8 @@ def run_pod_tab(pod_name):
                         loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
                         st.markdown(f"<div style='font-size:11px; color:#64748b; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:10px; border:1px solid #e2e8f0;'><b>Location Record:</b><ul style='margin-top:4px; margin-bottom:0; padding-left:20px;'>{loc_html}</ul></div>", unsafe_allow_html=True)
                         
-                        # 🌟 Checklist (Inside the expander)
-                        st.markdown("<p style='font-size: 13px; font-weight: 600;'>Finalization Checklist:</p>", unsafe_allow_html=True)
-                        cc1, cc2, cc3 = st.columns(3)
-                        chk1 = cc1.checkbox("Optimized Route in OnFleet.", key=f"chk1_{cluster_hash}_{pod_name}")
-                        chk2 = cc2.checkbox("Dispatched in Route Planning.", key=f"chk2_{cluster_hash}_{pod_name}")
-                        chk3 = cc3.checkbox("Packing list created.", key=f"chk3_{cluster_hash}_{pod_name}")
-                        
-                        if chk1 and chk2 and chk3:
-                            st.button("🏁 Finalize Route", key=f"fin_{cluster_hash}_{pod_name}", type="primary", use_container_width=True, on_click=finalize_route_handler, args=(cluster_hash,))
+                        # 🌟 THE FIX: Instant Checklist Fragment
+                        render_finalization_checklist(cluster_hash, pod_name, "chk")
 
                         st.divider()
                         
@@ -2276,15 +2282,8 @@ def run_pod_tab(pod_name):
                             loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
                             st.markdown(f"<div style='font-size:11px; color:#64748b; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:10px; border:1px solid #e2e8f0;'><b>Location Record:</b><ul style='margin-top:4px; margin-bottom:0; padding-left:20px;'>{loc_html}</ul></div>", unsafe_allow_html=True)
                         
-                        st.markdown("<p style='font-size: 13px; font-weight: 600;'>Finalization Checklist:</p>", unsafe_allow_html=True)
-                        cc1, cc2, cc3 = st.columns(3)
-                        chk1 = cc1.checkbox("Optimized Route in OnFleet.", key=f"g_chk1_{ghost_hash}_{pod_name}")
-                        chk2 = cc2.checkbox("Dispatched in Route Planning.", key=f"g_chk2_{ghost_hash}_{pod_name}")
-                        chk3 = cc3.checkbox("Packing list created.", key=f"g_chk3_{ghost_hash}_{pod_name}")
-                        
-                        if chk1 and chk2 and chk3:
-                            # 🌟 CALLBACK FIX
-                            st.button("🏁 Finalize Route", key=f"g_fin_{ghost_hash}_{pod_name}", type="primary", use_container_width=True, on_click=finalize_route_handler, args=(ghost_hash,))
+                        # 🌟 THE FIX: Instant Checklist Fragment
+                        render_finalization_checklist(ghost_hash, pod_name, "g_chk")
                 with btn_col:
                     with st.popover("↩️ Revoke", use_container_width=True):
                         st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{g_ic_name}</b>?</p>", unsafe_allow_html=True)
@@ -2702,15 +2701,8 @@ with tabs[6]:
                             loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
                             st.markdown(f"<div style='font-size:11px; color:#64748b; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:10px; border:1px solid #e2e8f0;'><b>Location Record:</b><ul style='margin-top:4px; margin-bottom:0; padding-left:20px;'>{loc_html}</ul></div>", unsafe_allow_html=True)
                             
-                            st.markdown("<p style='font-size: 13px; font-weight: 600;'>Finalization Checklist:</p>", unsafe_allow_html=True)
-                            cc1, cc2, cc3 = st.columns(3)
-                            chk1 = cc1.checkbox("Optimized Route in OnFleet.", key=f"d_chk1_{cluster_hash}")
-                            chk2 = cc2.checkbox("Dispatched in Route Planning.", key=f"d_chk2_{cluster_hash}")
-                            chk3 = cc3.checkbox("Packing list created.", key=f"d_chk3_{cluster_hash}")
-                            
-                            if chk1 and chk2 and chk3:
-                                # 🌟 CALLBACK FIX (No indented code underneath!)
-                                st.button("🏁 Finalize Route", key=f"d_fin_{cluster_hash}", type="primary", use_container_width=True, on_click=finalize_route_handler, args=(cluster_hash,))
+                            # 🌟 THE FIX: Instant Checklist Fragment
+                            render_finalization_checklist(cluster_hash, "Global_Digital", "d_chk")
 
                             st.divider()
                             render_dispatch(i+11000, c, "Global_Digital", is_sent=True)
