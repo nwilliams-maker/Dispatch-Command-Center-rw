@@ -39,7 +39,6 @@ SAVED_ROUTES_GID = "1477617688"
 ACCEPTED_ROUTES_GID = "934075207"
 DECLINED_ROUTES_GID = "600909788"
 FIELD_NATION_GID = "1396320527"
-FINALIZED_ROUTES_GID = "1907347870"
 
 # Terraboost Media Brand Palette
 TB_PURPLE = "#633094"
@@ -700,16 +699,11 @@ def fetch_sent_records_from_sheet():
             (SAVED_ROUTES_GID, "sent"),
         ]
 
-       # 3. Add Field Nation only if the GID is defined to avoid errors
+        # 3. Add Field Nation only if the GID is defined to avoid errors
         if 'FIELD_NATION_GID' in globals() and FIELD_NATION_GID:
             # We check if it's already there to prevent duplicates
             if (FIELD_NATION_GID, "field_nation") not in sheets_to_fetch:
                 sheets_to_fetch.append((FIELD_NATION_GID, "field_nation"))
-                
-        # 🌟 NEW: Add Finalized routes to the download queue
-        if 'FINALIZED_ROUTES_GID' in globals() and FINALIZED_ROUTES_GID:
-            if (FINALIZED_ROUTES_GID, "finalized") not in sheets_to_fetch:
-                sheets_to_fetch.append((FINALIZED_ROUTES_GID, "finalized"))
         
         sent_dict = {}
         ghost_routes = {"Blue": [], "Green": [], "Orange": [], "Purple": [], "Red": [], "UNKNOWN": []}
@@ -750,44 +744,9 @@ def fetch_sent_records_from_sheet():
                                         "due": p.get('due', 'N/A')    # 🌟 THE FIX: Pull Due Date
                                     }
                             
-                            # 🌟 THE FIX: Allow Finalized routes to build as Ghost Routes too!
-                            if status_label in ['accepted', 'finalized']:
+                            # Ghost Route logic for Accepted routes
+                            if status_label == 'accepted':
                                 locs_str = str(p.get('locs', ''))
-                                state_guess, city_guess = "UNKNOWN", "Unknown"
-                                stops_list = [s.strip() for s in locs_str.split('|') if s.strip()]
-                                
-                                # Extract city/state from the first real stop
-                                if len(stops_list) > 1:
-                                    addr_parts = stops_list[1].split(',')
-                                    if len(addr_parts) >= 2:
-                                        state_guess = addr_parts[-1].strip().upper()
-                                        city_guess = addr_parts[-2].strip()
-                                
-                                norm_state = STATE_MAP.get(state_guess, state_guess)
-                                pod_name = "UNKNOWN"
-                                for p_name, p_config in POD_CONFIGS.items():
-                                    if norm_state in p_config['states']:
-                                        pod_name = p_name
-                                        break
-                                
-                                if pod_name != "UNKNOWN":
-                                    clean_tids = [str(t).strip() for t in tids if str(t).strip()]
-                                    ghost_hash = hashlib.md5("".join(sorted(clean_tids)).encode()).hexdigest()
-
-                                    ghost_routes[pod_name].append({
-                                        "contractor_name": c_name,
-                                        "route_ts": ts_display,
-                                        "city": city_guess,
-                                        "state": norm_state,
-                                        "stops": p.get('lCnt', 0),
-                                        "tasks": p.get('tCnt', len(tids)),
-                                        "pay": p.get('comp', 0),
-                                        "wo": p.get('wo', c_name),
-                                        "due": p.get('due', 'N/A'),  
-                                        "status": status_label, # 🌟 NEW: Save the DB status so the Traffic Cop knows!
-                                        "hash": ghost_hash, 
-                                        "locs": p.get('locs', '') 
-                                    })
                                 state_guess, city_guess = "UNKNOWN", "Unknown"
                                 stops_list = [s.strip() for s in locs_str.split('|') if s.strip()]
                                 
@@ -1952,8 +1911,7 @@ def run_pod_tab(pod_name):
     pod_ghosts = []
     finalized_ghosts = []
     for g in ghost_db.get(pod_name, []):
-        # 🌟 Check local state OR the new database status tag we added!
-        if st.session_state.get(f"route_state_{g.get('hash')}") == "finalized" or g.get("status") == "finalized":
+        if st.session_state.get(f"route_state_{g.get('hash')}") == "finalized":
             finalized_ghosts.append(g)
         else:
             pod_ghosts.append(g)
