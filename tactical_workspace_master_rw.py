@@ -765,8 +765,9 @@ def fetch_sent_records_from_sheet():
                                         "tasks": p.get('tCnt', len(tids)),
                                         "pay": p.get('comp', 0),
                                         "wo": p.get('wo', c_name),
-                                        "due": p.get('due', 'N/A'),      # 🌟 THE FIX: Added due date capture
-                                        "hash": ghost_hash # Pass the hash to the UI
+                                        "due": p.get('due', 'N/A'),      
+                                        "hash": ghost_hash, 
+                                        "locs": p.get('locs', '') # 🌟 THE FIX: Capture the location record
                                     })
                                     
                         except Exception: continue
@@ -2156,10 +2157,17 @@ def run_pod_tab(pod_name):
                 
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                 with exp_col:
-                    with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
-                        st.success("Route accepted. Complete the checklist to finalize.")
-                        
-                        st.markdown("<p style='font-size: 13px; font-weight: 600;'>Finalization Checklist:</p>", unsafe_allow_html=True)
+                        with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                            st.success("Route accepted. Complete the checklist to finalize.")
+                            
+                            # 🌟 THE FIX: Add mini data record
+                            u_locs = []
+                            for tk in c['data']:
+                                if tk['full'] not in u_locs: u_locs.append(tk['full'])
+                            loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
+                            st.markdown(f"<div style='font-size:11px; color:#64748b; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:10px; border:1px solid #e2e8f0;'><b>Location Record:</b><ul style='margin-top:4px; margin-bottom:0; padding-left:20px;'>{loc_html}</ul></div>", unsafe_allow_html=True)
+                            
+                            st.markdown("<p style='font-size: 13px; font-weight: 600;'>Finalization Checklist:</p>", unsafe_allow_html=True)
                         cc1, cc2, cc3 = st.columns(3)
                         chk1 = cc1.checkbox("Optimized Route in OnFleet.", key=f"chk1_{cluster_hash}_{pod_name}")
                         chk2 = cc2.checkbox("Dispatched in Route Planning.", key=f"chk2_{cluster_hash}_{pod_name}")
@@ -2582,8 +2590,16 @@ with tabs[6]:
                     
                     exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                     with exp_col:
-                        with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
-                            st.success("Route accepted. Complete the checklist to finalize.")
+                        with st.expander(f"✅ {g.get('wo', g_ic_name)} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                            st.success("Accepted and synced with OnFleet. Complete the checklist to finalize.")
+                            
+                            # 🌟 THE FIX: Add mini data record for ghosts
+                            raw_locs = [s.strip() for s in g.get('locs', '').split('|') if s.strip()]
+                            u_locs = []
+                            for l in raw_locs:
+                                if l not in u_locs: u_locs.append(l)
+                            loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
+                            st.markdown(f"<div style='font-size:11px; color:#64748b; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:10px; border:1px solid #e2e8f0;'><b>Location Record:</b><ul style='margin-top:4px; margin-bottom:0; padding-left:20px;'>{loc_html}</ul></div>", unsafe_allow_html=True)
                             
                             st.markdown("<p style='font-size: 13px; font-weight: 600;'>Finalization Checklist:</p>", unsafe_allow_html=True)
                             cc1, cc2, cc3 = st.columns(3)
