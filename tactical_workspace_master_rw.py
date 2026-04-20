@@ -815,15 +815,26 @@ def fetch_sent_records_from_sheet():
         st.error(f"Failed to fetch portal records: {e}")
         return {}, {}
 
-@st.cache_data(show_spinner=False)
+# 🌟 ADDED ttl=3600 so the cache clears every hour to grab fresh traffic data
+@st.cache_data(ttl=3600, show_spinner=False)
 def get_gmaps(home, waypoints):
-    url = f"https://maps.googleapis.com/maps/api/directions/json?origin={home}&destination={home}&waypoints=optimize:true|{'|'.join(waypoints)}&key={GOOGLE_MAPS_KEY}"
+    # 🌟 ADDED departure_time=now to force Google to calculate Live Traffic
+    url = f"https://maps.googleapis.com/maps/api/directions/json?origin={home}&destination={home}&waypoints=optimize:true|{'|'.join(waypoints)}&departure_time=now&key={GOOGLE_MAPS_KEY}"
     try:
         res = requests.get(url).json()
         if res['status'] == 'OK':
             mi = sum(l['distance']['value'] for l in res['routes'][0]['legs']) * 0.000621371
-            hrs = sum(l['duration']['value'] for l in res['routes'][0]['legs']) / 3600
-            return round(mi, 1), hrs, f"{int(hrs)}h {int((hrs * 60) % 60)}m"
+            
+            # This is the raw driving time with live traffic
+            drive_hrs = sum(l['duration']['value'] for l in res['routes'][0]['legs']) / 3600
+            
+            # 🌟 NEW: Add "Service Time" (e.g., 15 minutes / 0.25 hours per stop)
+            # You can change 0.25 to whatever average time you expect them to be at a location
+            service_hrs = len(waypoints) * 0.25 
+            
+            total_hrs = drive_hrs + service_hrs
+            
+            return round(mi, 1), total_hrs, f"{int(total_hrs)}h {int((total_hrs * 60) % 60)}m"
     except: pass
     return 0, 0, "0h 0m"
 
