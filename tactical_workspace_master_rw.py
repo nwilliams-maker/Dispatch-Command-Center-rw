@@ -289,24 +289,6 @@ div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child
     border-bottom-right-radius: 0px !important;
 }}
 
-/* 2. Target the Break-off Button on the Right side of the gap */
-div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(1) div[data-testid="stExpander"]) > div[data-testid="stColumn"]:nth-child(2) button {{
-    margin-left: -1rem !important;
-    width: calc(100% + 1rem) !important;
-    border-top-left-radius: 0px !important;
-    border-bottom-left-radius: 0px !important;
-    
-    /* 🌟 THE FIX: Absolute sizing kills the white space */
-    height: 34px !important; 
-    min-height: 34px !important;
-    margin-top: 10px !important; /* Centers it perfectly next to the expander */
-    padding: 0 !important; /* Kills the bulky padding */
-}}
-
-/* 🌟 Make the scissors icon itself smaller */
-div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(1) div[data-testid="stExpander"]) > div[data-testid="stColumn"]:nth-child(2) button p {{
-    font-size: 14px !important; 
-}}
 /* Main Expander Container */
 div[data-testid="stExpander"] {{ 
     border: 1px solid #cbd5e1 !important; 
