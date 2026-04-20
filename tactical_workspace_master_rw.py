@@ -1597,8 +1597,8 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             # 🌟 ADDED Safety check for Field Nation revocation
             with st.popover("🚨 Confirm Field Nation Revocation", use_container_width=True):
                 st.error("Remove this route from Field Nation tracking?")
-                if st.button("🚨 Yes, Revoke FN", key=f"fn_rev_confirm_{pod_name}_{cluster_hash}", type="primary", use_container_width=True):
-                    move_to_dispatch(cluster_hash=cluster_hash, ic_name="Field Nation", pod_name=pod_name, action_label="Field Nation Revoked", check_onfleet=True)
+                # 🌟 THE FIX: Upgraded to a callback so it doesn't freeze the screen!
+                st.button("🚨 Yes, Revoke FN", key=f"fn_rev_confirm_{pod_name}_{cluster_hash}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": cluster_hash, "ic_name": "Field Nation", "pod_name": pod_name, "action_label": "Field Nation Revoked", "check_onfleet": True})
             st.stop()
 
     BG_COLOR = "#FEF9C3"
