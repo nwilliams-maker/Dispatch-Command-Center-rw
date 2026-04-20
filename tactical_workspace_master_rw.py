@@ -1212,7 +1212,17 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
 
     except Exception as e:
         st.error(f"Error initializing {pod_name}: {str(e)}")
-
+# 🌟 NEW HELPER: Dynamically generates the 3 new digital badges for expanders
+def get_digi_badges(cluster_data):
+    icons = set()
+    for t in cluster_data:
+        if t.get('is_digital'):
+            tt = str(t.get('task_type', '')).lower()
+            if 'offline' in tt: icons.add('📵')
+            elif 'ins/re' in tt: icons.add('🛠️')
+            else: icons.add('⚙️')
+    return "".join(sorted(list(icons)))
+    
 # --- DISPATCH RENDERING ---
 def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     # Capture current state identifiers
@@ -1296,15 +1306,18 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         elif not found_category:
             stop_metrics[addr]['oth'] += 1
             
-    # --- UI RENDERING (WITH BREAK-OFF FEATURE) ---
-    for addr, metrics in stop_metrics.items():
+    # UI: Stop Info + Break-Off Button Layout
         pill_parts = []
         if metrics['n_ad'] > 0: pill_parts.append(f"🆕 {metrics['n_ad']} New Ad")
         if metrics['c_ad'] > 0: pill_parts.append(f"🔄 {metrics['c_ad']} Continuity")
         if metrics['d_ad'] > 0: pill_parts.append(f"⚪ {metrics['d_ad']} Default")
         if metrics['inst'] > 0: pill_parts.append(f"🛠️ {metrics['inst']} Kiosk Install")
         if metrics['remov'] > 0: pill_parts.append(f"🗑️ {metrics['remov']} Kiosk Removal")
-        if metrics['digi'] > 0: pill_parts.append(f"🔌 {metrics['digi']} Digital Service")
+        
+        # 🌟 THE FIX: Inject the 3 new icons into the stop summary strings
+        if metrics['digi_off'] > 0: pill_parts.append(f"📵 {metrics['digi_off']} Offline")
+        if metrics['digi_ins'] > 0: pill_parts.append(f"🛠️ {metrics['digi_ins']} Ins/Rem")
+        if metrics['digi_srv'] > 0: pill_parts.append(f"⚙️ {metrics['digi_srv']} Service")
         
         pill_str = " | ".join(pill_parts)
         display_addr = f"⭐ {addr}" if metrics['esc'] else addr
@@ -1552,10 +1565,18 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         addr = t.get('full', 'Unknown')
         if addr not in loc_pills: loc_pills[addr] = ""
         if t.get('escalated') and "⭐" not in loc_pills[addr]: loc_pills[addr] += "⭐"
-        if t.get('is_digital') and "🔌" not in loc_pills[addr]: loc_pills[addr] += "🔌"
-        if "install" in str(t.get('task_type','')).lower() and "🛠️" not in loc_pills[addr]: loc_pills[addr] += "🛠️"
-        if str(t.get('task_type','')).lower() in ["kiosk removal", "remove kiosk"] and "🗑️" not in loc_pills[addr]: 
-            loc_pills[addr] += "🗑️"
+        
+        # 🌟 THE FIX: Split Digital Email Output
+        if t.get('is_digital'):
+            tt_lower = str(t.get('task_type','')).lower()
+            if "offline" in tt_lower and "📵" not in loc_pills[addr]: loc_pills[addr] += "📵"
+            elif "ins/re" in tt_lower and "🛠️" not in loc_pills[addr]: loc_pills[addr] += "🛠️"
+            elif ("offline" not in tt_lower and "ins/re" not in tt_lower) and "⚙️" not in loc_pills[addr]: 
+                loc_pills[addr] += "⚙️"
+        else:
+            if "install" in str(t.get('task_type','')).lower() and "🛠️" not in loc_pills[addr]: loc_pills[addr] += "🛠️"
+            if str(t.get('task_type','')).lower() in ["kiosk removal", "remove kiosk"] and "🗑️" not in loc_pills[addr]: 
+                loc_pills[addr] += "🗑️"
 
     due = st.session_state.get(f"dd_{pod_name}_{cluster_hash}", datetime.now().date()+timedelta(14))
     is_already_sent = is_sent or is_declined or st.session_state.get(f"route_state_{cluster_hash}") == "email_sent"
@@ -1877,7 +1898,9 @@ def run_pod_tab(pod_name):
 <div style="display: flex; justify-content: center; flex-wrap: wrap; gap: 20px; background: #ffffff; padding: 12px; border-radius: 12px; border: 1px solid #cbd5e1; margin-top: -10px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
     <div style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; align-self: center; margin-right: 10px;">Route Key:</div>
     <div style="font-size: 13px; cursor: help;" title="Route is within distance limits (<60mi) and standard rate (<$25/stop).">🟢 Ready</div>
-    <div style="font-size: 13px; cursor: help;" title="Digital Service: Contains digital service requests."><span style="color:#0f766e;">●</span> Digital Service</div>
+    <div style="font-size: 13px; cursor: help;" title="Digital Offline: Screen reported offline.">📵 Offline</div>
+    <div style="font-size: 13px; cursor: help;" title="Digital Ins/Rem: Installation or removal of digital screen.">🛠️ Ins/Rem</div>
+    <div style="font-size: 13px; cursor: help;" title="Digital Service: Standard digital maintenance.">⚙️ Service</div>
     <div style="font-size: 13px; cursor: help;" title="Route is frozen and requires manual authorization before sending.">🔒 Action Required</div>
     <div style="font-size: 13px; cursor: help;" title="The calculated price per stop is $25.00 or higher.">💰 High Rate</div>
     <div style="font-size: 13px; cursor: help;" title="The closest contractor is more than 60 miles away.">📡 Long Distance</div>
