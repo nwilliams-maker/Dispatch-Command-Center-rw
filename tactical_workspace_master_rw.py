@@ -2454,7 +2454,7 @@ with tabs[6]:
     # 2. ⚡ DIGITAL HEADER & DYNAMIC BUTTON
     dh_col1, dh_col2, dh_col3 = st.columns([2, 6, 2])
     with dh_col2:
-        st.markdown(f"<div style='text-align:center; padding-bottom:15px;'><h2 style='color:{TB_DIGITAL_TEXT}; margin:0;'>🔌 Digital Services</h2></div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align:center; padding-bottom:15px;'><h2 style='color:{TB_DIGITAL_TEXT}; margin:0;'>🔌 Digital Services Dashboard</h2></div>", unsafe_allow_html=True)
     with dh_col3:
         st.markdown("<div class='tab-action-btn'>", unsafe_allow_html=True)
         btn_label = "🚀 Sync Routes" if global_digital else "🚀 Initialize Data"
