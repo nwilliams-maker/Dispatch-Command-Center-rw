@@ -282,11 +282,51 @@ button[kind="secondary"] {{
     transition: all 0.2s ease !important;
 }}
 
-/* EXPANDER & LAYOUT TIGHTENING (Pure CSS Fusion) */
-/* 1. Target the Expander on the Left side of the gap */
-div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(2) button) > div[data-testid="stColumn"]:nth-child(1) div[data-testid="stExpander"] {{
+/* =========================================
+   1. SCISSORS BUTTON (INSIDE EXPANDER)
+   ========================================= */
+div[data-testid="stExpander"] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(2) button {{
+    margin-top: 2px !important;
+    transform: scale(0.7) !important;
+    transform-origin: center right !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+}}
+
+/* =========================================
+   2. REVOKE POPOVER FUSION (OUTSIDE EXPANDER)
+   ========================================= */
+/* Target the Expander on the Left side of the gap */
+div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(2) div[data-testid="stPopover"]) > div[data-testid="stColumn"]:nth-child(1) div[data-testid="stExpander"] {{
     border-top-right-radius: 0px !important;
     border-bottom-right-radius: 0px !important;
+    border-right: 0px !important;
+}}
+
+/* Target the Popover Button on the Right side of the gap */
+div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(1) div[data-testid="stExpander"]) > div[data-testid="stColumn"]:nth-child(2) div[data-testid="stPopover"] > button {{
+    margin-left: -1rem !important;
+    width: calc(100% + 1rem) !important;
+    border-top-left-radius: 0px !important;
+    border-bottom-left-radius: 0px !important;
+    height: 40px !important; /* 🌟 Matches Expander Height */
+    margin-top: 0px !important;
+    border: 1px solid #cbd5e1 !important;
+    border-left: 1px solid #e2e8f0 !important; /* Subtle inner line */
+    background-color: #ffffff !important;
+    color: #633094 !important;
+    border-radius: 0 10px 10px 0 !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}}
+
+div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(1) div[data-testid="stExpander"]) > div[data-testid="stColumn"]:nth-child(2) div[data-testid="stPopover"] > button:hover {{
+    background-color: #fcfaff !important;
+    border-color: #cbd5e1 !important;
 }}
 
 /* Main Expander Container */
@@ -430,13 +470,6 @@ div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb
     font-weight: 800 !important;
 }}
 
-/* --- RIGHT COLUMN: Awaiting Tabs --- */
-/* Force the gap and center the pills so they don't stretch */
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab-list"] {{
-    gap: 8px !important;
-    justify-content: center !important; 
-}}
-
 /* 🌟 COMPACT PILLS OVERRIDE: Stops them from stretching wide */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"] {{
     padding: 4px 12px !important;
@@ -451,14 +484,16 @@ div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb
     white-space: nowrap !important;
 }}
 
-/* 1. Sent (Purple/Blue) */
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) {{
-    background-color: #f3e8ff !important;
-    border: 2px solid #633094 !important;
-    border-radius: 30px !important;
+/* --- RIGHT COLUMN: Awaiting Tabs --- */
+/* Force the gap and center the pills so they don't stretch */
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab-list"] {{
+    gap: 12px !important;
+    justify-content: center !important; 
 }}
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) p {{
-    color: #633094 !important; 
+
+/* 🌟 THE FIX: Removed the height/padding constraints so they match the Left Column */
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"] p {{
+    white-space: nowrap !important;
 }}
 
 /* 2. Accepted (Green) */
