@@ -1768,7 +1768,8 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         local_sent_db = st.session_state.get('sent_db', {})
         collision = next((tid for tid in task_ids if tid in local_sent_db), None)
         
-        if collision:
+        # 🌟 THE FIX: Only block collisions if we are trying to send a brand new route!
+        if collision and not is_already_sent:
             st.error(f"🚫 COLLISION: Dispatched by someone else ({local_sent_db[collision]['name']}).")
             st.rerun() 
             return
