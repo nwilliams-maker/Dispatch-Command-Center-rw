@@ -289,16 +289,6 @@ div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child
     border-bottom-right-radius: 0px !important;
 }}
 
-/* 2. Target the Break-off Button on the Right side of the gap */
-div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(1) div[data-testid="stExpander"]) > div[data-testid="stColumn"]:nth-child(2) button {{
-    margin-left: -1rem !important;
-    width: calc(100% + 1rem) !important;
-    border-top-left-radius: 0px !important;
-    border-bottom-left-radius: 0px !important;
-    transform: scale(0.65); /* 🌟 This scales the entire scissors button down */
-    transform-origin: center right;
-}}
-
 /* Main Expander Container */
 div[data-testid="stExpander"] {{ 
     border: 1px solid #cbd5e1 !important; 
