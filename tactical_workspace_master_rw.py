@@ -2202,7 +2202,7 @@ def run_pod_tab(pod_name):
                 tasks_cnt = g.get('tasks', 0)
                 
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
-                    with exp_col:
+                with exp_col:
                     with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
                         st.success("Route accepted. Complete the checklist to finalize.")
                             
