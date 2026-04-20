@@ -765,9 +765,19 @@ def fetch_sent_records_from_sheet():
                                         state_guess = state_raw.split(' ')[0] # 🌟 THE FIX: Strips out zip codes!
                                         city_guess = addr_parts[-2].strip()
                                 
-                                # 🌟 THE FIX: Automatically identify Digital Ghost routes via emojis!
-                                job_only = str(p.get('jobOnly', ''))
-                                is_digital_ghost = any(icon in job_only for icon in ['🔌', '🔧', '⚙️', '📵'])
+                                # 🌟 THE FIX: Bulletproof Digital Ghost Detection
+                                # Check the raw JSON payload first, then fallback to emojis
+                                is_digital_ghost = False
+                                
+                                # Try extracting from raw taskIds if we have them
+                                if tids and tids[0].strip() in sent_dict:
+                                    is_digital_ghost = sent_dict[tids[0].strip()].get('is_digital', False)
+                                    
+                                # If it's not explicitly labeled in the dictionary, scan the job string
+                                if not is_digital_ghost:
+                                    job_only = str(p.get('jobOnly', ''))
+                                    # Added "Service", "Offline", "Ins/Rem" text matches just in case emojis were stripped
+                                    is_digital_ghost = any(trigger in job_only.lower() for trigger in ['🔌', '🔧', '⚙️', '📵', 'service', 'offline', 'ins/rem'])
                                 
                                 pod_name = "UNKNOWN"
                                 if is_digital_ghost:
