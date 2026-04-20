@@ -2210,10 +2210,17 @@ def run_pod_tab(pod_name):
                     with st.expander(f"✅ {g.get('wo', g_ic_name)} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
                         st.success("Accepted and synced with OnFleet. Complete the checklist to finalize.")
                         
-                        # 🌟 THE FIX: Inject the mini Location Record for Ghost Routes
+                        # 🌟 THE FIX: Inject the mini Location Record for Ghost Routes (Excluding Contractor Home)
                         raw_locs = [s.strip() for s in g.get('locs', '').split('|') if s.strip()]
+                        
+                        # Strip the first and last items (which are always the contractor's home address)
+                        if len(raw_locs) >= 3:
+                            task_locs = raw_locs[1:-1]
+                        else:
+                            task_locs = raw_locs # Fallback just in case
+                            
                         u_locs = []
-                        for l in raw_locs:
+                        for l in task_locs:
                             if l not in u_locs: u_locs.append(l)
                         
                         if u_locs:
