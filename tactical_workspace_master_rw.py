@@ -2555,7 +2555,7 @@ with tabs[6]:
                     with btn_col:
                         with st.popover("↩️ Revoke", use_container_width=True):
                             st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
-                            # 🌟 CALLBACK FIX
+                            # 🌟 CALLBACK FIX (No indented code underneath!)
                             st.button("🚨 Yes, Remove", key=f"rev_d_sent_{cluster_hash}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": cluster_hash, "ic_name": ic_name, "pod_name": "Global_Digital", "cluster_data": c})
             
             with t_acc:
@@ -2581,7 +2581,7 @@ with tabs[6]:
                             chk3 = cc3.checkbox("Payment Scheduled", key=f"d_chk3_{cluster_hash}")
                             
                             if chk1 and chk2 and chk3:
-                                # 🌟 CALLBACK FIX
+                                # 🌟 CALLBACK FIX (No indented code underneath!)
                                 st.button("🏁 Finalize Route", key=f"d_fin_{cluster_hash}", type="primary", use_container_width=True, on_click=finalize_route_handler, args=(cluster_hash,))
 
                             st.divider()
@@ -2589,7 +2589,7 @@ with tabs[6]:
                     with btn_col:
                         with st.popover("↩️ Revoke", use_container_width=True):
                             st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
-                            # 🌟 CALLBACK FIX
+                            # 🌟 CALLBACK FIX (No indented code underneath!)
                             st.button("🚨 Yes, Remove", key=f"rev_d_acc_{cluster_hash}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": cluster_hash, "ic_name": ic_name, "pod_name": "Global_Digital", "cluster_data": c})
 
             with t_dec:
@@ -2604,7 +2604,7 @@ with tabs[6]:
                     with btn_col:
                         with st.popover("↩️ Revoke", use_container_width=True):
                             st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
-                            # 🌟 CALLBACK FIX
+                            # 🌟 CALLBACK FIX (No indented code underneath!)
                             st.button("🚨 Yes, Remove", key=f"rev_d_dec_{cluster_hash}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": cluster_hash, "ic_name": ic_name, "pod_name": "Global_Digital", "cluster_data": c})
                     
             with t_fin:
@@ -2621,9 +2621,8 @@ with tabs[6]:
                     with btn_col:
                         with st.popover("↩️ Re-Route", use_container_width=True):
                             st.markdown(f"<p style='font-size:13px; text-align:center;'>Re-route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
-                            # 🌟 CALLBACK FIX
+                            # 🌟 CALLBACK FIX (No indented code underneath!)
                             st.button("🚨 Yes, Re-Route", key=f"rev_d_fin_{cluster_hash}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": cluster_hash, "ic_name": ic_name, "pod_name": "Global_Digital", "action_label": "Re-Routed", "check_onfleet": True, "cluster_data": c})
-                            move_to_dispatch(cluster_hash, ic_name, "Global_Digital", cluster_data=c)
                             
 # --- FINAL FOOTER (End of File) ---
 st.markdown("---")
