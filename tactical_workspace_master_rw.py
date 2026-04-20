@@ -2106,7 +2106,8 @@ with tabs[0]:
                 total_tasks = sum(len(c['data']) for c in pod_cls)
                 total_stops = sum(c['stops'] for c in pod_cls)
                 
-                sent, accepted, declined, field_nation = [], [], [], []
+                # 🌟 THE FIX: Initialize all required lists for the Global summary
+                sent, accepted, declined, field_nation, ready, review, finalized = [], [], [], [], [], [], []
                 
                 for c in pod_cls:
                     task_ids = [str(t['id']).strip() for t in c['data']]
@@ -2128,7 +2129,7 @@ with tabs[0]:
                             finalized.append(c)
                         else:
                             sent.append(c)
-                    # 🌟 THE FIX: Added "email_sent" to route the locally generated links to the Sent bucket
+                    # 🌟 Handle Local Session State
                     elif route_state == "email_sent" and not is_reverted:
                         sent.append(c)
                     elif route_state == "field_nation" and not is_reverted: 
