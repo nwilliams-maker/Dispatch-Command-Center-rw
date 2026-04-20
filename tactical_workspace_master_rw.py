@@ -2253,8 +2253,8 @@ with tabs[6]:
                         render_dispatch(i+9500, c, "Global_Digital")
 
         with col_right:
-        st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_GREEN}; margin-bottom: 5px; text-align: center;'>⏳ Awaiting Confirmation</div>", unsafe_allow_html=True)
-        t_sent, t_acc, t_dec, t_fin = st.tabs(["✉️ Sent (Pending)", "✅ Accepted", "❌ Declined", "🏁 Finalized"])
+                st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_GREEN}; margin-bottom: 5px; text-align: center;'>⏳ Awaiting Confirmation</div>", unsafe_allow_html=True)
+                t_sent, t_acc, t_dec, t_fin = st.tabs(["✉️ Sent (Pending)", "✅ Accepted", "❌ Declined", "🏁 Finalized"])
         
         with t_sent:
             if not sent: st.info("No pending routes sent.")
