@@ -1697,7 +1697,11 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         wo_val = f"{ic.get('name', 'Unknown')}-{datetime.now().strftime('%m%d%Y')}"
     total_digital = sum(1 for t in cluster['data'] if t.get('is_digital'))
     total_installs = sum(1 for t in cluster['data'] if "install" in str(t.get('task_type','')).lower())
-    install_warning = "⚠️ NOTE: This route contains Kiosk Installs. Please ensure you have adequate vehicle space.\n\n" if total_installs > 0 else ""
+    
+    # 🌟 THE FIX: Make all lines dynamic so they disappear if the count is 0
+    digital_line = f" 🔌 Digital Tasks: {total_digital}\n" if total_digital > 0 else ""
+    kiosk_line = f" 🛠️ Kiosk Installs: {total_installs}\n" if total_installs > 0 else ""
+    install_warning = f"\n⚠️ NOTE: This route contains Kiosk Installs. Please ensure you have adequate vehicle space.\n" if total_installs > 0 else ""
     
     sig_preview = (
         f"Hello {ic.get('name', 'Contractor')},\n\n"
@@ -1706,8 +1710,9 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         f"📅 Due Date: {due.strftime('%A, %b %d, %Y')}\n"
         f" Total Stops: {cluster['stops']}\n"
         f" Estimated Compensation: ${final_pay:.2f}\n"
-        f" 🔌 Digital Tasks: {total_digital}\n\n" 
-        f"{install_warning}"
+        f"{digital_line}"
+        f"{kiosk_line}"
+        f"{install_warning}\n"
         f"To view the complete route details—including total stops, estimated mileage, and time—please click the secure link below to access your Route Summary.\n\n"
         f"⚠️ ACTION REQUIRED:\n"
         f"You must confirm by selecting 'Accept' or 'Decline' directly through the portal link.\n\n"
