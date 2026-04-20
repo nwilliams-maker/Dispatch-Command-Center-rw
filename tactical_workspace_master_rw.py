@@ -2148,10 +2148,10 @@ with tabs[0]:
                         if orig == "declined":
                             declined.append(c)
                         else:
-                            d_ready.append(c)
+                            ready.append(c)
                     else:
                         if c.get('status') == 'Ready': 
-                            d_ready.append(c)
+                            ready.append(c)
                         else: 
                             review.append(c)
                 
