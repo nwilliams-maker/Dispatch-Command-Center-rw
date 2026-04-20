@@ -643,16 +643,6 @@ def background_sheet_finalize(cluster_hash):
     except:
         pass
 
-def finalize_route_handler(cluster_hash):
-    # 1. 🚀 FIRE AND FORGET: Move the row in Google Sheets in the background
-    threading.Thread(target=background_sheet_finalize, args=(cluster_hash,), daemon=True).start()
-    
-    # 2. 🧠 INSTANT UI OVERRIDE: Force the UI to immediately move it to the Finalized tab
-    st.session_state[f"route_state_{cluster_hash}"] = "finalized"
-    st.session_state[f"reverted_{cluster_hash}"] = True 
-    st.toast("🏁 Route Finalized! Moving to Finalized tab...")
-    st.rerun() # 🌟 CRITICAL: Forces the whole app to refresh and move the card!
-
 @st.fragment
 def render_finalization_checklist(cluster_hash, pod_name, prefix="chk"):
     """Isolates checkbox reruns so the whole page doesn't reload, making checks instant."""
@@ -663,7 +653,18 @@ def render_finalization_checklist(cluster_hash, pod_name, prefix="chk"):
     chk3 = cc3.checkbox("Packing list created.", key=f"{prefix}3_{cluster_hash}_{pod_name}")
     
     if chk1 and chk2 and chk3:
-        st.button("🏁 Finalize Route", key=f"finbtn_{prefix}_{cluster_hash}_{pod_name}", type="primary", use_container_width=True, on_click=finalize_route_handler, args=(cluster_hash,))
+        # 🌟 THE FIX: Handled procedurally instead of via callback to escape the fragment trap!
+        if st.button("🏁 Finalize Route", key=f"finbtn_{prefix}_{cluster_hash}_{pod_name}", type="primary", use_container_width=True):
+            # 1. 🚀 FIRE AND FORGET
+            threading.Thread(target=background_sheet_finalize, args=(cluster_hash,), daemon=True).start()
+            
+            # 2. 🧠 INSTANT UI OVERRIDE
+            st.session_state[f"route_state_{cluster_hash}"] = "finalized"
+            st.session_state[f"reverted_{cluster_hash}"] = True 
+            
+            st.toast("🏁 Route Finalized! Moving to Finalized tab...")
+            time.sleep(0.1) # Tiny pause to guarantee the toast visually registers
+            st.rerun() # This explicitly commands Streamlit to refresh the entire app!
         
 
     
