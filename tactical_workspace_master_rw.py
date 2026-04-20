@@ -1399,7 +1399,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         with b_col:
             if not is_sent and not is_declined:
                 # 🌟 THE BREAK-OFF TOOL (UNIQUE KEY)
-                if st.button("✂️", key=f"split_{pod_name}_{cluster_hash}_{hashlib.md5(addr.encode()).hexdigest()[:6]}", help=f"Break this stop into its own route"):
+                if st.button("✂️", key=f"split_{pod_name}_{cluster_hash}_{hashlib.md5(addr.encode()).hexdigest()[:6]}", help=f"Remove this stop from the route"):
                     # 1. Identify tasks to move
                     tasks_to_move = [t for t in cluster['data'] if t['full'] == addr]
                     
