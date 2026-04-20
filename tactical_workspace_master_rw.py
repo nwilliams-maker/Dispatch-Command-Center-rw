@@ -1676,8 +1676,8 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         # 🌟 THE FIX: Split Digital Email Output
         if t.get('is_digital'):
             tt_lower = str(t.get('task_type','')).lower()
-            if "offline" in tt_lower and "📵" not in loc_pills[addr]: loc_pills[addr] += "📵"
-            elif "ins/re" in tt_lower and "🛠️" not in loc_pills[addr]: loc_pills[addr] += "🛠️"
+            if "offline" in tt_lower and "📵" not in loc_pills[addr]: loc_pills[addr] += "🔌"
+            elif "ins/re" in tt_lower and "🔧" not in loc_pills[addr]: loc_pills[addr] += "🔧"
             elif ("offline" not in tt_lower and "ins/re" not in tt_lower) and "⚙️" not in loc_pills[addr]: 
                 loc_pills[addr] += "⚙️"
         else:
