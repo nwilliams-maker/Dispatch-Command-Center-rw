@@ -2180,33 +2180,6 @@ def run_pod_tab(pod_name):
                     with st.expander(f"✅ {g.get('wo', g_ic_name)} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
                         st.success("Accepted and synced with OnFleet. Complete the checklist to finalize.")
                         
-                        # 🌟 Finalization Checklist for Ghost Routes
-                        st.markdown("<p style='font-size: 13px; font-weight: 600;'>Finalization Checklist:</p>", unsafe_allow_html=True)
-                        cc1, cc2, cc3 = st.columns(3)
-                        chk1 = cc1.checkbox("Tasks Completed", key=f"g_chk1_{ghost_hash}_{pod_name}")
-                        chk2 = cc2.checkbox("Photos Verified", key=f"g_chk2_{ghost_hash}_{pod_name}")
-                        chk3 = cc3.checkbox("Payment Scheduled", key=f"g_chk3_{ghost_hash}_{pod_name}")
-                        
-                        if chk1 and chk2 and chk3:
-                            if st.button("🏁 Finalize Route", key=f"g_fin_{ghost_hash}_{pod_name}", type="primary", use_container_width=True):
-                                with st.spinner("Finalizing..."):
-                                    finalize_route_handler(ghost_hash)
-                                    st.rerun()
-                with btn_col:  # 🌟 THE FIX: Single colon restored
-                    with st.popover("↩️ Revoke", use_container_width=True):
-                        st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{g_ic_name}</b>?</p>", unsafe_allow_html=True)
-                        if st.button("🚨 Yes, Remove", key=f"rev_ghost_{ghost_hash}_{i}", type="primary", use_container_width=True):
-                            move_to_dispatch(cluster_hash=ghost_hash, ic_name=g_ic_name, pod_name=pod_name, action_label="Ghost Archived", check_onfleet=True, cluster_data=g)
-                            st.rerun()
-                            
-            for i, g in enumerate(pod_ghosts):
-                g_ic_name = g.get('contractor_name', 'Unknown')
-                ghost_hash = g.get('hash', f"ghost_{i}")
-                exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
-                with exp_col:
-                    with st.expander(f"✅ {g.get('wo', g_ic_name)} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
-                        st.success("Accepted and synced with OnFleet. Complete the checklist to finalize.")
-                        
                         # 🌟 NEW: Finalization Checklist for Ghost Routes
                         st.markdown("<p style='font-size: 13px; font-weight: 600;'>Finalization Checklist:</p>", unsafe_allow_html=True)
                         cc1, cc2, cc3 = st.columns(3)
@@ -2225,6 +2198,8 @@ def run_pod_tab(pod_name):
                         if st.button("🚨 Yes, Remove", key=f"rev_ghost_{ghost_hash}_{i}", type="primary", use_container_width=True):
                             move_to_dispatch(cluster_hash=ghost_hash, ic_name=g_ic_name, pod_name=pod_name, action_label="Ghost Archived", check_onfleet=True, cluster_data=g)
                             st.rerun()
+                    
+        with t_dec:
                     
         with t_dec:
             if not declined: st.info("No declined routes.")
