@@ -289,6 +289,16 @@ div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child
     border-bottom-right-radius: 0px !important;
 }}
 
+/* 2. Target the Break-off Button on the Right side of the gap */
+div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(1) div[data-testid="stExpander"]) > div[data-testid="stColumn"]:nth-child(2) button {{
+    margin-left: -1rem !important;
+    width: calc(100% + 1rem) !important;
+    border-top-left-radius: 0px !important;
+    border-bottom-left-radius: 0px !important;
+    transform: scale(0.65) !important; /* 🌟 This scales the icon to roughly half size */
+    transform-origin: center right;
+}}
+
 /* Main Expander Container */
 div[data-testid="stExpander"] {{ 
     border: 1px solid #cbd5e1 !important; 
@@ -1899,59 +1909,61 @@ def run_pod_tab(pod_name):
                     render_dispatch(i+7000, c, pod_name)
                     
     with col_right:
-            st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_GREEN}; text-align: center;'>⏳ Awaiting Confirmation</div>", unsafe_allow_html=True)
-            t_sent, t_acc, t_dec, t_fin = st.tabs(["✉️ Sent", "✅ Accepted", "❌ Declined", "🏁 Finalized"])
-            
-            with t_sent:
-                for i, c in enumerate(d_sent):
-                    task_ids = [str(t['id']).strip() for t in c['data']]
-                    cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
-                    ic_name = c.get('contractor_name', 'Unknown')
-                    wo_display = c.get('wo', ic_name)
-                    
-                    exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
-                    with exp_col:
-                        with st.expander(f"✉️ {wo_display} | {c['city']}, {c['state']}"):
-                            render_dispatch(i+10000, c, "Global_Digital", is_sent=True)
-                    with btn_col:
-                        with st.popover("↩️ Revoke", use_container_width=True):
-                            st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
-                            if st.button("🚨 Yes, Remove", key=f"rev_d_sent_{cluster_hash}", type="primary", use_container_width=True):
-                                move_to_dispatch(cluster_hash, ic_name, "Global_Digital", cluster_data=c)
-            
-            with t_acc:
-                for i, c in enumerate(d_acc):
-                    task_ids = [str(t['id']).strip() for t in c['data']]
-                    cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
-                    ic_name = c.get('contractor_name', 'Unknown')
-                    wo_display = c.get('wo', 'Ready')
-                    
-                    exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
-                    with exp_col:
-                        with st.expander(f"✅ {wo_display} | {c['city']}, {c['state']}"):
-                            render_dispatch(i+11000, c, "Global_Digital", is_sent=True)
-                    with btn_col:
-                        with st.popover("↩️ Revoke", use_container_width=True):
-                            st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
-                            if st.button("🚨 Yes, Remove", key=f"rev_d_acc_{cluster_hash}", type="primary", use_container_width=True):
-                                move_to_dispatch(cluster_hash, ic_name, "Global_Digital", cluster_data=c)
-            
-            with t_dec:
-                for i, c in enumerate(d_dec):
-                    task_ids = [str(t['id']).strip() for t in c['data']]
-                    cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
-                    ic_name = c.get('contractor_name', 'Unknown')
-                    wo_display = c.get('wo', ic_name)
-                    
-                    exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
-                    with exp_col:
-                        with st.expander(f"❌ {wo_display} | {c['city']}, {c['state']}"):
-                            render_dispatch(i+12000, c, "Global_Digital", is_declined=True)
-                    with btn_col:
-                        with st.popover("↩️ Revoke", use_container_width=True):
-                            st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
-                            if st.button("🚨 Yes, Remove", key=f"rev_d_dec_{cluster_hash}", type="primary", use_container_width=True):
-                                move_to_dispatch(cluster_hash, ic_name, "Global_Digital", cluster_data=c)
+        st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_GREEN}; margin-bottom: 5px; text-align: center;'>⏳ Awaiting Confirmation</div>", unsafe_allow_html=True)
+        t_sent, t_acc, t_dec, t_fin = st.tabs(["✉️ Sent (Pending)", "✅ Accepted", "❌ Declined", "🏁 Finalized"])
+        
+        with t_sent:
+            if not sent: st.info("No pending routes sent.")
+            for i, c in enumerate(sent):
+                ic_name = c.get('contractor_name', 'Unknown')
+                task_ids = [str(t['id']).strip() for t in c['data']]
+                cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+                
+                exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                with exp_col:
+                    ts_label = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
+                    with st.expander(f"✉️ {ic_name} | {c['city']}, {c['state']}{ts_label}"):
+                        render_dispatch(i+500, c, pod_name, is_sent=True)
+
+                with btn_col:
+                    with st.popover("↩️ Revoke", use_container_width=True):
+                        st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
+                        if st.button("🚨 Yes, Remove", key=f"rev_sent_{cluster_hash}_{pod_name}", type="primary", use_container_width=True):
+                            move_to_dispatch(cluster_hash, ic_name, pod_name, cluster_data=c)
+                            
+        with t_acc:
+            if not accepted and not pod_ghosts: st.info("Waiting for portal acceptances...")
+            for i, c in enumerate(accepted):
+                ic_name = c.get('contractor_name', 'Unknown')
+                task_ids = [str(t['id']).strip() for t in c['data']]
+                cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+                
+                exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                with exp_col:
+                    with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']}"):
+                        st.success("Route accepted. Complete the checklist to finalize.")
+                        render_dispatch(i+2000, c, pod_name, is_sent=True)
+                        
+                with btn_col:
+                    with st.popover("↩️ Revoke", use_container_width=True):
+                        st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
+                        if st.button("🚨 Yes, Remove", key=f"rev_acc_{cluster_hash}_{pod_name}", type="primary", use_container_width=True):
+                            move_to_dispatch(cluster_hash, ic_name, pod_name, cluster_data=c)
+
+        with t_dec:
+            for i, c in enumerate(declined):
+                ic_name = c.get('contractor_name', 'Unknown')
+                task_ids = [str(t['id']).strip() for t in c['data']]
+                cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+                exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                with exp_col:
+                    with st.expander(f"❌ {ic_name} | {c['city']}, {c['state']}"):
+                        render_dispatch(i+3000, c, pod_name, is_declined=True)
+                with btn_col:
+                    with st.popover("↩️ Revoke", use_container_width=True):
+                        st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
+                        if st.button("🚨 Yes, Remove", key=f"rev_dec_{cluster_hash}_{pod_name}", type="primary", use_container_width=True):
+                            move_to_dispatch(cluster_hash, ic_name, pod_name, cluster_data=c)
             
             with t_fin:
                 for i, c in enumerate(d_fin):
@@ -2243,119 +2255,53 @@ with tabs[6]:
                         render_dispatch(i+9500, c, "Global_Digital")
 
         with col_right:
-                st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_GREEN}; margin-bottom: 5px; text-align: center;'>⏳ Awaiting Confirmation</div>", unsafe_allow_html=True)
-                t_sent, t_acc, t_dec, t_fin = st.tabs(["✉️ Sent (Pending)", "✅ Accepted", "❌ Declined", "🏁 Finalized"])
-        
-        with t_sent:
-            if not sent: st.info("No pending routes sent.")
-            for i, c in enumerate(sent):
-                ic_name = c.get('contractor_name', 'Unknown')
-                esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
-                digi_pill = " 🔌" if c.get('is_digital') else ""  
-                inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else ""
-                task_ids = [str(t['id']).strip() for t in c['data']]
-                cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
-                
-                exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
-                with exp_col:
-                    ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
-                    with st.expander(f"✉️ {ic_name} | {c['city']}, {c['state']}{digi_pill}{inst_pill}{esc_pill}{ts_suffix}"):
-                        render_dispatch(i+500, c, pod_name, is_sent=True)
-
-                with btn_col:
-                    with st.popover("↩️ Revoke", use_container_width=True):
-                        st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
-                        if st.button("🚨 Yes, Remove", key=f"rev_sent_{cluster_hash}_{pod_name}", type="primary", use_container_width=True):
-                            move_to_dispatch(cluster_hash, ic_name, pod_name, cluster_data=c)
-                            
-        with t_acc:
-            if not accepted and not pod_ghosts: st.info("Waiting for portal acceptances...")
+            st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_GREEN}; text-align: center;'>⏳ Awaiting Confirmation</div>", unsafe_allow_html=True)
+            t_sent, t_acc, t_dec, t_fin = st.tabs(["✉️ Sent", "✅ Accepted", "❌ Declined", "🏁 Finalized"])
             
-            for i, c in enumerate(accepted):
-                ic_name = c.get('contractor_name', 'Unknown')
-                wo_display = c.get('wo', ic_name)
-                ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
-                task_ids = [str(t['id']).strip() for t in c['data']]
-                cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
-                
-                exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
-                with exp_col:
-                    digi_pill = " 🔌" if c.get('is_digital') else "" 
-                    with st.expander(f"✅ {wo_display} | {c['city']}, {c['state']}{digi_pill}{ts_suffix}"):
-                        st.success("Route accepted. Tasks are assigning in Onfleet.")
-                        st.divider()
-                        st.markdown("<p style='font-weight:800; color:#16a34a;'>📋 Operational Readiness</p>", unsafe_allow_html=True)
-                        step1 = st.checkbox("1. **Onfleet**: Optimized route?", key=f"s1_{cluster_hash}")
-                        step2 = st.checkbox("2. **Plan**: Fields & Backend Dispatch?", key=f"s2_{cluster_hash}", disabled=not step1)
-                        if st.checkbox("3. **Pack**: Packing list uploaded?", key=f"s3_{cluster_hash}", disabled=not step2):
-                            finalize_route_handler(cluster_hash)
-                            st.rerun()
-                        render_dispatch(i+2000, c, pod_name, is_sent=True)
-                        
-                with btn_col:
-                    with st.popover("↩️ Revoke", use_container_width=True):
-                        st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
-                        if st.button("🚨 Yes, Remove", key=f"rev_acc_{cluster_hash}_{pod_name}", type="primary", use_container_width=True):
-                            move_to_dispatch(cluster_hash, ic_name, pod_name, cluster_data=c)
+            with t_sent:
+                for i, c in enumerate(d_sent):
+                    task_ids = [str(t['id']).strip() for t in c['data']]
+                    cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+                    ic_name = c.get('contractor_name', 'Unknown')
+                    exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                    with exp_col:
+                        with st.expander(f"✉️ {c.get('wo', ic_name)} | {c['city']}, {c['state']}"):
+                            render_dispatch(i+10000, c, "Global_Digital", is_sent=True)
+                    with btn_col:
+                        with st.popover("↩️ Revoke", use_container_width=True):
+                            st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
+                            if st.button("🚨 Yes, Remove", key=f"rev_d_sent_{cluster_hash}", type="primary", use_container_width=True):
+                                move_to_dispatch(cluster_hash, ic_name, "Global_Digital", cluster_data=c)
+            
+            with t_acc:
+                for i, c in enumerate(d_acc):
+                    task_ids = [str(t['id']).strip() for t in c['data']]
+                    cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+                    ic_name = c.get('contractor_name', 'Unknown')
+                    exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                    with exp_col:
+                        with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']}"):
+                            render_dispatch(i+11000, c, "Global_Digital", is_sent=True)
+                    with btn_col:
+                        with st.popover("↩️ Revoke", use_container_width=True):
+                            st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
+                            if st.button("🚨 Yes, Remove", key=f"rev_d_acc_{cluster_hash}", type="primary", use_container_width=True):
+                                move_to_dispatch(cluster_hash, ic_name, "Global_Digital", cluster_data=c)
 
-            for i, g in enumerate(pod_ghosts):
-                wo_display = g.get('wo', g.get('contractor_name', 'Unknown'))
-                ts_suffix = f" | {g.get('route_ts', '')}"
-                ghost_hash = g.get('hash', f"ghost_{i}") 
-                ic_name = g.get('contractor_name', 'Unknown')
-
-                exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
-                with exp_col:
-                    with st.expander(f"✅ {wo_display} | {g.get('city', 'Unknown')}, {g.get('state', 'Unknown')}{ts_suffix}"):
-                        st.success("Route accepted and tasks successfully assigned in OnFleet.")
-                        st.markdown(f"""
-                            <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:12px; margin-top:5px;">
-                                <p style="margin:0; font-size:12px; color:#64748b; font-weight:800; text-transform:uppercase;">Historical Route Data</p>
-                                <div style="display:flex; justify-content:space-between; margin-top:8px;">
-                                    <div><span style="font-size:11px; color:#475569;">Original Tasks:</span><br><b style="color:#000000; font-size:16px;">{g.get('tasks', 0)}</b></div>
-                                    <div><span style="font-size:11px; color:#475569;">Stops:</span><br><b style="color:#000000; font-size:16px;">{g.get('stops', 0)}</b></div>
-                                    <div><span style="font-size:11px; color:#475569;">Compensation:</span><br><b style="color:#22c55e; font-size:16px;">${g.get('pay', 0)}</b></div>
-                                </div>
-                            </div>
-                        """, unsafe_allow_html=True)
-                        st.divider()
-                        st.markdown("<p style='font-weight:800; color:#16a34a;'>📋 Operational Readiness</p>", unsafe_allow_html=True)
-                        s1 = st.checkbox("1. **Onfleet**: Optimized route?", key=f"g_s1_{ghost_hash}_{i}")
-                        s2 = st.checkbox("2. **Plan**: Fields & Backend Dispatch?", key=f"g_s2_{ghost_hash}_{i}", disabled=not s1)
-                        if st.checkbox("3. **Pack**: Packing list uploaded?", key=f"g_s3_{ghost_hash}_{i}", disabled=not s2):
-                            finalize_route_handler(ghost_hash)
-                            st.rerun()
-
-                with btn_col:
-                    g_ic_name = g.get('contractor_name', 'Unknown') # 🌟 THE FIX: Define name locally
-                    with st.popover("↩️ Revoke", use_container_width=True):
-                        st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{g_ic_name}</b>?</p>", unsafe_allow_html=True)
-                        if st.button("🚨 Yes, Remove", key=f"rev_ghost_{ghost_hash}_{i}", type="primary", use_container_width=True):
-                            move_to_dispatch(cluster_hash=ghost_hash, ic_name=g_ic_name, pod_name=pod_name, action_label="Ghost Archived", check_onfleet=True, cluster_data=g)
-                            st.rerun()
-                    
-        with t_dec:
-            if not declined: st.info("No declined routes.")
-            for i, c in enumerate(declined):
-                ic_name = c.get('contractor_name', 'Unknown')
-                ts_label = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
-                esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
-                digi_pill = " 🔌" if c.get('is_digital') else ""  
-                inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else ""
-                task_ids = [str(t['id']).strip() for t in c['data']]
-                cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
-                
-                exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
-                with exp_col:
-                    with st.expander(f"❌ {ic_name} | {c['city']}, {c['state']}{digi_pill}{esc_pill}{ts_suffix}"):
-                        st.error("Route declined. Select a new contractor below to generate a fresh link.")
-                        render_dispatch(i+3000, c, pod_name, is_declined=True)
-                        
-                with btn_col:
-                    with st.popover("↩️ Revoke", use_container_width=True):
-                        st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to completely remove this route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
-                        if st.button("🚨 Yes, Remove", key=f"rev_dec_{cluster_hash}_{pod_name}", type="primary", use_container_width=True):
-                            move_to_dispatch(cluster_hash, ic_name, pod_name, cluster_data=c)
+            with t_dec:
+                for i, c in enumerate(d_dec):
+                    task_ids = [str(t['id']).strip() for t in c['data']]
+                    cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+                    ic_name = c.get('contractor_name', 'Unknown')
+                    exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                    with exp_col:
+                        with st.expander(f"❌ {c.get('wo', ic_name)} | {c['city']}, {c['state']}"):
+                            render_dispatch(i+12000, c, "Global_Digital", is_declined=True)
+                    with btn_col:
+                        with st.popover("↩️ Revoke", use_container_width=True):
+                            st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
+                            if st.button("🚨 Yes, Remove", key=f"rev_d_dec_{cluster_hash}", type="primary", use_container_width=True):
+                                move_to_dispatch(cluster_hash, ic_name, "Global_Digital", cluster_data=c)
                     
         with t_fin:
             if not finalized: st.info("No finalized routes.")
