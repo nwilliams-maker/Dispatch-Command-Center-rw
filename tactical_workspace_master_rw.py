@@ -2199,7 +2199,7 @@ if "ic_df" not in st.session_state:
 col_left_space, col_main_title, col_ref = st.columns([1, 8, 2])
 
 with col_main_title:
-    st.markdown("<h1 style='color: #633094;'>Terraboost Media: Dispatch Command Center</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='color: #633094;'>Dispatch Command Center</h1>", unsafe_allow_html=True)
 
 with col_ref:
     st.markdown("<div class='refresh-btn-container' style='margin-top: 26px;'>", unsafe_allow_html=True)
@@ -2218,7 +2218,7 @@ with tabs[0]:
     # 🌟 NEW HEADER: Title Centered, Dynamic Button Top Right
     gh_col1, gh_col2, gh_col3 = st.columns([2, 6, 2])
     with gh_col2:
-        st.markdown("<h2 style='color: #633094; text-align:center; margin-top: 0;'>🌍 Global Command Overview</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='color: #633094; text-align:center; margin-top: 0;'>🌍 Global Overview</h2>", unsafe_allow_html=True)
     with gh_col3:
         st.markdown("<div class='tab-action-btn'>", unsafe_allow_html=True)
         btn_label = "🚀 Sync Routes" if has_global_data else "🚀 Initialize All Pods"
