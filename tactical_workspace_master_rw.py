@@ -664,7 +664,7 @@ def render_finalization_checklist(cluster_hash, pod_name, prefix="chk"):
             
             st.toast("🏁 Route Finalized! Moving to Finalized tab...")
             time.sleep(0.1) # Tiny pause to guarantee the toast visually registers
-            st.rerun() # This explicitly commands Streamlit to refresh the entire app!
+            st.rerun(scope="app") # 🌟 THE FIX: Blasts through the fragment to refresh the whole dashboard!
         
 
     
@@ -2744,30 +2744,6 @@ with tabs[6]:
                             st.markdown(f"<p style='font-size:13px; text-align:center;'>Re-route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
                             # 🌟 CALLBACK FIX
                             st.button("🚨 Yes, Re-Route", key=f"rev_d_fin_{cluster_hash}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": cluster_hash, "ic_name": ic_name, "pod_name": "Global_Digital", "action_label": "Re-Routed", "check_onfleet": True, "cluster_data": c})
-                        
-            # 🌟 THE FIX: Render Ghost Routes that were just finalized
-            for i, g in enumerate(finalized_ghosts):
-                g_ic_name = g.get('contractor_name', 'Unknown')
-                ghost_hash = g.get('hash', f"ghost_fin_{i}")
-                wo_display = g.get('wo', g_ic_name)
-                exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
-                with exp_col:
-                    with st.expander(f"🏁 {wo_display} | {g.get('city')}, {g.get('state')}"):
-                        st.success("Route Finalized and Archived.")
-                        # Render the mini location record for proof
-                        raw_locs = [s.strip() for s in g.get('locs', '').split('|') if s.strip()]
-                        if len(raw_locs) >= 3:
-                            task_locs = raw_locs[1:-1]
-                        else:
-                            task_locs = raw_locs
-                        u_locs = []
-                        for l in task_locs:
-                            if l not in u_locs: u_locs.append(l)
-                        if u_locs:
-                            loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
-                            st.markdown(f"<div style='font-size:11px; color:#64748b; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:10px; border:1px solid #e2e8f0;'><b>Location Record:</b><ul style='margin-top:4px; margin-bottom:0; padding-left:20px;'>{loc_html}</ul></div>", unsafe_allow_html=True)
-                with btn_col:
-                    st.button("🔒 Finalized", key=f"fin_locked_{ghost_hash}", disabled=True, use_container_width=True)
                             
 # --- FINAL FOOTER (End of File) ---
 st.markdown("---")
