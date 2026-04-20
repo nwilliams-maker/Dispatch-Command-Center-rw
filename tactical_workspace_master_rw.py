@@ -2219,7 +2219,7 @@ def run_pod_tab(pod_name):
                                 with st.spinner("Finalizing..."):
                                     finalize_route_handler(ghost_hash)
                                     st.rerun()
-                with btn_col::
+                with btn_col:
                     with st.popover("↩️ Revoke", use_container_width=True):
                         st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{g_ic_name}</b>?</p>", unsafe_allow_html=True)
                         if st.button("🚨 Yes, Remove", key=f"rev_ghost_{ghost_hash}_{i}", type="primary", use_container_width=True):
