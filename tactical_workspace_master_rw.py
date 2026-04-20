@@ -1251,7 +1251,36 @@ def get_digi_badges(cluster_data):
             elif 'ins/re' in tt: icons.add('🔧') # 🌟 Standard Wrench
             else: icons.add('⚙️')
     return "".join(sorted(list(icons)))
+
+# 🌟 NEW HELPER: Groups clusters by State, then sorts them by geographical proximity
+def group_and_sort_by_proximity(bucket):
+    if not bucket: return []
+    grouped = {}
+    for c in bucket:
+        stt = c.get('state', 'UNKNOWN')
+        if stt not in grouped: grouped[stt] = []
+        grouped[stt].append(c)
     
+    final_list = []
+    for stt in sorted(grouped.keys()):
+        state_cls = grouped[stt]
+        if not state_cls: continue
+        
+        # Start with the first cluster and chain the nearest neighbors
+        sorted_st_cls = [state_cls.pop(0)]
+        while state_cls:
+            last_center = sorted_st_cls[-1]['center']
+            # Find the closest remaining cluster in this state
+            closest_idx, min_d = 0, float('inf')
+            for idx, x in enumerate(state_cls):
+                d = haversine(last_center[0], last_center[1], x['center'][0], x['center'][1])
+                if d < min_d:
+                    min_d, closest_idx = d, idx
+            sorted_st_cls.append(state_cls.pop(closest_idx))
+        
+        final_list.extend(sorted_st_cls)
+    return final_list
+
 # --- DISPATCH RENDERING ---
 def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     # Capture current state identifiers
@@ -1951,53 +1980,81 @@ def run_pod_tab(pod_name):
 
         with t_ready:
             if not ready: st.info("No tasks ready for dispatch.")
-            for i, c in enumerate(ready):
-                badges = ""
-                if not ic_df.empty:
-                    lat_col = next((col for col in ic_df.columns if str(col).strip().lower() == 'lat'), 'Lat')
-                    lng_col = next((col for col in ic_df.columns if str(col).strip().lower() == 'lng'), 'Lng')
-                    loc_col = next((col for col in ic_df.columns if str(col).strip().lower() == 'location'), 'Location')
-                    if lat_col in ic_df.columns and lng_col in ic_df.columns:
-                        v_ics = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].dropna(subset=[lat_col, lng_col]).copy()
-                        if not v_ics.empty:
-                            v_ics['d'] = v_ics.apply(lambda x: haversine(c['center'][0], c['center'][1], x[lat_col], x[lng_col]), axis=1)
-                            closest_ic = v_ics.sort_values('d').iloc[0]
-                            _, hrs, _ = get_gmaps(closest_ic[loc_col], [t['full'] for t in c['data'][:25]])
-                            est_pay = max(c['stops'] * 18.0, hrs * 25.0)
-                            est_rate = est_pay / c['stops'] if c['stops'] > 0 else 0
-                            if est_rate >= 25.0: badges += " 💰"
-                            if closest_ic['d'] > 60: badges += " 📡"
-                            if est_rate >= 25.0 or closest_ic['d'] > 60: badges = " 🔒" + badges
+            else:
+                sorted_ready = group_and_sort_by_proximity(ready)
+                current_state = None
+                for i, c in enumerate(sorted_ready):
+                    # 🌟 Insert State Header
+                    if c['state'] != current_state:
+                        current_state = c['state']
+                        st.markdown(f"<div style='font-size: 12px; font-weight: 800; color: #94a3b8; margin-top: 15px; margin-bottom: 5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 2px; text-transform: uppercase; letter-spacing: 1px;'>📍 {current_state}</div>", unsafe_allow_html=True)
+                        
+                    badges = ""
+                    if not ic_df.empty:
+                        lat_col = next((col for col in ic_df.columns if str(col).strip().lower() == 'lat'), 'Lat')
+                        lng_col = next((col for col in ic_df.columns if str(col).strip().lower() == 'lng'), 'Lng')
+                        loc_col = next((col for col in ic_df.columns if str(col).strip().lower() == 'location'), 'Location')
+                        if lat_col in ic_df.columns and lng_col in ic_df.columns:
+                            v_ics = ic_df[~ic_df.astype(str).apply(lambda x: x.str.contains('Field Agent', case=False, na=False).any(), axis=1)].dropna(subset=[lat_col, lng_col]).copy()
+                            if not v_ics.empty:
+                                v_ics['d'] = v_ics.apply(lambda x: haversine(c['center'][0], c['center'][1], x[lat_col], x[lng_col]), axis=1)
+                                closest_ic = v_ics.sort_values('d').iloc[0]
+                                _, hrs, _ = get_gmaps(closest_ic[loc_col], [t['full'] for t in c['data'][:25]])
+                                est_pay = max(c['stops'] * 18.0, hrs * 25.0)
+                                est_rate = est_pay / c['stops'] if c['stops'] > 0 else 0
+                                if est_rate >= 25.0: badges += " 💰"
+                                if closest_ic['d'] > 60: badges += " 📡"
+                                if est_rate >= 25.0 or closest_ic['d'] > 60: badges = " 🔒" + badges
 
-                esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
-                inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else "" 
-                
-                with st.expander(f"{badges} 🟢 {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{esc_pill}"):
-                    render_dispatch(i, c, pod_name)
+                    esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
+                    inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else "" 
+                    
+                    with st.expander(f"{badges} 🟢 {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{esc_pill}"):
+                        render_dispatch(i, c, pod_name)
                     
         with t_flagged:
             if not review: st.info("No flagged tasks requiring review.")
-            for i, c in enumerate(review):
-                esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
-                inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else ""
-                with st.expander(f"🔒 🔴 {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{esc_pill}"):
-                    render_dispatch(i+1000, c, pod_name)
+            else:
+                sorted_review = group_and_sort_by_proximity(review)
+                current_state = None
+                for i, c in enumerate(sorted_review):
+                    if c['state'] != current_state:
+                        current_state = c['state']
+                        st.markdown(f"<div style='font-size: 12px; font-weight: 800; color: #94a3b8; margin-top: 15px; margin-bottom: 5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 2px; text-transform: uppercase; letter-spacing: 1px;'>📍 {current_state}</div>", unsafe_allow_html=True)
+                    
+                    esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
+                    inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else ""
+                    with st.expander(f"🔒 🔴 {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{esc_pill}"):
+                        render_dispatch(i+1000, c, pod_name)
 
         with t_fn:
             if not field_nation: st.info("No routes currently moved to Field Nation.")
-            for i, c in enumerate(field_nation):
-                esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
-                digi_pill = " 🔌" if c.get('is_digital') else ""  
-                inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else ""
-                with st.expander(f"🌐 FN: {c['city']}, {c['state']} | {c['stops']} Stops{digi_pill}{inst_pill}{esc_pill}"):
-                    render_dispatch(i+5000, c, pod_name)
+            else:
+                sorted_fn = group_and_sort_by_proximity(field_nation)
+                current_state = None
+                for i, c in enumerate(sorted_fn):
+                    if c['state'] != current_state:
+                        current_state = c['state']
+                        st.markdown(f"<div style='font-size: 12px; font-weight: 800; color: #94a3b8; margin-top: 15px; margin-bottom: 5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 2px; text-transform: uppercase; letter-spacing: 1px;'>📍 {current_state}</div>", unsafe_allow_html=True)
+                    
+                    esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
+                    digi_pill = f" {get_digi_badges(c['data'])}" if c.get('is_digital') else ""  
+                    inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else ""
+                    with st.expander(f"🌐 FN: {c['city']}, {c['state']} | {c['stops']} Stops{digi_pill}{inst_pill}{esc_pill}"):
+                        render_dispatch(i+5000, c, pod_name)
                     
         with t_digital:
             if not digital_ready: st.info("No digital service tasks pending.")
-            for i, c in enumerate(digital_ready):
-                # 🌟 FIXED: Labels moved into the expander, margin-hack deleted
-                with st.expander(f"🔌 DIGITAL: {c['city']}, {c['state']} | {c['stops']} Stops"):
-                    render_dispatch(i+7000, c, pod_name)
+            else:
+                sorted_digi = group_and_sort_by_proximity(digital_ready)
+                current_state = None
+                for i, c in enumerate(sorted_digi):
+                    if c['state'] != current_state:
+                        current_state = c['state']
+                        st.markdown(f"<div style='font-size: 12px; font-weight: 800; color: #94a3b8; margin-top: 15px; margin-bottom: 5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 2px; text-transform: uppercase; letter-spacing: 1px;'>📍 {current_state}</div>", unsafe_allow_html=True)
+                    
+                    with st.expander(f"{get_digi_badges(c['data'])} DIGITAL: {c['city']}, {c['state']} | {c['stops']} Stops"):
+                        render_dispatch(i+7000, c, pod_name)
                     
     with col_right:
         st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_GREEN}; margin-bottom: 5px; text-align: center;'>⏳ Awaiting Confirmation</div>", unsafe_allow_html=True)
@@ -2353,18 +2410,42 @@ with tabs[6]:
         with col_left:
             st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_DIGITAL_TEXT}; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
             t_ready, t_flagged, t_fn = st.tabs(["📥 Ready", "⚠️ Flagged", "🌐 Field Nation"])
+            
             with t_ready:
-                for i, c in enumerate(d_ready):
-                    with st.expander(f"🔌 {c['city']}, {c['state']} | {c['stops']} Stops"):
-                        render_dispatch(i+8000, c, "Global_Digital")
+                if not d_ready: st.info("No digital tasks ready for dispatch.")
+                else:
+                    sorted_d_ready = group_and_sort_by_proximity(d_ready)
+                    current_state = None
+                    for i, c in enumerate(sorted_d_ready):
+                        if c['state'] != current_state:
+                            current_state = c['state']
+                            st.markdown(f"<div style='font-size: 12px; font-weight: 800; color: #94a3b8; margin-top: 15px; margin-bottom: 5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 2px; text-transform: uppercase; letter-spacing: 1px;'>📍 {current_state}</div>", unsafe_allow_html=True)
+                        with st.expander(f"{get_digi_badges(c['data'])} {c['city']}, {c['state']} | {c['stops']} Stops"):
+                            render_dispatch(i+8000, c, "Global_Digital")
+                            
             with t_flagged:
-                for i, c in enumerate(d_flagged):
-                    with st.expander(f"🔴 {c['city']}, {c['state']} | {c['stops']} Stops"):
-                        render_dispatch(i+9000, c, "Global_Digital")
+                if not d_flagged: st.info("No flagged tasks requiring review.")
+                else:
+                    sorted_d_flagged = group_and_sort_by_proximity(d_flagged)
+                    current_state = None
+                    for i, c in enumerate(sorted_d_flagged):
+                        if c['state'] != current_state:
+                            current_state = c['state']
+                            st.markdown(f"<div style='font-size: 12px; font-weight: 800; color: #94a3b8; margin-top: 15px; margin-bottom: 5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 2px; text-transform: uppercase; letter-spacing: 1px;'>📍 {current_state}</div>", unsafe_allow_html=True)
+                        with st.expander(f"🔴 {get_digi_badges(c['data'])} {c['city']}, {c['state']} | {c['stops']} Stops"):
+                            render_dispatch(i+9000, c, "Global_Digital")
+                            
             with t_fn:
-                for i, c in enumerate(d_fn):
-                    with st.expander(f"🌐 FN: {c['city']}, {c['state']} | {c['stops']} Stops"):
-                        render_dispatch(i+9500, c, "Global_Digital")
+                if not d_fn: st.info("No tasks in Field Nation.")
+                else:
+                    sorted_d_fn = group_and_sort_by_proximity(d_fn)
+                    current_state = None
+                    for i, c in enumerate(sorted_d_fn):
+                        if c['state'] != current_state:
+                            current_state = c['state']
+                            st.markdown(f"<div style='font-size: 12px; font-weight: 800; color: #94a3b8; margin-top: 15px; margin-bottom: 5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 2px; text-transform: uppercase; letter-spacing: 1px;'>📍 {current_state}</div>", unsafe_allow_html=True)
+                        with st.expander(f"🌐 FN {get_digi_badges(c['data'])} {c['city']}, {c['state']} | {c['stops']} Stops"):
+                            render_dispatch(i+9500, c, "Global_Digital")
 
         with col_right:
             st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_GREEN}; text-align: center;'>⏳ Awaiting Confirmation</div>", unsafe_allow_html=True)
