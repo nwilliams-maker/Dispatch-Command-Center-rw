@@ -295,10 +295,18 @@ div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child
     width: calc(100% + 1rem) !important;
     border-top-left-radius: 0px !important;
     border-bottom-left-radius: 0px !important;
-    transform: scale(0.65) !important; /* 🌟 This scales the icon to roughly half size */
-    transform-origin: center right;
+    
+    /* 🌟 THE FIX: Absolute sizing kills the white space */
+    height: 34px !important; 
+    min-height: 34px !important;
+    margin-top: 10px !important; /* Centers it perfectly next to the expander */
+    padding: 0 !important; /* Kills the bulky padding */
 }}
 
+/* 🌟 Make the scissors icon itself smaller */
+div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child(1) div[data-testid="stExpander"]) > div[data-testid="stColumn"]:nth-child(2) button p {{
+    font-size: 14px !important; 
+}}
 /* Main Expander Container */
 div[data-testid="stExpander"] {{ 
     border: 1px solid #cbd5e1 !important; 
@@ -441,12 +449,27 @@ div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb
 }}
 
 /* --- RIGHT COLUMN: Awaiting Tabs --- */
-/* Force the gap so they break apart into individual pills */
+/* Force the gap and center the pills so they don't stretch */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab-list"] {{
-    gap: 12px !important;
+    gap: 8px !important;
+    justify-content: center !important; 
 }}
 
-/* 1. Sent (Purple/Blue) - THE MISSING FIX */
+/* 🌟 COMPACT PILLS OVERRIDE: Stops them from stretching wide */
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"] {{
+    padding: 4px 12px !important;
+    flex-grow: 0 !important; /* Kills the stretching bloat */
+    min-width: 0 !important;
+    height: 32px !important;
+    margin: 0 !important;
+}}
+
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"] p {{
+    font-size: 11px !important;
+    white-space: nowrap !important;
+}}
+
+/* 1. Sent (Purple/Blue) */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) {{
     background-color: #f3e8ff !important;
     border: 2px solid #633094 !important;
@@ -474,6 +497,15 @@ div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb
 }}
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(3) p {{
     color: #991b1b !important; 
+}}
+
+/* 4. Finalized (Orange) */
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(4) {{
+    border: 2px solid #f97316 !important;
+    border-radius: 30px !important;
+}}
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(4) p {{
+    color: #7c2d12 !important; 
 }}
 
 
