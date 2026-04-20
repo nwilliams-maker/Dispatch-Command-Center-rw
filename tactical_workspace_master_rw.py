@@ -39,6 +39,7 @@ SAVED_ROUTES_GID = "1477617688"
 ACCEPTED_ROUTES_GID = "934075207"
 DECLINED_ROUTES_GID = "600909788"
 FIELD_NATION_GID = "1396320527"
+FINALIZED_ROUTES_GID = "1907347870"
 
 # Terraboost Media Brand Palette
 TB_PURPLE = "#633094"
@@ -699,14 +700,20 @@ def fetch_sent_records_from_sheet():
             (SAVED_ROUTES_GID, "sent"),
         ]
 
-        # 3. Add Field Nation only if the GID is defined to avoid errors
+       # 3. Add Field Nation only if the GID is defined to avoid errors
         if 'FIELD_NATION_GID' in globals() and FIELD_NATION_GID:
             # We check if it's already there to prevent duplicates
             if (FIELD_NATION_GID, "field_nation") not in sheets_to_fetch:
                 sheets_to_fetch.append((FIELD_NATION_GID, "field_nation"))
+                
+        # 🌟 NEW: Add Finalized routes to the download queue
+        if 'FINALIZED_ROUTES_GID' in globals() and FINALIZED_ROUTES_GID:
+            if (FINALIZED_ROUTES_GID, "finalized") not in sheets_to_fetch:
+                sheets_to_fetch.append((FINALIZED_ROUTES_GID, "finalized"))
         
         sent_dict = {}
-        ghost_routes = {"Blue": [], "Green": [], "Orange": [], "Purple": [], "Red": [], "UNKNOWN": []}
+        # 🌟 THE FIX: Add Global_Digital to the dictionary!
+        ghost_routes = {"Blue": [], "Green": [], "Orange": [], "Purple": [], "Red": [], "Global_Digital": [], "UNKNOWN": []}
         
         for gid, status_label in sheets_to_fetch:
             try:
@@ -740,13 +747,56 @@ def fetch_sent_records_from_sheet():
                                         "status": status_label,
                                         "time": ts_display,
                                         "wo": p.get('wo', display_name),
-                                        "comp": p.get('comp', 0),     # 🌟 THE FIX: Pull Comp
-                                        "due": p.get('due', 'N/A')    # 🌟 THE FIX: Pull Due Date
+                                        "comp": p.get('comp', 0),     
+                                        "due": p.get('due', 'N/A')    
                                     }
                             
-                            # Ghost Route logic for Accepted routes
-                            if status_label == 'accepted':
+                            # 🌟 THE FIX: Allow Finalized routes to build as Ghost Routes too!
+                            if status_label in ['accepted', 'finalized']:
                                 locs_str = str(p.get('locs', ''))
+                                state_guess, city_guess = "UNKNOWN", "Unknown"
+                                stops_list = [s.strip() for s in locs_str.split('|') if s.strip()]
+                                
+                                # Extract city/state from the first real stop
+                                if len(stops_list) > 1:
+                                    addr_parts = stops_list[1].split(',')
+                                    if len(addr_parts) >= 2:
+                                        state_raw = addr_parts[-1].strip().upper()
+                                        state_guess = state_raw.split(' ')[0] # 🌟 THE FIX: Strips out zip codes!
+                                        city_guess = addr_parts[-2].strip()
+                                
+                                # 🌟 THE FIX: Automatically identify Digital Ghost routes via emojis!
+                                job_only = str(p.get('jobOnly', ''))
+                                is_digital_ghost = any(icon in job_only for icon in ['🔌', '🔧', '⚙️', '📵'])
+                                
+                                pod_name = "UNKNOWN"
+                                if is_digital_ghost:
+                                    pod_name = "Global_Digital"
+                                else:
+                                    norm_state = STATE_MAP.get(state_guess, state_guess)
+                                    for p_name, p_config in POD_CONFIGS.items():
+                                        if norm_state in p_config['states']:
+                                            pod_name = p_name
+                                            break
+                                
+                                if pod_name != "UNKNOWN":
+                                    clean_tids = [str(t).strip() for t in tids if str(t).strip()]
+                                    ghost_hash = hashlib.md5("".join(sorted(clean_tids)).encode()).hexdigest()
+
+                                    ghost_routes[pod_name].append({
+                                        "contractor_name": c_name,
+                                        "route_ts": ts_display,
+                                        "city": city_guess,
+                                        "state": norm_state,
+                                        "stops": p.get('lCnt', 0),
+                                        "tasks": p.get('tCnt', len(tids)),
+                                        "pay": p.get('comp', 0),
+                                        "wo": p.get('wo', c_name),
+                                        "due": p.get('due', 'N/A'),  
+                                        "status": status_label, # 🌟 NEW: Save the DB status so the Traffic Cop knows!
+                                        "hash": ghost_hash, 
+                                        "locs": p.get('locs', '') 
+                                    })
                                 state_guess, city_guess = "UNKNOWN", "Unknown"
                                 stops_list = [s.strip() for s in locs_str.split('|') if s.strip()]
                                 
@@ -1911,7 +1961,8 @@ def run_pod_tab(pod_name):
     pod_ghosts = []
     finalized_ghosts = []
     for g in ghost_db.get(pod_name, []):
-        if st.session_state.get(f"route_state_{g.get('hash')}") == "finalized":
+        # 🌟 Check local state OR the new database status tag we added!
+        if st.session_state.get(f"route_state_{g.get('hash')}") == "finalized" or g.get("status") == "finalized":
             finalized_ghosts.append(g)
         else:
             pod_ghosts.append(g)
@@ -2532,9 +2583,18 @@ with tabs[6]:
     # 1. 📊 GRAB DATA & INITIALIZE
     global_digital = st.session_state.get('global_digital_clusters', [])
     
+    # 🌟 THE FIX: Intercept Digital Ghost Routes from the Sheet
+    sent_db, ghost_db = fetch_sent_records_from_sheet()
+    pod_ghosts = []
+    finalized_ghosts = []
+    for g in ghost_db.get("Global_Digital", []):
+        if st.session_state.get(f"route_state_{g.get('hash')}") == "finalized" or g.get("status") == "finalized":
+            finalized_ghosts.append(g)
+        else:
+            pod_ghosts.append(g)
+    
     # --- 🚦 TRAFFIC COP: BUCKET SORTING (Pulls WO from Sheet) ---
     d_ready, d_flagged, d_fn, d_sent, d_acc, d_dec, d_fin = [], [], [], [], [], [], []
-    sent_db = st.session_state.get('sent_db', {}) # Fresh live database
     
     for c in global_digital:
         task_ids = [str(t['id']).strip() for t in c['data']]
@@ -2584,7 +2644,7 @@ with tabs[6]:
     # Supercard Counts
     pool_ready = len(d_ready)
     pool_flagged = len(d_flagged)
-    pool_total_sent = len(d_sent) + len(d_acc) + len(d_dec) + len(d_fn)
+    pool_total_sent = len(d_sent) + len(d_acc) + len(pod_ghosts) + len(d_dec) + len(d_fn)
     
     # 🌟 THE FIX: Combine active Digital buckets (Excludes Accepted & Finalized)
     active_d_cls = d_ready + d_flagged + d_fn + d_sent + d_dec
@@ -2699,8 +2759,68 @@ with tabs[6]:
                             st.button("🚨 Yes, Remove", key=f"rev_d_sent_{cluster_hash}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": cluster_hash, "ic_name": ic_name, "pod_name": "Global_Digital", "cluster_data": c})
             
             with t_acc:
+                if not d_acc and not pod_ghosts: st.info("Waiting for portal acceptances...")
                 for i, c in enumerate(d_acc):
                     task_ids = [str(t['id']).strip() for t in c['data']]
+                    cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+                    ic_name = c.get('contractor_name', 'Unknown')
+                    
+                    comp = c.get('comp', 0)
+                    due = c.get('due', 'N/A')
+                    tasks_cnt = len(c['data'])
+                    stops_cnt = c['stops']
+                    
+                    exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                    with exp_col:
+                        with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                            st.success("Route accepted. Complete the checklist to finalize.")
+                            
+                            u_locs = []
+                            for tk in c['data']:
+                                if tk['full'] not in u_locs: u_locs.append(tk['full'])
+                            loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
+                            st.markdown(f"<div style='font-size:11px; color:#64748b; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:10px; border:1px solid #e2e8f0;'><b>Location Record:</b><ul style='margin-top:4px; margin-bottom:0; padding-left:20px;'>{loc_html}</ul></div>", unsafe_allow_html=True)
+                            
+                            render_finalization_checklist(cluster_hash, "Global_Digital", "d_chk")
+                            st.divider()
+                            render_dispatch(i+11000, c, "Global_Digital", is_sent=True)
+                    with btn_col:
+                        with st.popover("↩️ Revoke", use_container_width=True):
+                            st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
+                            st.button("🚨 Yes, Remove", key=f"rev_d_acc_{cluster_hash}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": cluster_hash, "ic_name": ic_name, "pod_name": "Global_Digital", "cluster_data": c})
+
+                # 🌟 THE FIX: Render Digital Ghost Routes
+                for i, g in enumerate(pod_ghosts):
+                    g_ic_name = g.get('contractor_name', 'Unknown')
+                    ghost_hash = g.get('hash', f"ghost_digi_{i}")
+                    
+                    comp = g.get('pay', 0)
+                    due = g.get('due', 'N/A')
+                    stops_cnt = g.get('stops', 0)
+                    tasks_cnt = g.get('tasks', 0)
+                    
+                    exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                    with exp_col:
+                        with st.expander(f"✅ {g.get('wo', g_ic_name)} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                            st.success("Accepted and synced with OnFleet. Complete the checklist to finalize.")
+                            
+                            raw_locs = [s.strip() for s in g.get('locs', '').split('|') if s.strip()]
+                            if len(raw_locs) >= 3: task_locs = raw_locs[1:-1]
+                            else: task_locs = raw_locs
+                                
+                            u_locs = []
+                            for l in task_locs:
+                                if l not in u_locs: u_locs.append(l)
+                            
+                            if u_locs:
+                                loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
+                                st.markdown(f"<div style='font-size:11px; color:#64748b; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:10px; border:1px solid #e2e8f0;'><b>Location Record:</b><ul style='margin-top:4px; margin-bottom:0; padding-left:20px;'>{loc_html}</ul></div>", unsafe_allow_html=True)
+                            
+                            render_finalization_checklist(ghost_hash, "Global_Digital", "g_chk_d")
+                    with btn_col:
+                        with st.popover("↩️ Revoke", use_container_width=True):
+                            st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{g_ic_name}</b>?</p>", unsafe_allow_html=True)
+                            st.button("🚨 Yes, Remove", key=f"rev_ghost_digi_{ghost_hash}_{i}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": ghost_hash, "ic_name": g_ic_name, "pod_name": "Global_Digital", "action_label": "Ghost Archived", "check_onfleet": True, "cluster_data": g})
                     cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
                     ic_name = c.get('contractor_name', 'Unknown')
                     
@@ -2748,7 +2868,7 @@ with tabs[6]:
                             st.button("🚨 Yes, Remove", key=f"rev_d_dec_{cluster_hash}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": cluster_hash, "ic_name": ic_name, "pod_name": "Global_Digital", "cluster_data": c})
                     
             with t_fin:
-                if not d_fin: st.info("No finalized digital routes.") 
+                if not d_fin and not finalized_ghosts: st.info("No finalized digital routes.") 
                 for i, c in enumerate(d_fin):                         
                     task_ids = [str(t['id']).strip() for t in c['data']]
                     cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
@@ -2762,7 +2882,6 @@ with tabs[6]:
                     exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                     with exp_col:
                         with st.expander(f"🏁 {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
-                            # 🌟 NEW: Add mini data record for Digital Finalized Routes
                             u_locs = []
                             for tk in c['data']:
                                 if tk['full'] not in u_locs: u_locs.append(tk['full'])
@@ -2773,9 +2892,37 @@ with tabs[6]:
                     with btn_col:
                         with st.popover("↩️ Re-Route", use_container_width=True):
                             st.markdown(f"<p style='font-size:13px; text-align:center;'>Re-route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
-                            # 🌟 CALLBACK FIX
                             st.button("🚨 Yes, Re-Route", key=f"rev_d_fin_{cluster_hash}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": cluster_hash, "ic_name": ic_name, "pod_name": "Global_Digital", "action_label": "Re-Routed", "check_onfleet": True, "cluster_data": c})
                             
+                # 🌟 THE FIX: Render Finalized Digital Ghost Routes
+                for i, g in enumerate(finalized_ghosts):
+                    g_ic_name = g.get('contractor_name', 'Unknown')
+                    ghost_hash = g.get('hash', f"ghost_fin_digi_{i}")
+                    wo_display = g.get('wo', g_ic_name)
+                    
+                    comp = g.get('pay', 0)
+                    due = g.get('due', 'N/A')
+                    stops_cnt = g.get('stops', 0)
+                    tasks_cnt = g.get('tasks', 0)
+                    
+                    exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                    with exp_col:
+                        with st.expander(f"🏁 {wo_display} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                            st.success("Route Finalized and Archived.")
+                            
+                            raw_locs = [s.strip() for s in g.get('locs', '').split('|') if s.strip()]
+                            if len(raw_locs) >= 3: task_locs = raw_locs[1:-1]
+                            else: task_locs = raw_locs
+                            
+                            u_locs = []
+                            for l in task_locs:
+                                if l not in u_locs: u_locs.append(l)
+                            if u_locs:
+                                loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
+                                st.markdown(f"<div style='font-size:11px; color:#64748b; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:10px; border:1px solid #e2e8f0;'><b>Location Record:</b><ul style='margin-top:4px; margin-bottom:0; padding-left:20px;'>{loc_html}</ul></div>", unsafe_allow_html=True)
+                    with btn_col:
+                        st.button("🔒 Finalized", key=f"fin_locked_digi_{ghost_hash}", disabled=True, use_container_width=True)
+                        
 # --- FINAL FOOTER (End of File) ---
 st.markdown("---")
 st.markdown(
