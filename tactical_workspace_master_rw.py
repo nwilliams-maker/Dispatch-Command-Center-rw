@@ -1612,6 +1612,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 st.session_state[sync_key] = final_route_id
                 st.session_state[f"sent_ts_{cluster_hash}"] = datetime.now().strftime('%m/%d %I:%M %p')
                 st.session_state[f"contractor_{cluster_hash}"] = ic.get('name', 'Unknown')
+                st.session_state[f"wo_{cluster_hash}"] = wo_val  # 🌟 NEW: Save WO to memory!
                 st.session_state[f"route_state_{cluster_hash}"] = "email_sent"
                 st.session_state[f"reverted_{cluster_hash}"] = False
                 
@@ -1694,6 +1695,7 @@ def run_pod_tab(pod_name):
         route_state = st.session_state.get(f"route_state_{cluster_hash}")
         local_ts = st.session_state.get(f"sent_ts_{cluster_hash}", "")
         local_contractor = st.session_state.get(f"contractor_{cluster_hash}", "Unknown")
+        local_wo = st.session_state.get(f"wo_{cluster_hash}", local_contractor) # 🌟 Fetch WO
         is_reverted = st.session_state.get(f"reverted_{cluster_hash}", False)
         
         if sheet_match and not is_reverted:
@@ -1701,7 +1703,9 @@ def run_pod_tab(pod_name):
             c['route_ts'] = sheet_match.get('time', '') or local_ts
             c['wo'] = sheet_match.get('wo', c['contractor_name'])
         else:
+            # 🌟 Apply Fallbacks Instantly
             c['contractor_name'] = local_contractor
+            c['wo'] = local_wo
             c['route_ts'] = local_ts
         
         # --- 🚦 THE NEW DIGITAL FLOW ---
@@ -2210,14 +2214,23 @@ with tabs[6]:
         route_state = st.session_state.get(f"route_state_{cluster_hash}")
         is_reverted = st.session_state.get(f"reverted_{cluster_hash}", False)
         
+        # 🌟 Fetch Local Memory
+        local_ts = st.session_state.get(f"sent_ts_{cluster_hash}", "")
+        local_contractor = st.session_state.get(f"contractor_{cluster_hash}", "Unknown")
+        local_wo = st.session_state.get(f"wo_{cluster_hash}", local_contractor)
+        
         # Match live sheet data to get the Contractor Name and WO
         sheet_match = sent_db.get(next((tid for tid in task_ids if tid in sent_db), None))
         if sheet_match and not is_reverted:
             c['contractor_name'] = sheet_match.get('name', 'Unknown')
-            c['wo'] = sheet_match.get('wo', c['contractor_name']) # 🌟 THE WO FIX
-            c['route_ts'] = sheet_match.get('time', '')
+            c['wo'] = sheet_match.get('wo', c['contractor_name'])
+            c['route_ts'] = sheet_match.get('time', '') or local_ts
             db_stat = sheet_match.get('status', 'sent').lower()
         else:
+            # 🌟 Apply Fallbacks Instantly
+            c['contractor_name'] = local_contractor
+            c['wo'] = local_wo
+            c['route_ts'] = local_ts
             db_stat = c.get('db_status', 'ready').lower()
 
         # 🌟 LOGIC GATE: Every .append() target MUST start with 'd_'
