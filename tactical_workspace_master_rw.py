@@ -2209,31 +2209,34 @@ with tabs[6]:
     # Count unique addresses across all digital clusters
     unique_stops_total = len(set(t['full'] for c in global_digital for t in c['data']))
     
-    # 1. Initialize digital-specific buckets
+    # --- 🚦 TRAFFIC COP: BUCKET SORTING (Pulls WO from Sheet) ---
     d_ready, d_flagged, d_fn, d_sent, d_acc, d_dec, d_fin = [], [], [], [], [], [], []
-
+    sent_db = st.session_state.get('sent_db', {}) # Fresh live database
+    
     for c in global_digital:
-        # Generate the hash to track local state changes
         task_ids = [str(t['id']).strip() for t in c['data']]
         cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
         route_state = st.session_state.get(f"route_state_{cluster_hash}")
         is_reverted = st.session_state.get(f"reverted_{cluster_hash}", False)
         
-        db_stat = c.get('db_status', 'ready').lower()
-        
-        # 🌟 THE FIX: Ensure every .append() target starts with 'd_'
-        if db_stat in ['sent', 'email_sent'] and not is_reverted: 
-            d_sent.append(c)
-        elif db_stat == 'accepted' and not is_reverted: 
-            d_acc.append(c)
-        elif db_stat == 'declined' and not is_reverted: 
-            d_dec.append(c)
-        elif db_stat == 'finalized' and not is_reverted: 
-            d_fin.append(c)
-        elif db_stat == 'field_nation' and not is_reverted: 
-            d_fn.append(c)
-        elif route_state == 'email_sent' and not is_reverted: 
-            d_sent.append(c)
+        # Match live sheet data to get the Contractor Name and WO
+        sheet_match = sent_db.get(next((tid for tid in task_ids if tid in sent_db), None))
+        if sheet_match and not is_reverted:
+            c['contractor_name'] = sheet_match.get('name', 'Unknown')
+            c['wo'] = sheet_match.get('wo', c['contractor_name']) # 🌟 THE WO FIX
+            c['route_ts'] = sheet_match.get('time', '')
+            db_stat = sheet_match.get('status', 'sent').lower()
+        else:
+            db_stat = c.get('db_status', 'ready').lower()
+
+        # Logic Gate: Sort into buckets
+        if db_stat in ['sent', 'email_sent'] and not is_reverted: d_sent.append(c)
+        elif db_stat == 'accepted' and not is_reverted: d_acc.append(c)
+        elif db_stat == 'declined' and not is_reverted: d_dec.append(c)
+        elif db_stat == 'finalized' and not is_reverted: d_fin.append(c)
+        elif db_stat == 'field_nation' and not is_reverted: d_fn.append(c)
+        elif route_state == 'email_sent' and not is_reverted: d_sent.append(c)
+        # ... (keep existing elif/else logic for field_nation/ready/flagged)
         elif route_state == 'field_nation' and not is_reverted: 
             d_fn.append(c)
         elif route_state == 'link_generated' and not is_reverted:
@@ -2310,21 +2313,30 @@ with tabs[6]:
         with col_right:
             st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_GREEN}; text-align: center;'>⏳ Awaiting Confirmation</div>", unsafe_allow_html=True)
             t_sent, t_acc, t_dec, t_fin = st.tabs(["✉️ Sent", "✅ Accepted", "❌ Declined", "🏁 Finalized"])
+            
             with t_sent:
                 for i, c in enumerate(d_sent):
-                    with st.expander(f"✉️ {c.get('contractor_name', 'Unknown')} | {c['city']}, {c['state']}"):
+                    # 🌟 THE WO DISPLAY: Uses WO if available, fallback to Contractor Name
+                    wo_display = c.get('wo', c.get('contractor_name', 'Unknown'))
+                    with st.expander(f"✉️ {wo_display} | {c['city']}, {c['state']}"):
                         render_dispatch(i+10000, c, "Global_Digital", is_sent=True)
+            
             with t_acc:
                 for i, c in enumerate(d_acc):
-                    with st.expander(f"✅ {c.get('wo', 'Ready')} | {c['city']}, {c['state']}"):
+                    wo_display = c.get('wo', 'Ready')
+                    with st.expander(f"✅ {wo_display} | {c['city']}, {c['state']}"):
                         render_dispatch(i+11000, c, "Global_Digital", is_sent=True)
+            
             with t_dec:
                 for i, c in enumerate(d_dec):
-                    with st.expander(f"❌ {c.get('contractor_name', 'Unknown')} | {c['city']}, {c['state']}"):
+                    wo_display = c.get('wo', c.get('contractor_name', 'Unknown'))
+                    with st.expander(f"❌ {wo_display} | {c['city']}, {c['state']}"):
                         render_dispatch(i+12000, c, "Global_Digital", is_declined=True)
+            
             with t_fin:
                 for i, c in enumerate(d_fin):
-                    with st.expander(f"🏁 {c.get('contractor_name', 'Unknown')} | {c['city']}, {c['state']}"):
+                    wo_display = c.get('wo', c.get('contractor_name', 'Unknown'))
+                    with st.expander(f"🏁 {wo_display} | {c['city']}, {c['state']}"):
                         render_dispatch(i+13000, c, "Global_Digital", is_sent=True)
 
 # --- FINAL FOOTER (End of File) ---
