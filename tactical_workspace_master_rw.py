@@ -2381,8 +2381,8 @@ with tabs[6]:
                                 move_to_dispatch(cluster_hash, ic_name, "Global_Digital", cluster_data=c)
                     
         with t_fin:
-            if not finalized: st.info("No finalized routes.")
-            for i, c in enumerate(finalized):
+            if not d_fin: st.info("No finalized digital routes.") # 🌟 THE FIX: Use d_fin
+            for i, c in enumerate(d_fin):                         # 🌟 THE FIX: Use d_fin
                 ic_name = c.get('contractor_name', 'Unknown')
                 ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
                 task_ids = [str(t['id']).strip() for t in c['data']]
