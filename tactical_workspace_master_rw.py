@@ -2623,7 +2623,7 @@ with tabs[6]:
                             st.markdown(f"<p style='font-size:13px; text-align:center;'>Re-route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
                             # 🌟 CALLBACK FIX
                             st.button("🚨 Yes, Re-Route", key=f"rev_d_fin_{cluster_hash}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": cluster_hash, "ic_name": ic_name, "pod_name": "Global_Digital", "action_label": "Re-Routed", "check_onfleet": True, "cluster_data": c})
-                                move_to_dispatch(cluster_hash, ic_name, "Global_Digital", cluster_data=c)
+                            move_to_dispatch(cluster_hash, ic_name, "Global_Digital", cluster_data=c)
                             
 # --- FINAL FOOTER (End of File) ---
 st.markdown("---")
