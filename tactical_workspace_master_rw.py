@@ -2161,9 +2161,9 @@ def run_pod_tab(pod_name):
                         
                         st.markdown("<p style='font-size: 13px; font-weight: 600;'>Finalization Checklist:</p>", unsafe_allow_html=True)
                         cc1, cc2, cc3 = st.columns(3)
-                        chk1 = cc1.checkbox("Tasks Completed", key=f"chk1_{cluster_hash}_{pod_name}")
-                        chk2 = cc2.checkbox("Photos Verified", key=f"chk2_{cluster_hash}_{pod_name}")
-                        chk3 = cc3.checkbox("Payment Scheduled", key=f"chk3_{cluster_hash}_{pod_name}")
+                        chk1 = cc1.checkbox("Optimized Route in OnFleet.", key=f"chk1_{cluster_hash}_{pod_name}")
+                        chk2 = cc2.checkbox("Dispatched in Route Planning.", key=f"chk2_{cluster_hash}_{pod_name}")
+                        chk3 = cc3.checkbox("Packing list created.", key=f"chk3_{cluster_hash}_{pod_name}")
                         
                         if chk1 and chk2 and chk3:
                             # 🌟 CALLBACK FIX
@@ -2193,9 +2193,9 @@ def run_pod_tab(pod_name):
                         
                         st.markdown("<p style='font-size: 13px; font-weight: 600;'>Finalization Checklist:</p>", unsafe_allow_html=True)
                         cc1, cc2, cc3 = st.columns(3)
-                        chk1 = cc1.checkbox("Tasks Completed", key=f"g_chk1_{ghost_hash}_{pod_name}")
-                        chk2 = cc2.checkbox("Photos Verified", key=f"g_chk2_{ghost_hash}_{pod_name}")
-                        chk3 = cc3.checkbox("Payment Scheduled", key=f"g_chk3_{ghost_hash}_{pod_name}")
+                        chk1 = cc1.checkbox("Optimized Route in OnFleet.   ", key=f"g_chk1_{ghost_hash}_{pod_name}")
+                        chk2 = cc2.checkbox("Dispatched in Route Planning.", key=f"g_chk2_{ghost_hash}_{pod_name}")
+                        chk3 = cc3.checkbox("Packing list created.", key=f"g_chk3_{ghost_hash}_{pod_name}")
                         
                         if chk1 and chk2 and chk3:
                             # 🌟 CALLBACK FIX
@@ -2587,9 +2587,9 @@ with tabs[6]:
                             
                             st.markdown("<p style='font-size: 13px; font-weight: 600;'>Finalization Checklist:</p>", unsafe_allow_html=True)
                             cc1, cc2, cc3 = st.columns(3)
-                            chk1 = cc1.checkbox("Tasks Completed", key=f"d_chk1_{cluster_hash}")
-                            chk2 = cc2.checkbox("Photos Verified", key=f"d_chk2_{cluster_hash}")
-                            chk3 = cc3.checkbox("Payment Scheduled", key=f"d_chk3_{cluster_hash}")
+                            chk1 = cc1.checkbox("Optimized Route in OnFleet.", key=f"d_chk1_{cluster_hash}")
+                            chk2 = cc2.checkbox("Dispatched in Route Planning.", key=f"d_chk2_{cluster_hash}")
+                            chk3 = cc3.checkbox("Packing list created.", key=f"d_chk3_{cluster_hash}")
                             
                             if chk1 and chk2 and chk3:
                                 # 🌟 CALLBACK FIX (No indented code underneath!)
