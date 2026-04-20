@@ -85,7 +85,7 @@ STATE_MAP = {
 
 headers = {"Authorization": f"Basic {base64.b64encode(f'{ONFLEET_KEY}:'.encode()).decode()}"}
 
-st.set_page_config(page_title="Dispatch Command Center", layout="wide")
+st.set_page_config(page_title="Terraboost Media: Dispatch Command Center", layout="wide")
 
 # --- PINNED TOP-LEFT LOGO ---
 # Function to convert the local image into web-safe code
@@ -645,6 +645,9 @@ def finalize_route_handler(cluster_hash):
         }).json()
         if res.get("success"):
             st.toast("🏁 Route Finalized!")
+            # 🌟 THE FIX: Instantly update the local UI state
+            st.session_state[f"route_state_{cluster_hash}"] = "finalized"
+            st.session_state[f"reverted_{cluster_hash}"] = False
         else:
             st.error("Failed to update database.")
     except Exception as e:
@@ -760,6 +763,7 @@ def fetch_sent_records_from_sheet():
                                         "tasks": p.get('tCnt', len(tids)),
                                         "pay": p.get('comp', 0),
                                         "wo": p.get('wo', c_name),
+                                        "due": p.get('due', 'N/A'),      # 🌟 THE FIX: Added due date capture
                                         "hash": ghost_hash # Pass the hash to the UI
                                     })
                                     
@@ -1865,6 +1869,8 @@ def run_pod_tab(pod_name):
             c['contractor_name'] = sheet_match.get('name', 'Unknown')
             c['route_ts'] = sheet_match.get('time', '') or local_ts
             c['wo'] = sheet_match.get('wo', c['contractor_name'])
+            c['comp'] = sheet_match.get('comp', 0)    # 🌟 NEW
+            c['due'] = sheet_match.get('due', 'N/A')  # 🌟 NEW
         else:
             # 🌟 Apply Fallbacks Instantly
             c['contractor_name'] = local_contractor
@@ -2126,10 +2132,32 @@ def run_pod_tab(pod_name):
                 ic_name = c.get('contractor_name', 'Unknown')
                 task_ids = [str(tid['id']).strip() for tid in c['data']]
                 cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+                
+                # 🌟 Pull the new metrics
+                comp = c.get('comp', 0)
+                due = c.get('due', 'N/A')
+                tasks_cnt = len(c['data'])
+                stops_cnt = c['stops']
+                
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                 with exp_col:
-                    with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']}"):
+                    with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
                         st.success("Route accepted. Complete the checklist to finalize.")
+                        
+                        # 🌟 NEW: Finalization Checklist
+                        st.markdown("<p style='font-size: 13px; font-weight: 600;'>Finalization Checklist:</p>", unsafe_allow_html=True)
+                        cc1, cc2, cc3 = st.columns(3)
+                        chk1 = cc1.checkbox("Tasks Completed", key=f"chk1_{cluster_hash}_{pod_name}")
+                        chk2 = cc2.checkbox("Photos Verified", key=f"chk2_{cluster_hash}_{pod_name}")
+                        chk3 = cc3.checkbox("Payment Scheduled", key=f"chk3_{cluster_hash}_{pod_name}")
+                        
+                        if chk1 and chk2 and chk3:
+                            if st.button("🏁 Finalize Route", key=f"fin_{cluster_hash}_{pod_name}", type="primary", use_container_width=True):
+                                with st.spinner("Finalizing..."):
+                                    finalize_route_handler(cluster_hash)
+                                    st.rerun()
+
+                        st.divider()
                         render_dispatch(i+2000, c, pod_name, is_sent=True)
                 with btn_col:
                     with st.popover("↩️ Revoke", use_container_width=True):
@@ -2140,11 +2168,61 @@ def run_pod_tab(pod_name):
             for i, g in enumerate(pod_ghosts):
                 g_ic_name = g.get('contractor_name', 'Unknown')
                 ghost_hash = g.get('hash', f"ghost_{i}")
+                
+                # 🌟 Pull the new metrics for Ghost routes
+                comp = g.get('pay', 0)
+                due = g.get('due', 'N/A')
+                stops_cnt = g.get('stops', 0)
+                tasks_cnt = g.get('tasks', 0)
+                
+                exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                    with exp_col:
+                        with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                            st.success("Route accepted. Complete the checklist to finalize.")
+                            
+                            # 🌟 NEW: Finalization Checklist for Digital Pool
+                            st.markdown("<p style='font-size: 13px; font-weight: 600;'>Finalization Checklist:</p>", unsafe_allow_html=True)
+                            cc1, cc2, cc3 = st.columns(3)
+                            chk1 = cc1.checkbox("Tasks Completed", key=f"d_chk1_{cluster_hash}")
+                            chk2 = cc2.checkbox("Photos Verified", key=f"d_chk2_{cluster_hash}")
+                            chk3 = cc3.checkbox("Payment Scheduled", key=f"d_chk3_{cluster_hash}")
+                            
+                            if chk1 and chk2 and chk3:
+                                if st.button("🏁 Finalize Route", key=f"d_fin_{cluster_hash}", type="primary", use_container_width=True):
+                                    with st.spinner("Finalizing..."):
+                                        finalize_route_handler(cluster_hash)
+                                        st.rerun()
+
+                            st.divider()
+                            render_dispatch(i+11000, c, "Global_Digital", is_sent=True)
+                with btn_col:
+                    with st.popover("↩️ Revoke", use_container_width=True):
+                        st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{g_ic_name}</b>?</p>", unsafe_allow_html=True)
+                        if st.button("🚨 Yes, Remove", key=f"rev_ghost_{ghost_hash}_{i}", type="primary", use_container_width=True):
+                            move_to_dispatch(cluster_hash=ghost_hash, ic_name=g_ic_name, pod_name=pod_name, action_label="Ghost Archived", check_onfleet=True, cluster_data=g)
+                            st.rerun()
+                            
+            for i, g in enumerate(pod_ghosts):
+                g_ic_name = g.get('contractor_name', 'Unknown')
+                ghost_hash = g.get('hash', f"ghost_{i}")
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                 with exp_col:
-                    with st.expander(f"✅ {g.get('wo', g_ic_name)} | {g.get('city')}, {g.get('state')}"):
-                        st.success("Accepted and synced with OnFleet.")
-                with btn_col:
+                    with st.expander(f"✅ {g.get('wo', g_ic_name)} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                        st.success("Accepted and synced with OnFleet. Complete the checklist to finalize.")
+                        
+                        # 🌟 NEW: Finalization Checklist for Ghost Routes
+                        st.markdown("<p style='font-size: 13px; font-weight: 600;'>Finalization Checklist:</p>", unsafe_allow_html=True)
+                        cc1, cc2, cc3 = st.columns(3)
+                        chk1 = cc1.checkbox("Tasks Completed", key=f"g_chk1_{ghost_hash}_{pod_name}")
+                        chk2 = cc2.checkbox("Photos Verified", key=f"g_chk2_{ghost_hash}_{pod_name}")
+                        chk3 = cc3.checkbox("Payment Scheduled", key=f"g_chk3_{ghost_hash}_{pod_name}")
+                        
+                        if chk1 and chk2 and chk3:
+                            if st.button("🏁 Finalize Route", key=f"g_fin_{ghost_hash}_{pod_name}", type="primary", use_container_width=True):
+                                with st.spinner("Finalizing..."):
+                                    finalize_route_handler(ghost_hash)
+                                    st.rerun()
+                with btn_col::
                     with st.popover("↩️ Revoke", use_container_width=True):
                         st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{g_ic_name}</b>?</p>", unsafe_allow_html=True)
                         if st.button("🚨 Yes, Remove", key=f"rev_ghost_{ghost_hash}_{i}", type="primary", use_container_width=True):
@@ -2371,6 +2449,8 @@ with tabs[6]:
             c['contractor_name'] = sheet_match.get('name', 'Unknown')
             c['wo'] = sheet_match.get('wo', c['contractor_name'])
             c['route_ts'] = sheet_match.get('time', '') or local_ts
+            c['comp'] = sheet_match.get('comp', 0)    # 🌟 NEW
+            c['due'] = sheet_match.get('due', 'N/A')  # 🌟 NEW
             db_stat = sheet_match.get('status', 'sent').lower()
         else:
             # 🌟 Apply Fallbacks Instantly
@@ -2513,9 +2593,16 @@ with tabs[6]:
                     task_ids = [str(t['id']).strip() for t in c['data']]
                     cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
                     ic_name = c.get('contractor_name', 'Unknown')
+                    
+                    # 🌟 Pull the new metrics
+                    comp = c.get('comp', 0)
+                    due = c.get('due', 'N/A')
+                    tasks_cnt = len(c['data'])
+                    stops_cnt = c['stops']
+                    
                     exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                     with exp_col:
-                        with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']}"):
+                        with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
                             render_dispatch(i+11000, c, "Global_Digital", is_sent=True)
                     with btn_col:
                         with st.popover("↩️ Revoke", use_container_width=True):
