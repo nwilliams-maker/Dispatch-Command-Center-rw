@@ -2086,9 +2086,9 @@ def run_pod_tab(pod_name):
                         st.markdown(f"<div style='font-size: 12px; font-weight: 800; color: #94a3b8; margin-top: 15px; margin-bottom: 5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 2px; text-transform: uppercase; letter-spacing: 1px;'>📍 {current_state}</div>", unsafe_allow_html=True)
                     
                     esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
-                    digi_pill = f" {get_digi_badges(c['data'])}" if c.get('is_digital') else ""  
+                    digi_pill = " 🔌" if c.get('is_digital') else ""
                     inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else ""
-                    with st.expander(f"🌐 FN: {c['city']}, {c['state']} | {c['stops']} Stops{digi_pill}{inst_pill}{esc_pill}"):
+                    with st.expander(f"🌐 FN:{digi_pill} {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{esc_pill}"):
                         render_dispatch(i+5000, c, pod_name)
                     
         with t_digital:
@@ -2101,7 +2101,7 @@ def run_pod_tab(pod_name):
                         current_state = c['state']
                         st.markdown(f"<div style='font-size: 12px; font-weight: 800; color: #94a3b8; margin-top: 15px; margin-bottom: 5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 2px; text-transform: uppercase; letter-spacing: 1px;'>📍 {current_state}</div>", unsafe_allow_html=True)
                     
-                    with st.expander(f"{get_digi_badges(c['data'])} DIGITAL: {c['city']}, {c['state']} | {c['stops']} Stops"):
+                    with st.expander(f"🔌{c['city']}, {c['state']} | {c['stops']} Stops"):
                         render_dispatch(i+7000, c, pod_name)
                     
     with col_right:
