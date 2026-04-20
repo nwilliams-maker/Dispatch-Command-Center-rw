@@ -1917,16 +1917,19 @@ def run_pod_tab(pod_name):
 
     # --- 📊 CATEGORIZED MATH ---
     # Routes
-    ready_count = len(ready)     # 🌟 THE FIX: Count the actual bucket, not the raw data!
-    flagged_count = len(review)  # 🌟 THE FIX: Count the actual bucket, not the raw data!
+    ready_count = len(ready)
+    flagged_count = len(review)
+    
+    # 🌟 THE FIX: Combine active buckets (Excludes Accepted & Finalized)
+    active_cls = ready + review + sent + declined + field_nation + digital_ready
     
     # Tasks
-    tasks_static = sum(len(c['data']) for c in cls if not c.get('is_digital'))
-    tasks_digital = sum(len(c['data']) for c in cls if c.get('is_digital'))
+    tasks_static = sum(len(c['data']) for c in active_cls if not c.get('is_digital'))
+    tasks_digital = sum(len(c['data']) for c in active_cls if c.get('is_digital'))
     
     # Stops
-    stops_static = sum(c['stops'] for c in cls if not c.get('is_digital'))
-    stops_digital = sum(c['stops'] for c in cls if c.get('is_digital'))
+    stops_static = sum(c['stops'] for c in active_cls if not c.get('is_digital'))
+    stops_digital = sum(c['stops'] for c in active_cls if c.get('is_digital'))
     
     # Sent Records
     accepted_count = len(accepted) + len(pod_ghosts)
@@ -2424,13 +2427,8 @@ for i, pod in enumerate(["Blue", "Green", "Orange", "Purple", "Red"], 1):
 
 # --- TAB 6: DIGITAL POOL ---
 with tabs[6]:
-    # 1. 📊 GRAB DATA & CALCULATE MATH (FIXED)
+    # 1. 📊 GRAB DATA & INITIALIZE
     global_digital = st.session_state.get('global_digital_clusters', [])
-    
-    # Calculate totals from the processed clusters
-    tasks_total = sum(len(c['data']) for c in global_digital)
-    # Count unique addresses across all digital clusters
-    unique_stops_total = len(set(t['full'] for c in global_digital for t in c['data']))
     
     # --- 🚦 TRAFFIC COP: BUCKET SORTING (Pulls WO from Sheet) ---
     d_ready, d_flagged, d_fn, d_sent, d_acc, d_dec, d_fin = [], [], [], [], [], [], []
@@ -2484,6 +2482,11 @@ with tabs[6]:
     pool_ready = len(d_ready)
     pool_flagged = len(d_flagged)
     pool_total_sent = len(d_sent) + len(d_acc) + len(d_dec) + len(d_fn)
+    
+    # 🌟 THE FIX: Combine active Digital buckets (Excludes Accepted & Finalized)
+    active_d_cls = d_ready + d_flagged + d_fn + d_sent + d_dec
+    tasks_total = sum(len(c['data']) for c in active_d_cls)
+    unique_stops_total = len(set(t['full'] for c in active_d_cls for t in c['data']))
     
     # 2. ⚡ DIGITAL HEADER & DYNAMIC BUTTON
     dh_col1, dh_col2, dh_col3 = st.columns([2, 6, 2])
