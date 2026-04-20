@@ -726,7 +726,9 @@ def fetch_sent_records_from_sheet():
                                         "name": display_name, 
                                         "status": status_label,
                                         "time": ts_display,
-                                        "wo": p.get('wo', display_name)
+                                        "wo": p.get('wo', display_name),
+                                        "comp": p.get('comp', 0),     # 🌟 THE FIX: Pull Comp
+                                        "due": p.get('due', 'N/A')    # 🌟 THE FIX: Pull Due Date
                                     }
                             
                             # Ghost Route logic for Accepted routes
@@ -1373,7 +1375,8 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if addr not in stop_metrics:
             stop_metrics[addr] = {
                 't_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 
-                'inst': 0, 'remov': 0, 'digi_off': 0, 'digi_ins': 0, 'digi_srv': 0, 'oth': 0, 'esc': False
+                'inst': 0, 'remov': 0, 'digi_off': 0, 'digi_ins': 0, 'digi_srv': 0, 
+                'custom': {}, 'esc': False # 🌟 REPLACED 'oth' WITH 'custom' DICT
             }
         stop_metrics[addr]['t_count'] += 1
         if t.get('escalated'): stop_metrics[addr]['esc'] = True
@@ -1410,7 +1413,11 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if any(x in tt for x in ["new ad", "art change", "top"]) or not tt:
             stop_metrics[addr]['n_ad'] += 1
         elif not found_category:
-            stop_metrics[addr]['oth'] += 1
+            # 🌟 THE FIX: Push exactly the remaining task type over
+            display_tt = tt.title()
+            if display_tt not in stop_metrics[addr]['custom']:
+                stop_metrics[addr]['custom'][display_tt] = 0
+            stop_metrics[addr]['custom'][display_tt] += 1
             
     # --- UI RENDERING (WITH BREAK-OFF FEATURE) ---
     for addr, metrics in stop_metrics.items():
@@ -1421,6 +1428,10 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if metrics['inst'] > 0: pill_parts.append(f"🛠️ {metrics['inst']} Kiosk Install")
         if metrics['remov'] > 0: pill_parts.append(f"🗑️ {metrics['remov']} Kiosk Removal")
         
+        # 🌟 Render Custom Task Types dynamically
+        for custom_name, count in metrics['custom'].items():
+            pill_parts.append(f"📋 {count} {custom_name}")
+            
         # 🌟 Inject Digital Icons
         if metrics['digi_off'] > 0: pill_parts.append(f"📵 {metrics['digi_off']} Offline")
         if metrics['digi_ins'] > 0: pill_parts.append(f"🔧 {metrics['digi_ins']} Ins/Rem")
