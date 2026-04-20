@@ -2314,9 +2314,22 @@ def run_pod_tab(pod_name):
                 ic_name = c.get('contractor_name', 'Unknown')
                 task_ids = [str(tid['id']).strip() for tid in c['data']]
                 cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+                
+                comp = c.get('comp', 0)
+                due = c.get('due', 'N/A')
+                tasks_cnt = len(c['data'])
+                stops_cnt = c['stops']
+                
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                 with exp_col:
-                    with st.expander(f"🏁 {ic_name} | {c['city']}, {c['state']}"):
+                    with st.expander(f"🏁 {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                        # 🌟 NEW: Add mini data record for Live Finalized Routes
+                        u_locs = []
+                        for tk in c['data']:
+                            if tk['full'] not in u_locs: u_locs.append(tk['full'])
+                        loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
+                        st.markdown(f"<div style='font-size:11px; color:#64748b; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:10px; border:1px solid #e2e8f0;'><b>Location Record:</b><ul style='margin-top:4px; margin-bottom:0; padding-left:20px;'>{loc_html}</ul></div>", unsafe_allow_html=True)
+                        
                         render_dispatch(i+4000, c, pod_name, is_sent=True)
                 with btn_col:
                     with st.popover("↩️ Re-Route", use_container_width=True):
@@ -2329,9 +2342,15 @@ def run_pod_tab(pod_name):
                 g_ic_name = g.get('contractor_name', 'Unknown')
                 ghost_hash = g.get('hash', f"ghost_fin_{i}")
                 wo_display = g.get('wo', g_ic_name)
+                
+                comp = g.get('pay', 0)
+                due = g.get('due', 'N/A')
+                stops_cnt = g.get('stops', 0)
+                tasks_cnt = g.get('tasks', 0)
+                
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                 with exp_col:
-                    with st.expander(f"🏁 {wo_display} | {g.get('city')}, {g.get('state')}"):
+                    with st.expander(f"🏁 {wo_display} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
                         st.success("Route Finalized and Archived.")
                         # Render the mini location record for proof
                         raw_locs = [s.strip() for s in g.get('locs', '').split('|') if s.strip()]
@@ -2734,10 +2753,22 @@ with tabs[6]:
                     task_ids = [str(t['id']).strip() for t in c['data']]
                     cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
                     ic_name = c.get('contractor_name', 'Unknown')
-                    wo_display = c.get('wo', ic_name)
+                    
+                    comp = c.get('comp', 0)
+                    due = c.get('due', 'N/A')
+                    tasks_cnt = len(c['data'])
+                    stops_cnt = c['stops']
+                    
                     exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                     with exp_col:
-                        with st.expander(f"🏁 {wo_display} | {c['city']}, {c['state']}"):
+                        with st.expander(f"🏁 {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                            # 🌟 NEW: Add mini data record for Digital Finalized Routes
+                            u_locs = []
+                            for tk in c['data']:
+                                if tk['full'] not in u_locs: u_locs.append(tk['full'])
+                            loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
+                            st.markdown(f"<div style='font-size:11px; color:#64748b; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:10px; border:1px solid #e2e8f0;'><b>Location Record:</b><ul style='margin-top:4px; margin-bottom:0; padding-left:20px;'>{loc_html}</ul></div>", unsafe_allow_html=True)
+                            
                             render_dispatch(i+13000, c, "Global_Digital", is_sent=True)
                     with btn_col:
                         with st.popover("↩️ Re-Route", use_container_width=True):
