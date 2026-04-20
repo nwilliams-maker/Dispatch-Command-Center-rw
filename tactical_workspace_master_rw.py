@@ -2234,16 +2234,21 @@ with tabs[6]:
             db_stat = c.get('db_status', 'ready').lower()
 
         # 🌟 LOGIC GATE: Every .append() target MUST start with 'd_'
-        if db_stat in ['sent', 'email_sent'] and not is_reverted: d_sent.append(c) #
-        elif db_stat == 'accepted' and not is_reverted: d_acc.append(c) #
-        elif db_stat == 'declined' and not is_reverted: d_dec.append(c) #
-        elif db_stat == 'finalized' and not is_reverted: d_fin.append(c) #
-        elif db_stat == 'field_nation' and not is_reverted: d_fn.append(c) #
-        elif route_state == 'email_sent' and not is_reverted: d_sent.append(c) #
-        elif route_state == 'field_nation' and not is_reverted: d_fn.append(c) #
+        if db_stat in ['sent', 'email_sent'] and not is_reverted: d_sent.append(c) 
+        elif db_stat == 'accepted' and not is_reverted: d_acc.append(c) 
+        elif db_stat == 'declined' and not is_reverted: d_dec.append(c) 
+        elif db_stat == 'finalized' and not is_reverted: d_fin.append(c) 
+        elif db_stat == 'field_nation' and not is_reverted: d_fn.append(c) 
+        elif route_state == 'email_sent' and not is_reverted: d_sent.append(c) 
+        elif route_state == 'field_nation' and not is_reverted: d_fn.append(c) 
+        # 👇 Added this safeguard back in just in case!
+        elif route_state == 'link_generated' and not is_reverted:
+            orig = st.session_state.get(f"orig_status_{cluster_hash}")
+            if orig == "declined": d_dec.append(c)
+            else: d_ready.append(c)
         else:
-            if c.get('status') == 'Ready': d_ready.append(c) #
-            else: d_flagged.append(c) #
+            if c.get('status') == 'Ready': d_ready.append(c) 
+            else: d_flagged.append(c)
                 
     # Supercard Counts
     pool_ready = len(d_ready)
