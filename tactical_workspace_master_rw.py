@@ -1921,12 +1921,11 @@ def run_pod_tab(pod_name):
                     ts_suffix = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
                     with st.expander(f"✉️ {ic_name} | {c['city']}, {c['state']}{digi_pill}{inst_pill}{esc_pill}{ts_suffix}"):
                         render_dispatch(i+500, c, pod_name, is_sent=True)
-                        
+
                 with btn_col:
                     with st.popover("↩️ Revoke", use_container_width=True):
-                        st.error(f"Revoke this route?")
-                        if st.button("🚨 Yes, Add back to Pool", key=f"rev_acc_{cluster_hash}", type="primary", use_container_width=True):
-                            move_to_dispatch(cluster_hash=cluster_hash, ic_name=ic_name, pod_name=pod_name, action_label="Route Revoked", check_onfleet=True, cluster_data=c)
+                        if st.button("🚨 Confirm", key=f"rev_sent_{cluster_hash}_{pod_name}", type="primary"): # UNIQUE KEY
+                            move_to_dispatch(cluster_hash, ic_name, pod_name, cluster_data=c)
                             
         with t_acc:
             if not accepted and not pod_ghosts: st.info("Waiting for portal acceptances...")
@@ -1954,9 +1953,8 @@ def run_pod_tab(pod_name):
                         
                 with btn_col:
                     with st.popover("↩️ Revoke", use_container_width=True):
-                        st.error(f"Revoke this route?")
-                        if st.button("🚨 Yes, Add back to Pool", key=f"rev_acc_{cluster_hash}", type="primary", use_container_width=True):
-                            move_to_dispatch(cluster_hash=cluster_hash, ic_name=ic_name, pod_name=pod_name, action_label="Route Revoked", check_onfleet=True, cluster_data=c)
+                        if st.button("🚨 Confirm", key=f"rev_acc_{cluster_hash}_{pod_name}", type="primary"): # UNIQUE KEY
+                            move_to_dispatch(cluster_hash, ic_name, pod_name, cluster_data=c)
 
             for i, g in enumerate(pod_ghosts):
                 wo_display = g.get('wo', g.get('contractor_name', 'Unknown'))
@@ -2013,8 +2011,8 @@ def run_pod_tab(pod_name):
                 with btn_col:
                     with st.popover("↩️ Revoke", use_container_width=True):
                         st.error(f"Re-route this declined route?")
-                        if st.button("🚨 Yes, Add back to Pool", key=f"rev_acc_{cluster_hash}", type="primary", use_container_width=True):
-                            move_to_dispatch(cluster_hash=cluster_hash, ic_name=ic_name, pod_name=pod_name, action_label="Route Revoked", check_onfleet=True, cluster_data=c)
+                        if st.button("🚨 Confirm", key=f"rev_dec_{cluster_hash}_{pod_name}", type="primary"): # UNIQUE KEY
+                            move_to_dispatch(cluster_hash, ic_name, pod_name, cluster_data=c)
                     
         with t_fin:
             if not finalized: st.info("No finalized routes.")
@@ -2298,28 +2296,61 @@ with tabs[6]:
             
             with t_sent:
                 for i, c in enumerate(d_sent):
-                    # 🌟 THE WO DISPLAY: Uses WO if available, fallback to Contractor Name
+                    task_ids = [str(t['id']).strip() for t in c['data']]
+                    cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
                     wo_display = c.get('wo', c.get('contractor_name', 'Unknown'))
-                    with st.expander(f"✉️ {wo_display} | {c['city']}, {c['state']}"):
-                        render_dispatch(i+10000, c, "Global_Digital", is_sent=True)
+                    
+                    exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                    with exp_col:
+                        with st.expander(f"✉️ {wo_display} | {c['city']}, {c['state']}"):
+                            render_dispatch(i+10000, c, "Global_Digital", is_sent=True)
+                    with btn_col:
+                        if st.button("↩️", key=f"rev_d_sent_{cluster_hash}", help="Revoke Digital Route"):
+                            move_to_dispatch(cluster_hash, wo_display, "Global_Digital", cluster_data=c)
             
             with t_acc:
                 for i, c in enumerate(d_acc):
+                    task_ids = [str(t['id']).strip() for t in c['data']]
+                    cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
                     wo_display = c.get('wo', 'Ready')
-                    with st.expander(f"✅ {wo_display} | {c['city']}, {c['state']}"):
-                        render_dispatch(i+11000, c, "Global_Digital", is_sent=True)
+                    
+                    exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                    with exp_col:
+                        with st.expander(f"✅ {wo_display} | {c['city']}, {c['state']}"):
+                            # Add basic operational checklist here if desired
+                            render_dispatch(i+11000, c, "Global_Digital", is_sent=True)
+                    with btn_col:
+                        if st.button("↩️", key=f"rev_d_acc_{cluster_hash}", help="Revoke Accepted Digital"):
+                            move_to_dispatch(cluster_hash, wo_display, "Global_Digital", cluster_data=c)
+    
             
             with t_dec:
                 for i, c in enumerate(d_dec):
+                    task_ids = [str(t['id']).strip() for t in c['data']]
+                    cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
                     wo_display = c.get('wo', c.get('contractor_name', 'Unknown'))
-                    with st.expander(f"❌ {wo_display} | {c['city']}, {c['state']}"):
-                        render_dispatch(i+12000, c, "Global_Digital", is_declined=True)
+                    
+                    exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                    with exp_col:
+                        with st.expander(f"✉️ {wo_display} | {c['city']}, {c['state']}"):
+                            render_dispatch(i+10000, c, "Global_Digital", is_sent=True)
+                    with btn_col:
+                        if st.button("↩️", key=f"rev_d_sent_{cluster_hash}", help="Revoke Digital Route"):
+                            move_to_dispatch(cluster_hash, wo_display, "Global_Digital", cluster_data=c)
             
             with t_fin:
                 for i, c in enumerate(d_fin):
+                    task_ids = [str(t['id']).strip() for t in c['data']]
+                    cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
                     wo_display = c.get('wo', c.get('contractor_name', 'Unknown'))
-                    with st.expander(f"🏁 {wo_display} | {c['city']}, {c['state']}"):
-                        render_dispatch(i+13000, c, "Global_Digital", is_sent=True)
+                    
+                    exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                    with exp_col:
+                        with st.expander(f"✉️ {wo_display} | {c['city']}, {c['state']}"):
+                            render_dispatch(i+10000, c, "Global_Digital", is_sent=True)
+                    with btn_col:
+                        if st.button("↩️", key=f"rev_d_sent_{cluster_hash}", help="Revoke Digital Route"):
+                            move_to_dispatch(cluster_hash, wo_display, "Global_Digital", cluster_data=c)
 
 # --- FINAL FOOTER (End of File) ---
 st.markdown("---")
