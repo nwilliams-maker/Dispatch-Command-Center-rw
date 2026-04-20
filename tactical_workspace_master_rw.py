@@ -797,42 +797,6 @@ def fetch_sent_records_from_sheet():
                                         "hash": ghost_hash, 
                                         "locs": p.get('locs', '') 
                                     })
-                                state_guess, city_guess = "UNKNOWN", "Unknown"
-                                stops_list = [s.strip() for s in locs_str.split('|') if s.strip()]
-                                
-                                # Extract city/state from the first real stop
-                                if len(stops_list) > 1:
-                                    addr_parts = stops_list[1].split(',')
-                                    if len(addr_parts) >= 2:
-                                        state_guess = addr_parts[-1].strip().upper()
-                                        city_guess = addr_parts[-2].strip()
-                                
-                                norm_state = STATE_MAP.get(state_guess, state_guess)
-                                pod_name = "UNKNOWN"
-                                for p_name, p_config in POD_CONFIGS.items():
-                                    if norm_state in p_config['states']:
-                                        pod_name = p_name
-                                        break
-                                
-                                if pod_name != "UNKNOWN":
-                                    # 🌟 FIX: Calculate the hash so the checklist can finalize this route
-                                    clean_tids = [str(t).strip() for t in tids if str(t).strip()]
-                                    ghost_hash = hashlib.md5("".join(sorted(clean_tids)).encode()).hexdigest()
-
-                                    ghost_routes[pod_name].append({
-                                        "contractor_name": c_name,
-                                        "route_ts": ts_display,
-                                        "city": city_guess,
-                                        "state": norm_state,
-                                        "stops": p.get('lCnt', 0),
-                                        "tasks": p.get('tCnt', len(tids)),
-                                        "pay": p.get('comp', 0),
-                                        "wo": p.get('wo', c_name),
-                                        "due": p.get('due', 'N/A'),      
-                                        "hash": ghost_hash, 
-                                        "locs": p.get('locs', '') # 🌟 THE FIX: Capture the location record
-                                    })
-                                    
                         except Exception: continue
             except Exception: continue
             
