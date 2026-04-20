@@ -2162,27 +2162,29 @@ def run_pod_tab(pod_name):
                 
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                 with exp_col:
-                        with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
-                            st.success("Route accepted. Complete the checklist to finalize.")
-                            
-                            # 🌟 THE FIX: Add mini data record
-                            u_locs = []
-                            for tk in c['data']:
-                                if tk['full'] not in u_locs: u_locs.append(tk['full'])
-                            loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
-                            st.markdown(f"<div style='font-size:11px; color:#64748b; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:10px; border:1px solid #e2e8f0;'><b>Location Record:</b><ul style='margin-top:4px; margin-bottom:0; padding-left:20px;'>{loc_html}</ul></div>", unsafe_allow_html=True)
-                            
-                            st.markdown("<p style='font-size: 13px; font-weight: 600;'>Finalization Checklist:</p>", unsafe_allow_html=True)
+                    with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                        st.success("Route accepted. Complete the checklist to finalize.")
+                        
+                        # 🌟 Mini data record (Inside the expander)
+                        u_locs = []
+                        for tk in c['data']:
+                            if tk['full'] not in u_locs: u_locs.append(tk['full'])
+                        loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
+                        st.markdown(f"<div style='font-size:11px; color:#64748b; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:10px; border:1px solid #e2e8f0;'><b>Location Record:</b><ul style='margin-top:4px; margin-bottom:0; padding-left:20px;'>{loc_html}</ul></div>", unsafe_allow_html=True)
+                        
+                        # 🌟 Checklist (Inside the expander)
+                        st.markdown("<p style='font-size: 13px; font-weight: 600;'>Finalization Checklist:</p>", unsafe_allow_html=True)
                         cc1, cc2, cc3 = st.columns(3)
                         chk1 = cc1.checkbox("Optimized Route in OnFleet.", key=f"chk1_{cluster_hash}_{pod_name}")
                         chk2 = cc2.checkbox("Dispatched in Route Planning.", key=f"chk2_{cluster_hash}_{pod_name}")
                         chk3 = cc3.checkbox("Packing list created.", key=f"chk3_{cluster_hash}_{pod_name}")
                         
                         if chk1 and chk2 and chk3:
-                            # 🌟 CALLBACK FIX
                             st.button("🏁 Finalize Route", key=f"fin_{cluster_hash}_{pod_name}", type="primary", use_container_width=True, on_click=finalize_route_handler, args=(cluster_hash,))
 
                         st.divider()
+                        
+                        # 🌟 Route Details (Inside the expander)
                         render_dispatch(i+2000, c, pod_name, is_sent=True)
                 with btn_col:
                     with st.popover("↩️ Revoke", use_container_width=True):
