@@ -2291,7 +2291,17 @@ with tabs[6]:
         m_digi = folium.Map(location=global_digital[0]['center'], zoom_start=4, tiles="cartodbpositron")
         for c in global_digital: folium.CircleMarker(c['center'], radius=8, color="#0f766e", fill=True, opacity=0.8).add_to(m_digi)
         st_folium(m_digi, height=400, use_container_width=True, key="digital_pool_map")
-        st.markdown("<div style='text-align:center; font-size:12px; color:#64748b; margin-top:-10px; margin-bottom:20px;'><span style='color:#0f766e;'>●</span> Digital Ready | <span style='color:#ef4444;'>●</span> Flagged | <span style='color:#3b82f6;'>●</span> Sent</div>", unsafe_allow_html=True)
+        
+        st.markdown("""
+<div style="display: flex; justify-content: center; flex-wrap: wrap; gap: 20px; background: #ffffff; padding: 12px; border-radius: 12px; border: 1px solid #cbd5e1; margin-top: -10px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+    <div style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; align-self: center; margin-right: 10px;">Route Key:</div>
+    <div style="font-size: 13px; cursor: help;" title="Route is within distance limits (<60mi) and standard rate (<$25/stop).">🟢 Ready</div>
+    <div style="font-size: 13px; cursor: help;" title="Digital Offline: Screen reported offline.">📵 Offline</div>
+    <div style="font-size: 13px; cursor: help;" title="Digital Ins/Rem: Installation or removal of digital screen.">🔧 Ins/Rem</div>
+    <div style="font-size: 13px; cursor: help;" title="Digital Service: Standard digital maintenance.">⚙️ Service</div>
+    <div style="font-size: 13px; cursor: help;" title="Route was flagged for review (e.g., low density).">🔴 Flagged</div>
+</div>
+""", unsafe_allow_html=True)
 
         # 5. 🚀 TWO-COLUMN DISPATCH (Parity with Pods)
         st.markdown("---")
