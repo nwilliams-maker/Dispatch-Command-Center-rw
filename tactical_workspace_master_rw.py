@@ -1272,7 +1272,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if addr not in stop_metrics:
             stop_metrics[addr] = {
                 't_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 
-                'inst': 0, 'remov': 0, 'digi': 0, 'oth': 0, 'esc': False
+                'inst': 0, 'remov': 0, 'digi_off': 0, 'digi_ins': 0, 'digi_srv': 0, 'oth': 0, 'esc': False
             }
         stop_metrics[addr]['t_count'] += 1
         if t.get('escalated'): stop_metrics[addr]['esc'] = True
@@ -1285,28 +1285,34 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         tt = ", ".join(parts)
 
         found_category = False
-        if any(x in tt for x in ["service", "offline", "skykit", "ins/re"]): 
-            stop_metrics[addr]['digi'] += 1
+        
+        # 🌟 Split Digital Tasks
+        if t.get('is_digital'):
+            if "offline" in tt: stop_metrics[addr]['digi_off'] += 1
+            elif "ins/re" in tt: stop_metrics[addr]['digi_ins'] += 1
+            else: stop_metrics[addr]['digi_srv'] += 1
             found_category = True
-        if "install" in tt: 
-            stop_metrics[addr]['inst'] += 1
-            found_category = True
-        if any(trigger in tt for trigger in ["kiosk removal", "remove kiosk"]):
-            stop_metrics[addr]['remov'] += 1
-            found_category = True
-        if any(x in tt for x in ["continuity", "photo retake", "swap"]): 
-            stop_metrics[addr]['c_ad'] += 1
-            found_category = True
-        if any(x in tt for x in ["default", "pull down"]): 
-            stop_metrics[addr]['d_ad'] += 1
-            found_category = True
+        else:
+            if "install" in tt: 
+                stop_metrics[addr]['inst'] += 1
+                found_category = True
+            if any(trigger in tt for trigger in ["kiosk removal", "remove kiosk"]):
+                stop_metrics[addr]['remov'] += 1
+                found_category = True
+            if any(x in tt for x in ["continuity", "photo retake", "swap"]): 
+                stop_metrics[addr]['c_ad'] += 1
+                found_category = True
+            if any(x in tt for x in ["default", "pull down"]): 
+                stop_metrics[addr]['d_ad'] += 1
+                found_category = True
         
         if any(x in tt for x in ["new ad", "art change", "top"]) or not tt:
             stop_metrics[addr]['n_ad'] += 1
         elif not found_category:
             stop_metrics[addr]['oth'] += 1
             
-    # UI: Stop Info + Break-Off Button Layout
+    # --- UI RENDERING (WITH BREAK-OFF FEATURE) ---
+    for addr, metrics in stop_metrics.items():
         pill_parts = []
         if metrics['n_ad'] > 0: pill_parts.append(f"🆕 {metrics['n_ad']} New Ad")
         if metrics['c_ad'] > 0: pill_parts.append(f"🔄 {metrics['c_ad']} Continuity")
@@ -1314,9 +1320,9 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if metrics['inst'] > 0: pill_parts.append(f"🛠️ {metrics['inst']} Kiosk Install")
         if metrics['remov'] > 0: pill_parts.append(f"🗑️ {metrics['remov']} Kiosk Removal")
         
-        # 🌟 THE FIX: Inject the 3 new icons into the stop summary strings
+        # 🌟 Inject Digital Icons
         if metrics['digi_off'] > 0: pill_parts.append(f"📵 {metrics['digi_off']} Offline")
-        if metrics['digi_ins'] > 0: pill_parts.append(f"🛠️ {metrics['digi_ins']} Ins/Rem")
+        if metrics['digi_ins'] > 0: pill_parts.append(f"🔧 {metrics['digi_ins']} Ins/Rem")
         if metrics['digi_srv'] > 0: pill_parts.append(f"⚙️ {metrics['digi_srv']} Service")
         
         pill_str = " | ".join(pill_parts)
