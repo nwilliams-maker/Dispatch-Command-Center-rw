@@ -458,11 +458,10 @@ div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb
 }}
 
 /* 3. Field Nation (Light Yellow BG / Dark Yellow Text) */
-/* 🌟 FIXED: Changed index to 3 and applied your color palette */
 div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(3) {{
     background-color: #fef9c3 !important;
     border: 2px solid #854d0e !important;
-    border-radius: 30px !important; /* Makes it a pill */
+    border-radius: 30px !important;
     margin: 0 5px !important;
 }}
 div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(3) p {{
@@ -470,30 +469,43 @@ div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb
     font-weight: 800 !important;
 }}
 
-/* 🌟 COMPACT PILLS OVERRIDE: Stops them from stretching wide */
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"] {{
-    padding: 4px 12px !important;
-    flex-grow: 0 !important; /* Kills the stretching bloat */
-    min-width: 0 !important;
-    height: 32px !important;
-    margin: 0 !important;
+/* 4. Digital (Teal - Left Column) */
+div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(4) {{
+    background-color: #ccfbf1 !important;
+    border: 2px solid #0f766e !important;
+    border-radius: 30px !important;
+    margin: 0 5px !important;
 }}
-
-div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"] p {{
-    font-size: 11px !important;
-    white-space: nowrap !important;
+div[data-testid="stColumn"]:nth-child(1) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(4) p {{
+    color: #0f766e !important;
+    font-weight: 800 !important;
 }}
 
 /* --- RIGHT COLUMN: Awaiting Tabs --- */
-/* Force the gap and center the pills so they don't stretch */
+/* Force the gap, center the pills, and stop stretching */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab-list"] {{
     gap: 12px !important;
     justify-content: center !important; 
 }}
 
-/* 🌟 THE FIX: Removed the height/padding constraints so they match the Left Column */
+/* 🌟 RESTORE PILL SIZE: Inherit global sizing but prevent stretching */
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"] {{
+    flex-grow: 0 !important; /* Kills the stretching bloat */
+}}
+
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"] p {{
     white-space: nowrap !important;
+    font-weight: 800 !important; /* Matches left column boldness */
+}}
+
+/* 1. Sent (Purple/Blue) */
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) {{
+    background-color: #f3e8ff !important;
+    border: 2px solid #633094 !important;
+    border-radius: 30px !important;
+}}
+div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(1) p {{
+    color: #633094 !important; 
 }}
 
 /* 2. Accepted (Green) */
@@ -518,13 +530,13 @@ div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb
 
 /* 4. Finalized (Orange) */
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(4) {{
+    background-color: #fffaf5 !important;
     border: 2px solid #f97316 !important;
     border-radius: 30px !important;
 }}
 div[data-testid="stColumn"]:nth-child(2) div[data-testid="stTabs"] [data-baseweb="tab"]:nth-of-type(4) p {{
     color: #7c2d12 !important; 
 }}
-
 
 /* ALIGN COLUMNS AT THE TOP (Fixes the giant gap on the left) */
 div[data-testid="stHorizontalBlock"] {{ align-items: flex-start !important; }}
