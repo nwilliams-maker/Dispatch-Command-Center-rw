@@ -636,22 +636,20 @@ def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", ch
     st.toast(f"✅ {action_label}! Route moved back to Dispatch.")
     # 🌟 THE FIX: st.rerun() has been completely removed!
     
-def finalize_route_handler(cluster_hash):
-    # This fires the command to your Google Sheet to change status to 'finalized'
+def background_sheet_finalize(cluster_hash):
+    """Silent worker to finalize routes in Google Sheets without freezing the UI."""
     try:
-        res = requests.post(GAS_WEB_APP_URL, json={
-            "action": "finalizeRoute", 
-            "cluster_hash": cluster_hash
-        }).json()
-        if res.get("success"):
-            st.toast("🏁 Route Finalized!")
-            # 🌟 THE FIX: Instantly update the local UI state
-            st.session_state[f"route_state_{cluster_hash}"] = "finalized"
-            st.session_state[f"reverted_{cluster_hash}"] = False
-        else:
-            st.error("Failed to update database.")
-    except Exception as e:
-        st.error(f"Finalization Error: {e}")
+        requests.post(GAS_WEB_APP_URL, json={"action": "finalizeRoute", "cluster_hash": cluster_hash}, timeout=15)
+    except:
+        pass
+
+def finalize_route_handler(cluster_hash):
+    # 1. 🚀 FIRE AND FORGET: Move the row in Google Sheets in the background
+    threading.Thread(target=background_sheet_finalize, args=(cluster_hash,), daemon=True).start()
+    
+    # 2. 🧠 INSTANT UI OVERRIDE: Force the UI to immediately move it to the Finalized tab
+    st.session_state[f"route_state_{cluster_hash}"] = "finalized"
+    st.toast("🏁 Route Finalized! Moving to Finalized tab...")
         
 
     
@@ -1931,7 +1929,10 @@ def run_pod_tab(pod_name):
             continue 
 
         # --- PRIORITY: LIVE DATABASE OVERRIDES LOCAL STATE ---
-        if sheet_match and not is_reverted:
+        # 🌟 THE FIX: If we just clicked Finalize, override the Google Sheet instantly!
+        if route_state == "finalized":
+            finalized.append(c)
+        elif sheet_match and not is_reverted:
             raw_status = str(sheet_match.get('status', '')).lower()
             if raw_status == 'field_nation': field_nation.append(c) #
             elif raw_status == 'declined': declined.append(c) #
@@ -2511,10 +2512,11 @@ with tabs[6]:
             db_stat = c.get('db_status', 'ready').lower()
 
         # 🌟 LOGIC GATE: Every .append() target MUST start with 'd_'
-        if db_stat in ['sent', 'email_sent'] and not is_reverted: d_sent.append(c) 
+        if route_state == 'finalized': d_fin.append(c) # 🌟 THE FIX: Local Finalize Override
+        elif db_stat in ['sent', 'email_sent'] and not is_reverted: d_sent.append(c) 
         elif db_stat == 'accepted' and not is_reverted: d_acc.append(c) 
         elif db_stat == 'declined' and not is_reverted: d_dec.append(c) 
-        elif db_stat == 'finalized' and not is_reverted: d_fin.append(c) 
+        elif db_stat == 'finalized' and not is_reverted: d_fin.append(c)
         elif db_stat == 'field_nation' and not is_reverted: d_fn.append(c) 
         elif route_state == 'email_sent' and not is_reverted: d_sent.append(c) 
         elif route_state == 'field_nation' and not is_reverted: d_fn.append(c) 
