@@ -2247,7 +2247,7 @@ if "ic_df" not in st.session_state:
 col_left_space, col_main_title, col_ref = st.columns([1, 8, 2])
 
 with col_main_title:
-    st.markdown("<h1 style='color: #633094;'>Dispatch Command Center</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='color: #633094;'>Terraboost Media: Dispatch Command Center</h1>", unsafe_allow_html=True)
 
 with col_ref:
     st.markdown("<div class='refresh-btn-container' style='margin-top: 26px;'>", unsafe_allow_html=True)
