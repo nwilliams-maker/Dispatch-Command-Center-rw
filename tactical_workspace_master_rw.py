@@ -1712,13 +1712,47 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         wo_val = cluster['wo']
     else:
         wo_val = f"{ic.get('name', 'Unknown')}-{datetime.now().strftime('%m%d%Y')}"
-    total_digital = sum(1 for t in cluster['data'] if t.get('is_digital'))
-    total_installs = sum(1 for t in cluster['data'] if "install" in str(t.get('task_type','')).lower())
+    # 🌟 NEW: Calculate route-level task breakdowns for the email preview
+    route_task_counts = {}
+    total_installs = 0
     
-    # 🌟 THE FIX: Make all lines dynamic so they disappear if the count is 0
-    digital_line = f" 🔌 Digital Tasks: {total_digital}\n" if total_digital > 0 else ""
-    kiosk_line = f" 🛠️ Kiosk Installs: {total_installs}\n" if total_installs > 0 else ""
-    install_warning = f"\n⚠️ NOTE: This route contains Kiosk Installs. Please ensure you have adequate vehicle space.\n" if total_installs > 0 else ""
+    for t in cluster['data']:
+        raw_tt = str(t.get('task_type', '')).strip()
+        clean_tt_lower = raw_tt.lower().replace("escalation", "").replace("  ", " ").strip(" ,-|:")
+        
+        # Default to New Ad if empty
+        if not clean_tt_lower:
+            clean_tt_lower = "new ad"
+            display_tt = "New Ad"
+        else:
+            display_tt = clean_tt_lower.title()
+
+        is_digi = t.get('is_digital')
+        category = None
+        
+        # 🚦 Match exactly to the UI buckets
+        if is_digi:
+            if "offline" in clean_tt_lower: category = "📵 Offline"
+            elif "ins/re" in clean_tt_lower: category = "🔧 Ins/Rem"
+            else: category = "⚙️ Service"
+        else:
+            if "install" in clean_tt_lower: 
+                category = "🛠️ Kiosk Install"
+                total_installs += 1
+            elif any(x in clean_tt_lower for x in ["kiosk removal", "remove kiosk"]): category = "🗑️ Kiosk Removal"
+            elif any(x in clean_tt_lower for x in ["continuity", "photo retake", "swap"]): category = "🔄 Continuity"
+            elif any(x in clean_tt_lower for x in ["default", "pull down"]): category = "⚪ Default"
+            elif any(x in clean_tt_lower for x in ["new ad", "art change", "top"]): category = "🆕 New Ad"
+            else: category = f"📋 {display_tt}" # Pass custom types straight through
+            
+        if category not in route_task_counts:
+            route_task_counts[category] = 0
+        route_task_counts[category] += 1
+
+    # Format the breakdown list cleanly for the email
+    task_breakdown_str = "\n".join([f"  {cat}: {count}" for cat, count in route_task_counts.items()]) + "\n"
+    
+    install_warning = f"\n⚠️ NOTE: This route contains Kiosk Installs. Please ensure you have adequate storage and vehicle space.\n" if total_installs > 0 else ""
     
     sig_preview = (
         f"Hello {ic.get('name', 'Contractor')},\n\n"
@@ -1726,9 +1760,9 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         f" Work Order: {wo_val}\n"
         f"📅 Due Date: {due.strftime('%A, %b %d, %Y')}\n"
         f" Total Stops: {cluster['stops']}\n"
-        f" Estimated Compensation: ${final_pay:.2f}\n"
-        f"{digital_line}"
-        f"{kiosk_line}"
+        f" Estimated Compensation: ${final_pay:.2f}\n\n"
+        f" Task Breakdown:\n"
+        f"{task_breakdown_str}"
         f"{install_warning}\n"
         f"To view the complete route details—including total stops, estimated mileage, and time—please click the secure link below to access your Route Summary.\n\n"
         f"⚠️ ACTION REQUIRED:\n"
@@ -2082,8 +2116,9 @@ def run_pod_tab(pod_name):
 
                     esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
                     inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else "" 
+                    remov_pill = f"  [ 🗑️ {c.get('remov_count', 0)} Removal ]" if c.get('remov_count', 0) > 0 else ""
                     
-                    with st.expander(f"{badges} 🟢 {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{esc_pill}"):
+                    with st.expander(f"{badges} 🟢 {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{remov_pill}{esc_pill}"):
                         render_dispatch(i, c, pod_name)
                     
         with t_flagged:
@@ -2098,7 +2133,9 @@ def run_pod_tab(pod_name):
                     
                     esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
                     inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else ""
-                    with st.expander(f"🔒 🔴 {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{esc_pill}"):
+                    remov_pill = f"  [ 🗑️ {c.get('remov_count', 0)} Removal ]" if c.get('remov_count', 0) > 0 else ""
+                    
+                    with st.expander(f"🔒 🔴 {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{remov_pill}{esc_pill}"):
                         render_dispatch(i+1000, c, pod_name)
 
         with t_fn:
@@ -2114,7 +2151,9 @@ def run_pod_tab(pod_name):
                     esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
                     digi_pill = " 🔌" if c.get('is_digital') else ""
                     inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else ""
-                    with st.expander(f"🌐 FN:{digi_pill} {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{esc_pill}"):
+                    remov_pill = f"  [ 🗑️ {c.get('remov_count', 0)} Removal ]" if c.get('remov_count', 0) > 0 else ""
+                    
+                    with st.expander(f"🌐 FN:{digi_pill} {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{remov_pill}{esc_pill}"):
                         render_dispatch(i+5000, c, pod_name)
                     
         with t_digital:
