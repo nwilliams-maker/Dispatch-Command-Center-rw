@@ -2177,25 +2177,22 @@ def run_pod_tab(pod_name):
                 
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                 with exp_col:
-                    with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
-                            st.success("Route accepted. Complete the checklist to finalize.")
-                            
-                            # 🌟 NEW: Finalization Checklist for Digital Pool
-                            st.markdown("<p style='font-size: 13px; font-weight: 600;'>Finalization Checklist:</p>", unsafe_allow_html=True)
-                            cc1, cc2, cc3 = st.columns(3)
-                            chk1 = cc1.checkbox("Tasks Completed", key=f"d_chk1_{cluster_hash}")
-                            chk2 = cc2.checkbox("Photos Verified", key=f"d_chk2_{cluster_hash}")
-                            chk3 = cc3.checkbox("Payment Scheduled", key=f"d_chk3_{cluster_hash}")
-                            
-                            if chk1 and chk2 and chk3:
-                                if st.button("🏁 Finalize Route", key=f"d_fin_{cluster_hash}", type="primary", use_container_width=True):
-                                    with st.spinner("Finalizing..."):
-                                        finalize_route_handler(cluster_hash)
-                                        st.rerun()
-
-                            st.divider()
-                            render_dispatch(i+11000, c, "Global_Digital", is_sent=True)
-                with btn_col:
+                    with st.expander(f"✅ {g.get('wo', g_ic_name)} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                        st.success("Accepted and synced with OnFleet. Complete the checklist to finalize.")
+                        
+                        # 🌟 Finalization Checklist for Ghost Routes
+                        st.markdown("<p style='font-size: 13px; font-weight: 600;'>Finalization Checklist:</p>", unsafe_allow_html=True)
+                        cc1, cc2, cc3 = st.columns(3)
+                        chk1 = cc1.checkbox("Tasks Completed", key=f"g_chk1_{ghost_hash}_{pod_name}")
+                        chk2 = cc2.checkbox("Photos Verified", key=f"g_chk2_{ghost_hash}_{pod_name}")
+                        chk3 = cc3.checkbox("Payment Scheduled", key=f"g_chk3_{ghost_hash}_{pod_name}")
+                        
+                        if chk1 and chk2 and chk3:
+                            if st.button("🏁 Finalize Route", key=f"g_fin_{ghost_hash}_{pod_name}", type="primary", use_container_width=True):
+                                with st.spinner("Finalizing..."):
+                                    finalize_route_handler(ghost_hash)
+                                    st.rerun()
+                with btn_col:  # 🌟 THE FIX: Single colon restored
                     with st.popover("↩️ Revoke", use_container_width=True):
                         st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{g_ic_name}</b>?</p>", unsafe_allow_html=True)
                         if st.button("🚨 Yes, Remove", key=f"rev_ghost_{ghost_hash}_{i}", type="primary", use_container_width=True):
@@ -2603,6 +2600,22 @@ with tabs[6]:
                     exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                     with exp_col:
                         with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                            st.success("Route accepted. Complete the checklist to finalize.")
+                            
+                            # 🌟 Finalization Checklist for Digital Pool
+                            st.markdown("<p style='font-size: 13px; font-weight: 600;'>Finalization Checklist:</p>", unsafe_allow_html=True)
+                            cc1, cc2, cc3 = st.columns(3)
+                            chk1 = cc1.checkbox("Tasks Completed", key=f"d_chk1_{cluster_hash}")
+                            chk2 = cc2.checkbox("Photos Verified", key=f"d_chk2_{cluster_hash}")
+                            chk3 = cc3.checkbox("Payment Scheduled", key=f"d_chk3_{cluster_hash}")
+                            
+                            if chk1 and chk2 and chk3:
+                                if st.button("🏁 Finalize Route", key=f"d_fin_{cluster_hash}", type="primary", use_container_width=True):
+                                    with st.spinner("Finalizing..."):
+                                        finalize_route_handler(cluster_hash)
+                                        st.rerun()
+
+                            st.divider()
                             render_dispatch(i+11000, c, "Global_Digital", is_sent=True)
                     with btn_col:
                         with st.popover("↩️ Revoke", use_container_width=True):
