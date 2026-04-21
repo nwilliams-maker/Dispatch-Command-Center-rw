@@ -2764,7 +2764,7 @@ with tabs[6]:
             
             with t_sent:
                 if not d_sent and not sent_ghosts: st.info("No pending routes sent.")
-            
+                
                 # 1. Render Live Sent Routes
                 for i, c in enumerate(d_sent):
                     task_ids = [str(t['id']).strip() for t in c['data']]
@@ -2778,6 +2778,34 @@ with tabs[6]:
                         with st.popover("↩️ Revoke", use_container_width=True):
                             st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
                             st.button("🚨 Yes, Remove", key=f"rev_d_sent_{cluster_hash}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": cluster_hash, "ic_name": ic_name, "pod_name": "Global_Digital", "cluster_data": c})
+                
+                # 2. 🌟 Render Ghost Sent Routes
+                for i, g in enumerate(sent_ghosts):
+                    if g.get('hash') in live_hashes: continue # Skip if already rendered above
+                    
+                    g_ic_name = g.get('contractor_name', 'Unknown')
+                    ghost_hash = g.get('hash', f"ghost_d_sent_{i}")
+                    wo_display = g.get('wo', g_ic_name)
+                    comp, due = g.get('pay', 0), g.get('due', 'N/A')
+                    stops_cnt, tasks_cnt = g.get('stops', 0), g.get('tasks', 0)
+                    
+                    exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                    with exp_col:
+                        with st.expander(f"✉️ {wo_display} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                            st.info("Route sent. Awaiting contractor response.")
+                            raw_locs = [s.strip() for s in g.get('locs', '').split('|') if s.strip()]
+                            if len(raw_locs) >= 3: task_locs = raw_locs[1:-1]
+                            else: task_locs = raw_locs
+                            u_locs = []
+                            for l in task_locs:
+                                if l not in u_locs: u_locs.append(l)
+                            if u_locs:
+                                loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
+                                st.markdown(f"<div style='font-size:11px; color:#64748b; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:10px; border:1px solid #e2e8f0;'><b>Location Record:</b><ul style='margin-top:4px; margin-bottom:0; padding-left:20px;'>{loc_html}</ul></div>", unsafe_allow_html=True)
+                    with btn_col:
+                        with st.popover("↩️ Revoke", use_container_width=True):
+                            st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{g_ic_name}</b>?</p>", unsafe_allow_html=True)
+                            st.button("🚨 Yes, Remove", key=f"rev_ghost_d_sent_{ghost_hash}_{i}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": ghost_hash, "ic_name": g_ic_name, "pod_name": "Global_Digital", "action_label": "Ghost Archived", "check_onfleet": True, "cluster_data": g})
             
             # 2. 🌟 Render Ghost Sent Routes
             for i, g in enumerate(sent_ghosts):
