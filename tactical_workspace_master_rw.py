@@ -757,33 +757,39 @@ def fetch_sent_records_from_sheet():
                                 state_guess, city_guess = "UNKNOWN", "Unknown"
                                 stops_list = [s.strip() for s in locs_str.split('|') if s.strip()]
                                 
-                                # Extract city/state from the first real stop
-                                if len(stops_list) > 1:
-                                    addr_parts = stops_list[1].split(',')
-                                    if len(addr_parts) >= 2:
-                                        state_raw = addr_parts[-1].strip().upper()
-                                        state_guess = state_raw.split(' ')[0] # 🌟 THE FIX: Strips out zip codes!
-                                        city_guess = addr_parts[-2].strip()
+                                # 🌟 THE FIX: Prioritize direct payload extraction, fallback to string splitting
+                                state_guess = str(p.get('state', 'UNKNOWN'))
+                                city_guess = str(p.get('city', 'Unknown'))
                                 
-                                # 🌟 THE FIX: Bulletproof Digital Ghost Detection
-                                # Check the raw JSON payload first, then fallback to emojis
+                                if state_guess == "UNKNOWN" or city_guess == "Unknown":
+                                    if len(stops_list) > 1:
+                                        addr_parts = stops_list[1].split(',')
+                                        if len(addr_parts) >= 2:
+                                            state_raw = addr_parts[-1].strip().upper()
+                                            state_guess = state_raw.split(' ')[0] 
+                                            city_guess = addr_parts[-2].strip()
+                                    elif len(stops_list) == 1:
+                                        addr_parts = stops_list[0].split(',')
+                                        if len(addr_parts) >= 2:
+                                            state_raw = addr_parts[-1].strip().upper()
+                                            state_guess = state_raw.split(' ')[0] 
+                                            city_guess = addr_parts[-2].strip()
+                                
+                                # 🌟 THE FIX: ALWAYS define norm_state outside the if/else block!
+                                norm_state = STATE_MAP.get(state_guess, state_guess)
+                                
                                 is_digital_ghost = False
-                                
-                                # Try extracting from raw taskIds if we have them
                                 if tids and tids[0].strip() in sent_dict:
                                     is_digital_ghost = sent_dict[tids[0].strip()].get('is_digital', False)
                                     
-                                # If it's not explicitly labeled in the dictionary, scan the job string
                                 if not is_digital_ghost:
                                     job_only = str(p.get('jobOnly', ''))
-                                    # Added "Service", "Offline", "Ins/Rem" text matches just in case emojis were stripped
                                     is_digital_ghost = any(trigger in job_only.lower() for trigger in ['🔌', '🔧', '⚙️', '📵', 'service', 'offline', 'ins/rem'])
                                 
                                 pod_name = "UNKNOWN"
                                 if is_digital_ghost:
                                     pod_name = "Global_Digital"
                                 else:
-                                    norm_state = STATE_MAP.get(state_guess, state_guess)
                                     for p_name, p_config in POD_CONFIGS.items():
                                         if norm_state in p_config['states']:
                                             pod_name = p_name
@@ -1889,7 +1895,9 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 "icn": ic.get('name', 'Unknown'), 
                 "ice": ic.get('email', ''), 
                 "wo": wo_val, 
-                "due": str(due), "comp": final_pay, "lCnt": cluster['stops'], "mi": mi, "time": t_str, 
+                "city": cluster.get('city', 'Unknown'),   # 🌟 ADDED
+                "state": cluster.get('state', 'Unknown'), # 🌟 ADDED
+                "due": str(due), "comp": final_pay, "lCnt": cluster['stops'], "mi": mi, "time": t_str,
                 "phone": str(ic.get('phone', '')),
                 "locs": " | ".join([home] + list(stop_metrics.keys()) + [home]),
                 "taskIds": ",".join(task_ids),
