@@ -2150,7 +2150,9 @@ def run_pod_tab(pod_name):
         st.info(f"No active tasks pending in the {pod_name} region.")
         return
 
-    m = folium.Map(location=cls[0]['center'], zoom_start=6, tiles="cartodbpositron")
+    # 🌟 THE FIX: Prevent IndexError if there are Ghost routes but no Live routes!
+    map_center = cls[0]['center'] if cls else [39.8283, -98.5795]
+    m = folium.Map(location=map_center, zoom_start=6 if cls else 4, tiles="cartodbpositron")
     for c in ready: folium.CircleMarker(c['center'], radius=8, color=TB_GREEN, fill=True, opacity=0.8).add_to(m)
     for c in digital_ready: folium.CircleMarker(c['center'], radius=8, color="#0f766e", fill=True, opacity=0.8).add_to(m)
     for c in sent: folium.CircleMarker(c['center'], radius=8, color="#3b82f6", fill=True, opacity=0.8).add_to(m)
@@ -2732,11 +2734,14 @@ with tabs[6]:
     # 🌟 THE FIX: Force spacing after the cards
     st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
     
-    if not global_digital:
+    # 🌟 THE FIX: Make sure the UI still loads if there are digital ghosts but no live digital routes
+    if not global_digital and not pod_ghosts:
         st.info("Click '🚀 Initialize Data' at the top right to fetch data.")
     else:
         # 4. 🗺️ MAP & LEGEND
-        m_digi = folium.Map(location=global_digital[0]['center'], zoom_start=4, tiles="cartodbpositron")
+        # 🌟 THE FIX: Safe coordinate extraction
+        map_center_digi = global_digital[0]['center'] if global_digital else [39.8283, -98.5795]
+        m_digi = folium.Map(location=map_center_digi, zoom_start=4, tiles="cartodbpositron")
         for c in global_digital: folium.CircleMarker(c['center'], radius=8, color="#0f766e", fill=True, opacity=0.8).add_to(m_digi)
         st_folium(m_digi, height=400, use_container_width=True, key="digital_pool_map")
         
