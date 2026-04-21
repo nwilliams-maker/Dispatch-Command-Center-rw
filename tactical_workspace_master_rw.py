@@ -656,19 +656,24 @@ def render_finalization_checklist(cluster_hash, pod_name, prefix="chk"):
     if chk1 and chk2 and chk3:
         if st.button("🏁 Finalize Route", key=f"finbtn_{prefix}_{cluster_hash}_{pod_name}", type="primary", use_container_width=True):
             # 1. 🚀 SYNCHRONOUS SHEET UPDATE
-            # We wait for Google to confirm the move BEFORE we let Streamlit reload the page
             with st.spinner("Archiving to Google Sheets..."):
                 try:
-                    requests.post(GAS_WEB_APP_URL, json={"action": "finalizeRoute", "cluster_hash": cluster_hash}, timeout=15)
+                    res = requests.post(GAS_WEB_APP_URL, json={"action": "finalizeRoute", "cluster_hash": cluster_hash}, timeout=15)
+                    res_data = res.json() # 🌟 Parse the response!
+                    
+                    if not res_data.get("success"):
+                        st.error(f"Google Sheets Error: {res_data.get('error')}")
+                        st.stop() # 🚨 HALT EXECUTION! Do not hide the card if the database failed.
                 except Exception as e:
-                    st.error("Failed to connect to Google Sheets.")
+                    st.error(f"Failed to connect to Google Sheets: {e}")
+                    st.stop() # 🚨 HALT EXECUTION!
             
-            # 2. 🧠 INSTANT UI OVERRIDE
+            # 2. 🧠 INSTANT UI OVERRIDE (Only runs if Google Sheets confirmed the move!)
             st.session_state[f"route_state_{cluster_hash}"] = "finalized"
             st.session_state[f"reverted_{cluster_hash}"] = True 
             
             st.toast("🏁 Route Finalized! Moving to Finalized tab...")
-            st.rerun(scope="app") # Safely refresh now that the data is secured!
+            st.rerun(scope="app")
         
 
     
@@ -800,8 +805,13 @@ def fetch_sent_records_from_sheet():
                                             break
                                 
                                 if pod_name != "UNKNOWN":
-                                    clean_tids = [str(t).strip() for t in tids if str(t).strip()]
-                                    ghost_hash = hashlib.md5("".join(sorted(clean_tids)).encode()).hexdigest()
+                                    # 🌟 EXACT HASH FIX: Read the exact hash from the database payload
+                                    ghost_hash = p.get("cluster_hash") 
+                                    
+                                    # Fallback to math ONLY if the payload is old and doesn't have it
+                                    if not ghost_hash:
+                                        clean_tids = [str(t).strip() for t in tids if str(t).strip()]
+                                        ghost_hash = hashlib.md5("".join(sorted(clean_tids)).encode()).hexdigest()
 
                                     ghost_routes[pod_name].append({
                                         "contractor_name": c_name,
