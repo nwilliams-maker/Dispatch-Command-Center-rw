@@ -2688,62 +2688,6 @@ with tabs[6]:
         else:
             if c.get('status') == 'Ready': d_ready.append(c) 
             else: d_flagged.append(c)
-        if st.session_state.get(f"route_state_{g.get('hash')}") == "finalized" or g.get("status") == "finalized":
-            finalized_ghosts.append(g)
-        else:
-            pod_ghosts.append(g)
-        if st.session_state.get(f"route_state_{g.get('hash')}") == "finalized" or g.get("status") == "finalized":
-            finalized_ghosts.append(g)
-        else:
-            pod_ghosts.append(g)
-    
-    # --- 🚦 TRAFFIC COP: BUCKET SORTING (Pulls WO from Sheet) ---
-    d_ready, d_flagged, d_fn, d_sent, d_acc, d_dec, d_fin = [], [], [], [], [], [], []
-    
-    for c in global_digital:
-        task_ids = [str(t['id']).strip() for t in c['data']]
-        cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
-        route_state = st.session_state.get(f"route_state_{cluster_hash}")
-        is_reverted = st.session_state.get(f"reverted_{cluster_hash}", False)
-        
-        # 🌟 Fetch Local Memory
-        local_ts = st.session_state.get(f"sent_ts_{cluster_hash}", "")
-        local_contractor = st.session_state.get(f"contractor_{cluster_hash}", "Unknown")
-        local_wo = st.session_state.get(f"wo_{cluster_hash}", local_contractor)
-        
-        # Match live sheet data to get the Contractor Name and WO
-        sheet_match = sent_db.get(next((tid for tid in task_ids if tid in sent_db), None))
-        if sheet_match and not is_reverted:
-            c['contractor_name'] = sheet_match.get('name', 'Unknown')
-            c['wo'] = sheet_match.get('wo', c['contractor_name'])
-            c['route_ts'] = sheet_match.get('time', '') or local_ts
-            c['comp'] = sheet_match.get('comp', 0)    # 🌟 NEW
-            c['due'] = sheet_match.get('due', 'N/A')  # 🌟 NEW
-            db_stat = sheet_match.get('status', 'sent').lower()
-        else:
-            # 🌟 Apply Fallbacks Instantly
-            c['contractor_name'] = local_contractor
-            c['wo'] = local_wo
-            c['route_ts'] = local_ts
-            db_stat = c.get('db_status', 'ready').lower()
-
-        # 🌟 LOGIC GATE: Every .append() target MUST start with 'd_'
-        if route_state == 'finalized': d_fin.append(c) # 🌟 THE FIX: Local Finalize Override
-        elif db_stat in ['sent', 'email_sent'] and not is_reverted: d_sent.append(c) 
-        elif db_stat == 'accepted' and not is_reverted: d_acc.append(c) 
-        elif db_stat == 'declined' and not is_reverted: d_dec.append(c) 
-        elif db_stat == 'finalized' and not is_reverted: d_fin.append(c)
-        elif db_stat == 'field_nation' and not is_reverted: d_fn.append(c) 
-        elif route_state == 'email_sent' and not is_reverted: d_sent.append(c) 
-        elif route_state == 'field_nation' and not is_reverted: d_fn.append(c) 
-        # 👇 Added this safeguard back in just in case!
-        elif route_state == 'link_generated' and not is_reverted:
-            orig = st.session_state.get(f"orig_status_{cluster_hash}")
-            if orig == "declined": d_dec.append(c)
-            else: d_ready.append(c)
-        else:
-            if c.get('status') == 'Ready': d_ready.append(c) 
-            else: d_flagged.append(c)
                 
     # Supercard Counts
     pool_ready = len(d_ready)
