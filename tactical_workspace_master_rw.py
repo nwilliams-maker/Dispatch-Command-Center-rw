@@ -2249,11 +2249,11 @@ def run_pod_tab(pod_name):
                     with st.expander(f"✉️ {ic_name} | {c['city']}, {c['state']}{ts_label}"):
                         render_dispatch(i+500, c, pod_name, is_sent=True)
                 with btn_col:
-                    with st.popover("↩️ Revoke", use_container_width=True):
-                        st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
-                        st.button("🚨 Yes, Remove", key=f"rev_sent_{cluster_hash}_{pod_name}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": cluster_hash, "ic_name": ic_name, "pod_name": pod_name, "cluster_data": c})
+                    with st.popover("↩️ Re-Route", use_container_width=True):
+                        st.markdown(f"<p style='font-size:13px; text-align:center;'>Re-route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
+                        st.button("🚨 Yes, Re-Route", key=f"rev_sent_{cluster_hash}_{pod_name}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": cluster_hash, "ic_name": ic_name, "pod_name": pod_name, "action_label": "Re-Routed", "check_onfleet": True, "cluster_data": c})
             
-            # 2. 🌟 Render Ghost Sent Routes (The Fix for vanishing integrations)
+            # 2. 🌟 Render Ghost Sent Routes
             for i, g in enumerate(sent_ghosts):
                 if g.get('hash') in live_hashes: continue # Skip if already rendered above
                 
@@ -2277,9 +2277,9 @@ def run_pod_tab(pod_name):
                             loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
                             st.markdown(f"<div style='font-size:11px; color:#64748b; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:10px; border:1px solid #e2e8f0;'><b>Location Record:</b><ul style='margin-top:4px; margin-bottom:0; padding-left:20px;'>{loc_html}</ul></div>", unsafe_allow_html=True)
                 with btn_col:
-                    with st.popover("↩️ Revoke", use_container_width=True):
-                        st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{g_ic_name}</b>?</p>", unsafe_allow_html=True)
-                        st.button("🚨 Yes, Remove", key=f"rev_ghost_sent_{ghost_hash}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": ghost_hash, "ic_name": g_ic_name, "pod_name": pod_name, "action_label": "Route Revoked", "check_onfleet": True, "cluster_data": g})
+                    with st.popover("↩️ Re-Route", use_container_width=True):
+                        st.markdown(f"<p style='font-size:13px; text-align:center;'>Re-route from <b>{g_ic_name}</b>?</p>", unsafe_allow_html=True)
+                        st.button("🚨 Yes, Re-Route", key=f"rev_ghost_sent_{ghost_hash}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": ghost_hash, "ic_name": g_ic_name, "pod_name": pod_name, "action_label": "Re-Routed", "check_onfleet": True, "cluster_data": g})
                             
         with t_acc:
             if not accepted and not pod_ghosts: st.info("Waiting for portal acceptances...")
@@ -2833,9 +2833,9 @@ with tabs[6]:
                         with st.expander(f"✉️ {c.get('wo', ic_name)} | {c['city']}, {c['state']}"):
                             render_dispatch(i+10000, c, "Global_Digital", is_sent=True)
                     with btn_col:
-                        with st.popover("↩️ Revoke", use_container_width=True):
-                            st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
-                            st.button("🚨 Yes, Remove", key=f"rev_d_sent_{cluster_hash}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": cluster_hash, "ic_name": ic_name, "pod_name": "Global_Digital", "cluster_data": c})
+                        with st.popover("↩️ Re-Route", use_container_width=True):
+                            st.markdown(f"<p style='font-size:13px; text-align:center;'>Re-route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
+                            st.button("🚨 Yes, Re-Route", key=f"rev_d_sent_{cluster_hash}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": cluster_hash, "ic_name": ic_name, "pod_name": "Global_Digital", "action_label": "Re-Routed", "check_onfleet": True, "cluster_data": c})
                 
                 # 2. 🌟 Render Ghost Sent Routes
                 for i, g in enumerate(sent_ghosts):
@@ -2861,9 +2861,9 @@ with tabs[6]:
                                 loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
                                 st.markdown(f"<div style='font-size:11px; color:#64748b; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:10px; border:1px solid #e2e8f0;'><b>Location Record:</b><ul style='margin-top:4px; margin-bottom:0; padding-left:20px;'>{loc_html}</ul></div>", unsafe_allow_html=True)
                     with btn_col:
-                        with st.popover("↩️ Revoke", use_container_width=True):
-                            st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{g_ic_name}</b>?</p>", unsafe_allow_html=True)
-                            st.button("🚨 Yes, Remove", key=f"rev_ghost_d_sent_{ghost_hash}_{i}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": ghost_hash, "ic_name": g_ic_name, "pod_name": "Global_Digital", "action_label": "Ghost Archived", "check_onfleet": True, "cluster_data": g})
+                        with st.popover("↩️ Re-Route", use_container_width=True):
+                            st.markdown(f"<p style='font-size:13px; text-align:center;'>Re-route from <b>{g_ic_name}</b>?</p>", unsafe_allow_html=True)
+                            st.button("🚨 Yes, Re-Route", key=f"rev_ghost_d_sent_{ghost_hash}_{i}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": ghost_hash, "ic_name": g_ic_name, "pod_name": "Global_Digital", "action_label": "Re-Routed", "check_onfleet": True, "cluster_data": g})
             
             # 2. 🌟 Render Ghost Sent Routes
             for i, g in enumerate(sent_ghosts):
