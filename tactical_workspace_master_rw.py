@@ -739,11 +739,19 @@ def fetch_sent_records_from_sheet():
                             
                             raw_ts = row.get('date created', '')
                             ts_display = ""
+                            
+                            # 🌟 THE FIX: Filter out any routes created before April 20, 2026
                             if pd.notna(raw_ts) and str(raw_ts).strip():
                                 try:
-                                    ts_display = pd.to_datetime(raw_ts).strftime('%m/%d %I:%M %p')
+                                    dt_obj = pd.to_datetime(raw_ts)
+                                    # If the date is older than April 20th, skip the row completely!
+                                    if dt_obj < pd.to_datetime("2026-04-20"):
+                                        continue 
+                                    ts_display = dt_obj.strftime('%m/%d %I:%M %p')
                                 except:
                                     ts_display = str(raw_ts)
+                            else:
+                                continue # Skip empty date rows just to be safe
                             
                             # 1. Live Task Matching
                             for tid in tids:
