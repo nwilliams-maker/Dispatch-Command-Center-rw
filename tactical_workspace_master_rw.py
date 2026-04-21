@@ -2763,21 +2763,21 @@ with tabs[6]:
             t_sent, t_acc, t_dec, t_fin = st.tabs(["✉️ Sent", "✅ Accepted", "❌ Declined", "🏁 Finalized"])
             
             with t_sent:
-            if not d_sent and not sent_ghosts: st.info("No pending routes sent.")
+                if not d_sent and not sent_ghosts: st.info("No pending routes sent.")
             
-            # 1. Render Live Sent Routes
-            for i, c in enumerate(d_sent):
-                task_ids = [str(t['id']).strip() for t in c['data']]
-                cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
-                ic_name = c.get('contractor_name', 'Unknown')
-                exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
-                with exp_col:
-                    with st.expander(f"✉️ {c.get('wo', ic_name)} | {c['city']}, {c['state']}"):
-                        render_dispatch(i+10000, c, "Global_Digital", is_sent=True)
-                with btn_col:
-                    with st.popover("↩️ Revoke", use_container_width=True):
-                        st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
-                        st.button("🚨 Yes, Remove", key=f"rev_d_sent_{cluster_hash}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": cluster_hash, "ic_name": ic_name, "pod_name": "Global_Digital", "cluster_data": c})
+                # 1. Render Live Sent Routes
+                for i, c in enumerate(d_sent):
+                    task_ids = [str(t['id']).strip() for t in c['data']]
+                    cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
+                    ic_name = c.get('contractor_name', 'Unknown')
+                    exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                    with exp_col:
+                        with st.expander(f"✉️ {c.get('wo', ic_name)} | {c['city']}, {c['state']}"):
+                            render_dispatch(i+10000, c, "Global_Digital", is_sent=True)
+                    with btn_col:
+                        with st.popover("↩️ Revoke", use_container_width=True):
+                            st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
+                            st.button("🚨 Yes, Remove", key=f"rev_d_sent_{cluster_hash}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": cluster_hash, "ic_name": ic_name, "pod_name": "Global_Digital", "cluster_data": c})
             
             # 2. 🌟 Render Ghost Sent Routes
             for i, g in enumerate(sent_ghosts):
