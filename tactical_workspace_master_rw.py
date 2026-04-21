@@ -654,18 +654,21 @@ def render_finalization_checklist(cluster_hash, pod_name, prefix="chk"):
     chk3 = cc3.checkbox("Packing list created.", key=f"{prefix}3_{cluster_hash}_{pod_name}")
     
     if chk1 and chk2 and chk3:
-        # 🌟 THE FIX: Handled procedurally instead of via callback to escape the fragment trap!
         if st.button("🏁 Finalize Route", key=f"finbtn_{prefix}_{cluster_hash}_{pod_name}", type="primary", use_container_width=True):
-            # 1. 🚀 FIRE AND FORGET
-            threading.Thread(target=background_sheet_finalize, args=(cluster_hash,), daemon=True).start()
+            # 1. 🚀 SYNCHRONOUS SHEET UPDATE
+            # We wait for Google to confirm the move BEFORE we let Streamlit reload the page
+            with st.spinner("Archiving to Google Sheets..."):
+                try:
+                    requests.post(GAS_WEB_APP_URL, json={"action": "finalizeRoute", "cluster_hash": cluster_hash}, timeout=15)
+                except Exception as e:
+                    st.error("Failed to connect to Google Sheets.")
             
             # 2. 🧠 INSTANT UI OVERRIDE
             st.session_state[f"route_state_{cluster_hash}"] = "finalized"
             st.session_state[f"reverted_{cluster_hash}"] = True 
             
             st.toast("🏁 Route Finalized! Moving to Finalized tab...")
-            time.sleep(0.1) # Tiny pause to guarantee the toast visually registers
-            st.rerun(scope="app") # 🌟 THE FIX: Blasts through the fragment to refresh the whole dashboard!
+            st.rerun(scope="app") # Safely refresh now that the data is secured!
         
 
     
