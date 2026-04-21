@@ -2243,11 +2243,21 @@ def run_pod_tab(pod_name):
                 task_ids = [str(tid['id']).strip() for tid in c['data']]
                 cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
                 
+                comp = c.get('comp', 0)
+                due = c.get('due', 'N/A')
+                tasks_cnt = len(c['data'])
+                stops_cnt = c['stops']
+                wo_display = c.get('wo', ic_name)
+                
                 exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                 with exp_col:
-                    ts_label = f" | {c.get('route_ts', '')}" if c.get('route_ts') else ""
-                    with st.expander(f"✉️ {ic_name} | {c['city']}, {c['state']}{ts_label}"):
-                        render_dispatch(i+500, c, pod_name, is_sent=True)
+                    with st.expander(f"✉️ {wo_display} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                        st.info("Route sent. Awaiting contractor response.")
+                        u_locs = []
+                        for tk in c['data']:
+                            if tk['full'] not in u_locs: u_locs.append(tk['full'])
+                        loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
+                        st.markdown(f"<div style='font-size:11px; color:#64748b; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:10px; border:1px solid #e2e8f0;'><b>Location Record:</b><ul style='margin-top:4px; margin-bottom:0; padding-left:20px;'>{loc_html}</ul></div>", unsafe_allow_html=True)
                 with btn_col:
                     with st.popover("↩️ Re-Route", use_container_width=True):
                         st.markdown(f"<p style='font-size:13px; text-align:center;'>Re-route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
@@ -2828,10 +2838,22 @@ with tabs[6]:
                     task_ids = [str(t['id']).strip() for t in c['data']]
                     cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
                     ic_name = c.get('contractor_name', 'Unknown')
+                    
+                    comp = c.get('comp', 0)
+                    due = c.get('due', 'N/A')
+                    tasks_cnt = len(c['data'])
+                    stops_cnt = c['stops']
+                    wo_display = c.get('wo', ic_name)
+                    
                     exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                     with exp_col:
-                        with st.expander(f"✉️ {c.get('wo', ic_name)} | {c['city']}, {c['state']}"):
-                            render_dispatch(i+10000, c, "Global_Digital", is_sent=True)
+                        with st.expander(f"✉️ {wo_display} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                            st.info("Route sent. Awaiting contractor response.")
+                            u_locs = []
+                            for tk in c['data']:
+                                if tk['full'] not in u_locs: u_locs.append(tk['full'])
+                            loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
+                            st.markdown(f"<div style='font-size:11px; color:#64748b; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:10px; border:1px solid #e2e8f0;'><b>Location Record:</b><ul style='margin-top:4px; margin-bottom:0; padding-left:20px;'>{loc_html}</ul></div>", unsafe_allow_html=True)
                     with btn_col:
                         with st.popover("↩️ Re-Route", use_container_width=True):
                             st.markdown(f"<p style='font-size:13px; text-align:center;'>Re-route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
