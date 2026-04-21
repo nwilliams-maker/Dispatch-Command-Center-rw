@@ -1977,9 +1977,18 @@ def run_pod_tab(pod_name):
     
     # 🌟 THE FIX: Omni-Ghost Sorter
     pod_ghosts, finalized_ghosts, sent_ghosts = [], [], []
+    seen_ghosts = set() # 🛡️ THE FIX: Streamlit Crash Shield
+    
     for g in ghost_db.get(pod_name, []):
+        g_hash = g.get('hash')
+        
+        # If the Google Sheet has duplicate rows, drop the clone instantly!
+        if g_hash in seen_ghosts:
+            continue
+        seen_ghosts.add(g_hash)
+        
         g_stat = g.get("status", "")
-        local_override = st.session_state.get(f"route_state_{g.get('hash')}")
+        local_override = st.session_state.get(f"route_state_{g_hash}")
         if local_override == "finalized" or g_stat == "finalized": finalized_ghosts.append(g)
         elif g_stat == "sent": sent_ghosts.append(g)
         else: pod_ghosts.append(g)
@@ -2146,7 +2155,8 @@ def run_pod_tab(pod_name):
         st.info(f"No {pod_name} tasks initialized. Click '🚀 Initialize Data' at the top right.")
         return
         
-    if not cls and not pod_ghosts:
+    # 🌟 THE FIX: Don't hide the tab if there are pending sent routes!
+    if not cls and not pod_ghosts and not sent_ghosts and not finalized_ghosts:
         st.info(f"No active tasks pending in the {pod_name} region.")
         return
 
@@ -2640,10 +2650,18 @@ with tabs[6]:
     digital_ghosts_list = ghost_db.get("Global_Digital", [])
     
     pod_ghosts, finalized_ghosts, sent_ghosts = [], [], []
+    seen_ghosts = set() # 🛡️ THE FIX: Streamlit Crash Shield
     
     for g in digital_ghosts_list:
+        g_hash = g.get('hash')
+        
+        # If the Google Sheet has duplicate rows, drop the clone instantly!
+        if g_hash in seen_ghosts:
+            continue
+        seen_ghosts.add(g_hash)
+        
         g_stat = g.get("status", "")
-        local_override = st.session_state.get(f"route_state_{g.get('hash')}")
+        local_override = st.session_state.get(f"route_state_{g_hash}")
         if local_override == "finalized" or g_stat == "finalized": finalized_ghosts.append(g)
         elif g_stat == "sent": sent_ghosts.append(g)
         else: pod_ghosts.append(g)
