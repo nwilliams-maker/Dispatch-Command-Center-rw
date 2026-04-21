@@ -858,7 +858,7 @@ def get_gmaps(home, waypoints):
             
             # 🌟 NEW: Add "Service Time" (e.g., 15 minutes / 0.25 hours per stop)
             # You can change 0.25 to whatever average time you expect them to be at a location
-            service_hrs = len(waypoints) * 0.25 
+            service_hrs = len(waypoints) * (10/60) 
             
             total_hrs = drive_hrs + service_hrs
             
@@ -1225,7 +1225,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             anc_wo = anc.get('wo', 'none')
             
             # Set radius strictly based on the whitelist result
-            route_radius = 25 if anc_is_digital else 40
+            route_radius = 25 if anc_is_digital else 35
             
             candidates = []; rem = []
             for t in pool:
