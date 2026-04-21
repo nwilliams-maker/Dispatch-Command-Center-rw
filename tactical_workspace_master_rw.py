@@ -698,6 +698,7 @@ def fetch_sent_records_from_sheet():
             (DECLINED_ROUTES_GID, "declined"),
             (ACCEPTED_ROUTES_GID, "accepted"),
             (SAVED_ROUTES_GID, "sent"),
+            (FINALIZED_ROUTES_GID, "finalized"),
         ]
 
        # 3. Add Field Nation only if the GID is defined to avoid errors
