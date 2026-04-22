@@ -1646,18 +1646,27 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 if row.get('name') == prev_name:
                     default_label = label; break
 
-        if default_label:
+        # 🌟 THE FIX: Restore saved database pay first, OR calculate via Google Maps
+        saved_comp = float(cluster.get('comp', 0))
+        
+        if saved_comp > 0:
+            # Load the exact amount stored in Google Sheets
+            initial_pay = saved_comp
+            if default_label:
+                st.session_state[sel_key] = default_label
+                st.session_state[last_sel_key] = default_label
+        elif default_label:
+            # Calculate from the Contractor's Home
             ic_init = ic_opts[default_label]
             _, h, _ = get_gmaps(ic_init.get('location', f"{cluster['center'][0]},{cluster['center'][1]}"), tuple(stop_metrics.keys()))
-            # Floor calculation: Max of $18/stop or $25/hr
             initial_pay = float(round(max(cluster['stops'] * 18.0, h * 25.0), 2))
             st.session_state[sel_key] = default_label
             st.session_state[last_sel_key] = default_label
         else:
-            # Fallback floor if no IC is found
-            initial_pay = float(round(cluster['stops'] * 18.0, 2))
+            # 🌟 THE FIX: If no IC is found, calculate the hourly rate from the cluster's center!
+            _, h, _ = get_gmaps(f"{cluster['center'][0]},{cluster['center'][1]}", tuple(stop_metrics.keys()))
+            initial_pay = float(round(max(cluster['stops'] * 18.0, h * 25.0), 2))
 
-        # 🌟 THE FIX: Save the calculated pay OUTSIDE the if/else so it always saves
         st.session_state[pay_key] = initial_pay
         st.session_state[rate_key] = round(initial_pay / cluster['stops'], 2) if cluster['stops'] > 0 else 18.0
     
