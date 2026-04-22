@@ -2256,7 +2256,6 @@ def run_pod_tab(pod_name):
                                 est_rate = est_pay / c['stops'] if c['stops'] > 0 else 0
                                 if est_rate >= 25.0: badges += " 💰"
                                 if closest_ic['d'] > 60: badges += " 📡"
-                                if est_rate >= 25.0 or closest_ic['d'] > 60: badges = " 🔒" + badges
 
                     esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
                     inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else "" 
