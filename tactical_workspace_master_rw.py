@@ -1707,6 +1707,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                     "wo": f"FN-{datetime.now().strftime('%m%d%Y')}",
                     "lCnt": cluster['stops'],
                     "tCnt": len(task_ids),
+                    "kCnt": cluster.get('inst_count', 0),
                     "locs": " | ".join([home] + list(stop_metrics.keys()) + [home])
                 }
                 try:
