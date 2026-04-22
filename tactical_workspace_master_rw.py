@@ -1136,6 +1136,10 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             custom_task_type = ""
             custom_boosted = ""
             tt_val = native_details # Fallback UI display
+            venue_name = ""      # ← add
+            venue_id = ""        # ← add
+            client_company = ""  # ← add
+            location_in_venue = "" # ← add
             
             for f in custom_fields:
                 f_name = str(f.get('name', '')).strip().lower()
@@ -1156,7 +1160,14 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 if 'escalation' in f_name or 'escalation' in f_key:
                     if f_val_lower in ['1', '1.0', 'true', 'yes'] or 'escalation' in f_val_lower:
                         is_esc = True
-
+                if f_name in ['venuename', 'venue name'] or f_key in ['venuename', 'venue_name']:
+                    venue_name = f_val
+                if f_name in ['venueid', 'venue id'] or f_key in ['venueid', 'venue_id']:
+                    venue_id = f_val
+                if f_name in ['clientcompany', 'client company'] or f_key in ['clientcompany', 'client_company']:
+                    client_company = f_val
+                if f_name in ['locationinvenue', 'location in venue'] or f_key in ['locationinvenue', 'location_in_venue']:
+                    location_in_venue = f_val
             # 2. CHECK REGULAR (STATIC) EXEMPTIONS FIRST
             # Combines native and custom type to ensure "Magnet" or "Photo" are never missed
             search_string = f"{native_details} {custom_task_type}".lower()
@@ -1189,6 +1200,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                     "city": addr.get('city', 'Unknown'), 
                     "state": stt,
                     "full": f"{addr.get('number','')} {addr.get('street','')}, {addr.get('city','')}, {stt}",
+                    "zip": addr.get('postalCode', ''),
                     "lat": t['destination']['location'][1], 
                     "lon": t['destination']['location'][0],
                     "escalated": is_esc, 
@@ -1196,6 +1208,10 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                     "is_digital": is_digital_task, # 🔌 Drives the plug icon
                     "db_status": t_status, 
                     "wo": t_wo,
+                    "venue_name": venue_name,           # ← add
+                    "venue_id": venue_id,               # ← add
+                    "client_company": client_company,   # ← add
+                    "location_in_venue": location_in_venue, # ← add
                 })
                 
         clusters = []
