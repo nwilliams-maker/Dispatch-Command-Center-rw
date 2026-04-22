@@ -1308,7 +1308,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 # 🚀 OPTIMIZATION: Reverted back to real Google Maps!
                 # Wrapping u_locs[:25] in a tuple() makes Streamlit's cache process it instantly.
                 _, hrs, _ = get_gmaps(closest_ic_loc, tuple(u_locs[:25]))
-                pay = round(max(len(u_locs) * 18.0, hrs * 25.0), 2)
+                pay = round(hrs * 25.0, 2) # 🌟 STRICTLY HOURLY ($25/hr)
                 return round(pay / len(u_locs), 2), len(u_locs)
             
             gate_avg, _ = check_viability(group)
@@ -1630,7 +1630,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if selected_label and selected_label != st.session_state.get(last_sel_key):
             ic_new = ic_opts[selected_label]
             _, h, _ = get_gmaps(ic_new.get('location', f"{cluster['center'][0]},{cluster['center'][1]}"), tuple(stop_metrics.keys()))
-            new_pay = float(round(max(cluster['stops'] * 18.0, h * 25.0), 2))
+            new_pay = float(round(h * 25.0, 2)) # 🌟 STRICTLY HOURLY
             st.session_state[pay_key] = new_pay
             st.session_state[rate_key] = round(new_pay / cluster['stops'], 2) if cluster['stops'] > 0 else 0
             st.session_state[last_sel_key] = selected_label
@@ -1659,13 +1659,13 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             # Calculate from the Contractor's Home
             ic_init = ic_opts[default_label]
             _, h, _ = get_gmaps(ic_init.get('location', f"{cluster['center'][0]},{cluster['center'][1]}"), tuple(stop_metrics.keys()))
-            initial_pay = float(round(max(cluster['stops'] * 18.0, h * 25.0), 2))
+            initial_pay = float(round(h * 25.0, 2)) # 🌟 STRICTLY HOURLY
             st.session_state[sel_key] = default_label
             st.session_state[last_sel_key] = default_label
         else:
             # 🌟 THE FIX: If no IC is found, calculate the hourly rate from the cluster's center!
             _, h, _ = get_gmaps(f"{cluster['center'][0]},{cluster['center'][1]}", tuple(stop_metrics.keys()))
-            initial_pay = float(round(max(cluster['stops'] * 18.0, h * 25.0), 2))
+            initial_pay = float(round(h * 25.0, 2)) # 🌟 STRICTLY HOURLY
 
         st.session_state[pay_key] = initial_pay
         st.session_state[rate_key] = round(initial_pay / cluster['stops'], 2) if cluster['stops'] > 0 else 18.0
@@ -2245,7 +2245,7 @@ def run_pod_tab(pod_name):
                                 v_ics['d'] = v_ics.apply(lambda x: haversine(c['center'][0], c['center'][1], x[lat_col], x[lng_col]), axis=1)
                                 closest_ic = v_ics.sort_values('d').iloc[0]
                                 _, hrs, _ = get_gmaps(closest_ic[loc_col], [t['full'] for t in c['data'][:25]])
-                                est_pay = max(c['stops'] * 18.0, hrs * 25.0)
+                                est_pay = hrs * 25.0 # 🌟 STRICTLY HOURLY
                                 est_rate = est_pay / c['stops'] if c['stops'] > 0 else 0
                                 if est_rate >= 25.0: badges += " 💰"
                                 if closest_ic['d'] > 60: badges += " 📡"
