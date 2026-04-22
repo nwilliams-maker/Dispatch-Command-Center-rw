@@ -1782,7 +1782,14 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
 
     m1, m2 = st.columns(2)
     with m1: 
-        status_color = TB_GREEN if 18.0 <= final_rate <= 23.0 else "#ef4444"
+        # 🌟 THE FIX: Updated 3-Tier Color Logic
+        if final_rate >= 24.00:
+            status_color = "#ef4444" # Red ($24.00+)
+        elif final_rate >= 21.00:
+            status_color = "#f97316" # Orange ($21.00 - $23.99)
+        else:
+            status_color = TB_GREEN  # Green ($20.99 and below)
+            
         st.markdown(f"<div style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:15px; margin-bottom:10px;'><p style='font-size:11px; font-weight:800; text-transform:uppercase;'>Financials</p><p style='margin:0; font-size:24px; font-weight:800; color:{status_color};'>Total: ${final_pay:,.2f}</p><p style='margin:0; font-size:13px;'>Breakdown: ${final_rate}/stop</p></div>", unsafe_allow_html=True)
     with m2: 
         st.markdown(f"<div style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:15px; margin-bottom:10px;'><p style='font-size:11px; font-weight:800; text-transform:uppercase;'>Logistics</p><p style='margin:0; font-size:24px; font-weight:800;'>{t_str}</p><p style='margin:0; font-size:13px;'>Round Trip: {mi} mi</p></div>", unsafe_allow_html=True)
