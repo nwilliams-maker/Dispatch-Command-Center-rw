@@ -2515,9 +2515,7 @@ def run_pod_tab(pod_name):
                             if u_locs:
                                 loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
                                 st.markdown(f"<div style='font-size:11px; color:#64748b; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:10px; border:1px solid #e2e8f0;'><b>Location Record:</b><ul style='margin-top:4px; margin-bottom:0; padding-left:20px;'>{loc_html}</ul></div>", unsafe_allow_html=True)
-                    with btn_col:
-                        st.button("🔒 Finalized", key=f"fin_locked_{ghost_hash}", disabled=True, use_container_width=True)
-    st.markdown("---")
+                
 # --- START ---
 if "ic_df" not in st.session_state:
     try:
@@ -3057,8 +3055,6 @@ with tabs[6]:
                                 if u_locs:
                                     loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
                                     st.markdown(f"<div style='font-size:11px; color:#64748b; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:10px; border:1px solid #e2e8f0;'><b>Location Record:</b><ul style='margin-top:4px; margin-bottom:0; padding-left:20px;'>{loc_html}</ul></div>", unsafe_allow_html=True)
-                        with btn_col:
-                            st.button("🔒 Finalized", key=f"fin_locked_digi_{ghost_hash}", disabled=True, use_container_width=True)
                         
 # --- FINAL FOOTER (End of File) ---
 st.markdown("---")
