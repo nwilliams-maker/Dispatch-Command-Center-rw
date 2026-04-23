@@ -986,6 +986,8 @@ def process_digital_pool(master_bar=None):
                 client_company = f_val
             if f_name in ['locationinvenue', 'location in venue'] or f_key in ['locationinvenue', 'location_in_venue']:
                 location_in_venue = f_val
+            if f_name in ['campaignname', 'campaign name'] or f_key in ['campaignname', 'campaign_name']:
+                client_company = f_val  # 🌟 Campaign Name maps to Customer Name in FN upload
 
         # 2. CHECK REGULAR (STATIC) EXEMPTIONS FIRST
         # Expanded to include "escalation" to prevent crossing over
@@ -1254,6 +1256,8 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                     client_company = f_val
                 if f_name in ['locationinvenue', 'location in venue'] or f_key in ['locationinvenue', 'location_in_venue']:
                     location_in_venue = f_val
+                if f_name in ['campaignname', 'campaign name'] or f_key in ['campaignname', 'campaign_name']:
+                    client_company = f_val  # 🌟 Campaign Name maps to Customer Name in FN upload
 
             # 2. CHECK REGULAR (STATIC) EXEMPTIONS FIRST
             # Combines native and custom type to ensure "Magnet" or "Photo" are never missed
@@ -2176,6 +2180,8 @@ def smart_sync_pod(pod_name):
                 client_company = f_val
             if f_name in ['locationinvenue', 'location in venue'] or f_key in ['locationinvenue', 'location_in_venue']:
                 location_in_venue = f_val
+            if f_name in ['campaignname', 'campaign name'] or f_key in ['campaignname', 'campaign_name']:
+                client_company = f_val  # 🌟 Campaign Name maps to Customer Name in FN upload
 
         search_string = f"{native_details} {custom_task_type}".lower()
         REGULAR_EXEMPTIONS = ["photo", "magnet", "continuity", "new ad", "pull down", "kiosk", "escalation"]
