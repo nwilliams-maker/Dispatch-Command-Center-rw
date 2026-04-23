@@ -2940,6 +2940,7 @@ with tabs[0]:
         st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("---")
+    loading_placeholder = st.empty()
     cols = st.columns(len(POD_CONFIGS))
     pod_keys = list(POD_CONFIGS.keys())
     global_map = folium.Map(location=[39.8283, -98.5795], zoom_start=4, tiles="cartodbpositron")
@@ -3087,8 +3088,6 @@ with tabs[0]:
     # 🌟 THE FIX: Inject the blue prompt right above the map if no data exists
     if not has_global_data:
         st.info("No operational data initialized. Click '🚀 Initialize All Pods' at the top right to fetch tasks across all pods.")
-
-    loading_placeholder = st.empty()
 
     st.markdown("<br> 🗺️ Master Route Map", unsafe_allow_html=True)
     st_folium(global_map, height=500, use_container_width=True, key="global_master_map")
