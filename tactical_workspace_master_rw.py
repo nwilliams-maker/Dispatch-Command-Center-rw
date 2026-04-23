@@ -610,6 +610,7 @@ def background_sheet_move(cluster_hash, payload_json, task_ids=None):
         requests.post(GAS_WEB_APP_URL, json={
             "action": "archiveRoute",
             "cluster_hash": cluster_hash,
+            "taskIds": ",".join(task_ids) if task_ids else "",  # 🌟 Fallback for hash mismatch
             "payload": payload_json if payload_json else {}
         }, timeout=15)
     except:
@@ -1043,6 +1044,7 @@ def process_digital_pool(master_bar=None):
             "zip": addr.get('postalCode', ''),
             "lat": t['destination']['location'][1], "lon": t['destination']['location'][0],
             "escalated": is_esc, "task_type": tt_val, "is_digital": True, "db_status": t_status, "wo": t_wo,
+            "boosted_standard": custom_boosted,
             "venue_name": venue_name,
             "venue_id": venue_id,
             "client_company": client_company,
@@ -1325,7 +1327,8 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                     "escalated": is_esc, 
                     "task_type": tt_val,
                     "is_digital": is_digital_task,
-                    "is_removal": _is_removal,  # 🗑️ CVS Kiosk Removals get their own routes
+                    "is_removal": _is_removal,
+                    "boosted_standard": custom_boosted,
                     "db_status": t_status, 
                     "wo": t_wo,
                     "venue_name": venue_name,
@@ -1480,6 +1483,11 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             # 🌟 CLEANUP: No need to loop again; the anchor already knows!
             route_is_digital = anc_is_digital
             
+            # Determine dominant boosted_standard for this cluster
+            _boosted_vals = [str(x.get('boosted_standard', '')).lower() for x in g_data if x.get('boosted_standard')]
+            _important_tags = ['local plus', 'boosted', 'digital with bottom']
+            _boosted_tag = next((b for b in _important_tags if any(b in v for v in _boosted_vals)), '')
+
             clusters.append({
                 "data": g_data, 
                 "center": [anc['lat'], anc['lon']], 
@@ -1489,7 +1497,8 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 "has_ic": has_ic,
                 "esc_count": sum(1 for x in g_data if x.get('escalated')),
                 "is_digital": route_is_digital,
-                "is_removal": anc_is_removal,  # 🗑️ CVS Kiosk Removal route flag
+                "is_removal": anc_is_removal,
+                "boosted_tag": _boosted_tag,
                 "inst_count": sum(1 for x in g_data if "install" in str(x.get('task_type', '')).lower()),
                 "remov_count": sum(1 for x in g_data if str(x.get('task_type', '')).lower() in ["kiosk removal", "remove kiosk"]),
                 "wo": anc_wo
@@ -1664,7 +1673,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if metrics['digi_srv'] > 0: pill_parts.append(f"⚙️ {metrics['digi_srv']} Service")
         
         pill_str = " | ".join(pill_parts)
-        display_addr = f"⭐ {addr}" if metrics['esc'] else addr
+        display_addr = addr
         if metrics.get('is_new'):
             display_addr = f"+ {display_addr}"
         venue_prefix = f"<span style='color:#94a3b8; font-weight:600; font-size:12px;'>{metrics['venue_name']} — </span>" if metrics.get('venue_name') else ""
@@ -1861,7 +1870,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             st.markdown(f"<div style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:15px; margin-bottom:10px;'><p style='font-size:11px; font-weight:800; text-transform:uppercase;'>Logistics</p><p style='margin:0; font-size:24px; font-weight:800;'>{t_str}</p><p style='margin:0; font-size:13px;'>Round Trip: {mi} mi</p></div>", unsafe_allow_html=True)
         stops_text = ""
         for i, (addr, metrics) in enumerate(list(stop_metrics.items())[:2], start=1):
-            esc_star = "⭐ " if metrics['esc'] else ""
+            esc_star = "" if metrics['esc'] else ""
             stops_text += f"📍 Stop {i}: {esc_star}{addr}\n"
         
         if len(stop_metrics) > 2:
@@ -1871,7 +1880,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         for t in cluster['data']:
             addr = t.get('full', 'Unknown')
             if addr not in loc_pills: loc_pills[addr] = ""
-            if t.get('escalated') and "⭐" not in loc_pills[addr]: loc_pills[addr] += "⭐"
+            if t.get('escalated'): pass  # escalation shown in header only
         
             # 🌟 THE FIX: Split Digital Email Output
             if t.get('is_digital'):
@@ -2651,11 +2660,13 @@ def run_pod_tab(pod_name):
                                 if est_rate >= 25.0: badges += " 💰"
                                 if closest_ic['d'] > 60: badges += " 📡"
 
-                    esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
+                    esc_pill = f"  [ ❗ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
                     inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else "" 
                     remov_pill = f"  [ 🗑️ {c.get('remov_count', 0)} Removal ]" if (c.get('remov_count', 0) > 0 and not c.get('is_removal')) else ""
                     remov_tag = f" 🗑️ CVS Removal — {c.get('remov_count', 0)} Units" if c.get('is_removal') else ""
-                    with st.expander(f"{badges} 🟢 {c['city']}, {c['state']} | {c['stops']} Stops | 🗑️ CVS Kiosk Removal") if c.get('is_removal') else st.expander(f"{badges} 🟢 {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{remov_pill}{esc_pill}"):
+                    _BOOSTED_BADGES = {'local plus': '⭐ LOCAL PLUS', 'boosted': '🔥 BOOSTED', 'digital with bottom': '📺 DIG+BOTTOM'}
+                    boosted_pill = f"  [ {next((v for k,v in _BOOSTED_BADGES.items() if k in c.get('boosted_tag','')), '')} ]" if c.get('boosted_tag') and any(k in c.get('boosted_tag','') for k in _BOOSTED_BADGES) else ""
+                    with st.expander(f"{badges} 🟢 {c['city']}, {c['state']} | {c['stops']} Stops | 🗑️ CVS Kiosk Removal") if c.get('is_removal') else st.expander(f"{badges} 🟢 {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{remov_pill}{boosted_pill}{esc_pill}"):
                         render_dispatch(i, c, pod_name)
                     
         with t_flagged:
@@ -2668,11 +2679,13 @@ def run_pod_tab(pod_name):
                         current_state = c['state']
                         st.markdown(f"<div style='font-size: 12px; font-weight: 800; color: #94a3b8; margin-top: 15px; margin-bottom: 5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 2px; text-transform: uppercase; letter-spacing: 1px;'>📍 {current_state}</div>", unsafe_allow_html=True)
                     
-                    esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
+                    esc_pill = f"  [ ❗ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
                     inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else ""
                     remov_pill = f"  [ 🗑️ {c.get('remov_count', 0)} Removal ]" if (c.get('remov_count', 0) > 0 and not c.get('is_removal')) else ""
                     remov_tag = f" 🗑️ CVS Removal — {c.get('remov_count', 0)} Units" if c.get('is_removal') else ""
-                    with st.expander(f"🔒 🔴 {c['city']}, {c['state']} | {c['stops']} Stops | 🗑️ CVS Kiosk Removal") if c.get('is_removal') else st.expander(f"🔒 🔴 {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{remov_pill}{esc_pill}"):
+                    _BOOSTED_BADGES = {'local plus': '⭐ LOCAL PLUS', 'boosted': '🔥 BOOSTED', 'digital with bottom': '📺 DIG+BOTTOM'}
+                    boosted_pill = f"  [ {next((v for k,v in _BOOSTED_BADGES.items() if k in c.get('boosted_tag','')), '')} ]" if c.get('boosted_tag') and any(k in c.get('boosted_tag','') for k in _BOOSTED_BADGES) else ""
+                    with st.expander(f"🔒 🔴 {c['city']}, {c['state']} | {c['stops']} Stops | 🗑️ CVS Kiosk Removal") if c.get('is_removal') else st.expander(f"🔒 🔴 {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{remov_pill}{boosted_pill}{esc_pill}"):
                         render_dispatch(i+1000, c, pod_name)
 
         with t_fn:
@@ -2685,7 +2698,7 @@ def run_pod_tab(pod_name):
                         current_state = c['state']
                         st.markdown(f"<div style='font-size: 12px; font-weight: 800; color: #94a3b8; margin-top: 15px; margin-bottom: 5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 2px; text-transform: uppercase; letter-spacing: 1px;'>📍 {current_state}</div>", unsafe_allow_html=True)
                     
-                    esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
+                    esc_pill = f"  [ ❗ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
                     digi_pill = " 🔌" if c.get('is_digital') else ""
                     inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else ""
                     remov_pill = f"  [ 🗑️ {c.get('remov_count', 0)} Removal ]" if c.get('remov_count', 0) > 0 else ""
