@@ -136,7 +136,7 @@ st.markdown(f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
 .stApp {{ background-color: {TB_APP_BG} !important; color: #000000 !important; font-family: 'Inter', sans-serif !important; }}
-.main .block-container {{ max-width: 1100px !important; padding-top: 2rem; }}
+.main .block-container {{ max-width: 1400px !important; padding-top: 1rem; padding-left: 1.5rem; padding-right: 1.5rem; }}
 
 /* =========================================
    WIDGET & INPUT STANDARDIZATION (Fixes the White Box Glitch)
@@ -2438,7 +2438,7 @@ def run_pod_tab(pod_name):
     # 🌟 HEADER ROW: Title Centered, Dynamic Button Top Right
     h_col1, h_col2, h_col3 = st.columns([2, 6, 2])
     with h_col2:
-        st.markdown(f"<h2 style='color: {text_color}; text-align:center; margin-top: 0;'>{pod_name} Pod Dashboard</h2>", unsafe_allow_html=True)
+        st.markdown(f"<h2 style='color: {text_color}; font-size:1.4rem; text-align:center; margin-top: 0;'>{pod_name} Pod Dashboard</h2>", unsafe_allow_html=True)
     with h_col3:
         st.markdown("<div class='tab-action-btn'>", unsafe_allow_html=True)
         if not is_initialized:
@@ -2762,10 +2762,10 @@ def run_pod_tab(pod_name):
 
     st.markdown("---")
 
-    col_left, col_right = st.columns([4.5, 5.5])
+    col_left, col_right = st.columns([6.5, 3.5])
 
     with col_left:
-        st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_PURPLE}; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='font-size: 1.2rem; font-weight: 800; color: {TB_PURPLE}; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
         t_ready, t_flagged, t_fn, t_digital = st.tabs(["📥 Ready", "⚠️ Flagged", "🌐 Field Nation", "🔌 Digital"])
 
         with t_ready:
@@ -2860,7 +2860,7 @@ def run_pod_tab(pod_name):
                         render_dispatch(i+7000, c, pod_name)
                     
     with col_right:
-        st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_GREEN}; margin-bottom: 5px; text-align: center;'>⏳ Awaiting Confirmation</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='font-size: 1.2rem; font-weight: 800; color: {TB_GREEN}; margin-bottom: 5px; text-align: center;'>⏳ Awaiting Confirmation</div>", unsafe_allow_html=True)
         t_sent, t_acc, t_dec, t_fin = st.tabs(["✉️ Sent", "✅ Accepted", "❌ Declined", "🏁 Finalized"])
         
         with t_sent:
@@ -3516,10 +3516,10 @@ with tabs[6]:
 </div>
 """, unsafe_allow_html=True)
         st.markdown("---")
-        col_left, col_right = st.columns([4.5, 5.5])
+        col_left, col_right = st.columns([6.5, 3.5])
         
         with col_left:
-            st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_DIGITAL_TEXT}; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='font-size: 1.2rem; font-weight: 800; color: {TB_DIGITAL_TEXT}; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
             t_ready, t_flagged, t_fn = st.tabs(["📥 Ready", "⚠️ Flagged", "🌐 Field Nation"])
             
             with t_ready:
@@ -3559,7 +3559,7 @@ with tabs[6]:
                             render_dispatch(i+9500, c, "Global_Digital")
 
         with col_right:
-            st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_GREEN}; text-align: center;'>⏳ Awaiting Confirmation</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='font-size: 1.2rem; font-weight: 800; color: {TB_GREEN}; text-align: center;'>⏳ Awaiting Confirmation</div>", unsafe_allow_html=True)
             t_sent, t_acc, t_dec, t_fin = st.tabs(["✉️ Sent", "✅ Accepted", "❌ Declined", "🏁 Finalized"])
             
             with t_sent:
