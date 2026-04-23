@@ -370,6 +370,18 @@ div[data-testid="stExpander"] div[data-testid="stHorizontalBlock"] > div[data-te
 }}
 
 /* =========================================
+   1b. REVOKE / RE-ROUTE BUTTON SIZING
+   ========================================= */
+div[data-testid="stColumn"] div[data-testid="stPopover"] > button {
+    font-size: 10px !important;
+    padding: 4px 6px !important;
+    font-weight: 700 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    line-height: 1.2 !important;
+}
+
+/* =========================================
    2. REVOKE POPOVER FUSION (OUTSIDE EXPANDER)
    ========================================= */
 /* Target the Expander on the Left side of the gap */
@@ -1906,42 +1918,49 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     is_unlocked = True
 
     if not is_fn:
-        col_a, col_b, col_c, col_d = st.columns([2, 1.5, 1.5, 1.5])
-        with col_a:
-            if ic_opts:
-                selected_label = st.selectbox("Contractor", list(ic_opts.keys()), key=sel_key, on_change=update_for_new_contractor)
-                ic = ic_opts[selected_label]
-            else:
-                ic = {"name": "Manual/FN", "location": f"{cluster['center'][0]},{cluster['center'][1]}", "d": 0}
-                st.info("No ICs within 100mi.")
+        ic_location_tmp = f"{cluster['center'][0]},{cluster['center'][1]}"
 
-        st.markdown("<div style='margin:10px 0 6px 0; border-top:1px solid #f1f5f9;'></div>", unsafe_allow_html=True)
-        ic_location = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
+        # ── CONTRACTOR ──────────────────────────────────────────────────
+        st.markdown(f"""<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+            <span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Contractor</span>
+            <span style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em;">{cluster['stops']} Stops / {len(cluster['data'])} Tasks</span>
+        </div>""", unsafe_allow_html=True)
+
+        if ic_opts:
+            selected_label = st.selectbox("Contractor", list(ic_opts.keys()), key=sel_key, on_change=update_for_new_contractor, label_visibility="collapsed")
+            ic = ic_opts[selected_label]
+            ic_location_tmp = ic.get('location', ic_location_tmp)
+        else:
+            ic = {"name": "Manual/FN", "location": ic_location_tmp, "d": 0}
+            st.info("No ICs within 100mi.")
+
+        ic_location = ic_location_tmp
         mi, hrs, t_str = get_gmaps(ic_location, tuple(stop_metrics.keys()))
-    
+
         curr_rate = st.session_state[rate_key]
         ic_dist = ic.get('d', 0)
         needs_unlock = (curr_rate >= 25.0) or (ic_dist > 60) or (cluster['status'] == 'Flagged')
-        is_unlocked = True 
-    
+        is_unlocked = True
+
         if needs_unlock:
             reasons = []
             if curr_rate >= 25.0: reasons.append(f"High Rate (${curr_rate})")
             if ic['d'] > 60: reasons.append(f"Distance ({round(ic['d'],1)}mi)")
             if cluster['status'] == 'Flagged': reasons.append("Flagged Route")
-            st.markdown(f"""<div style="background-color:#fef2f2; border:1px solid #ef4444; padding:10px; border-radius:8px; margin-bottom:15px;"><span style="color:#b91c1c; font-weight:800;">🔒 ACTION REQUIRED:</span> <span style="color:#7f1d1d;">{" & ".join(reasons)}</span></div>""", unsafe_allow_html=True)
-            # 🌟 UNIQUE KEY
+            st.markdown(f"""<div style="background:#fef2f2; border:1px solid #ef4444; padding:8px 10px; border-radius:8px; margin:6px 0;"><span style="color:#b91c1c; font-weight:800; font-size:11px;">🔒 ACTION REQUIRED:</span> <span style="color:#7f1d1d; font-size:11px;">{" & ".join(reasons)}</span></div>""", unsafe_allow_html=True)
             is_unlocked = st.checkbox("Authorize Premium Rate / Distance", key=f"lock_{pod_name}_{cluster_hash}")
 
-        with col_b:
+        # ── INPUTS ──────────────────────────────────────────────────────
+        st.markdown("<div style='border-top:1px solid #f1f5f9; margin:8px 0 6px 0;'></div>", unsafe_allow_html=True)
+        _inp_a, _inp_b, _inp_c = st.columns([1.5, 1.5, 1.5])
+        with _inp_a:
             st.number_input("Total Comp ($)", min_value=0.0, step=5.0, format="%.2f", key=pay_key, on_change=sync_on_total, disabled=not is_unlocked)
-        with col_c:
+        with _inp_b:
             st.number_input("Rate/Stop ($)", min_value=0.0, step=1.0, format="%.2f", key=rate_key, on_change=sync_on_rate, disabled=not is_unlocked)
-        with col_d:
-            # 🌟 UNIQUE KEY
+        with _inp_c:
             st.date_input("Deadline", datetime.now().date()+timedelta(14), key=f"dd_{pod_name}_{cluster_hash}", disabled=not is_unlocked)
 
-        # --- 6. UPDATED FINANCIALS & PREVIEW ---
+        # --- FINANCIALS INLINE CARD ---
         final_pay = st.session_state.get(pay_key, 0.0)
         final_rate = st.session_state.get(rate_key, 0.0)
 
@@ -1953,17 +1972,17 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             status_color = TB_GREEN
 
         st.markdown(f"""
-<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;">
-    <div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;">
+<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:8px;">
+    <div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;">
         <div>
             <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div>
-            <div style="font-size:22px; font-weight:900; color:{status_color};">${final_pay:,.2f}</div>
-            <div style="font-size:11px; color:#94a3b8; margin-top:1px;">${final_rate}/stop</div>
+            <div style="font-size:20px; font-weight:900; color:{status_color};">${final_pay:,.2f}</div>
+            <div style="font-size:10px; color:#94a3b8; margin-top:1px;">${final_rate}/stop</div>
         </div>
         <div style="text-align:right;">
             <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Drive Time</div>
-            <div style="font-size:22px; font-weight:900; color:#0f172a;">{t_str}</div>
-            <div style="font-size:11px; color:#94a3b8; margin-top:1px;">Round Trip: {mi} mi</div>
+            <div style="font-size:20px; font-weight:900; color:#0f172a;">{t_str}</div>
+            <div style="font-size:10px; color:#94a3b8; margin-top:1px;">Round Trip: {mi} mi</div>
         </div>
     </div>
 </div>
@@ -2895,7 +2914,7 @@ def run_pod_tab(pod_name):
                     tasks_cnt, stops_cnt = len(c['data']), c['stops']
                     wo_display = c.get('wo', ic_name)
                     
-                    exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                    exp_col, btn_col = st.columns([9.2, 0.8], vertical_alignment="center")
                     with exp_col:
                         with st.expander(f"✉️ {wo_display} | ${comp} | Due: {due}"):
                             u_locs = []
@@ -2940,7 +2959,7 @@ def run_pod_tab(pod_name):
                     comp, due = g.get('pay', 0), g.get('due', 'N/A')
                     stops_cnt, tasks_cnt = g.get('stops', 0), g.get('tasks', 0)
                     
-                    exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                    exp_col, btn_col = st.columns([9.2, 0.8], vertical_alignment="center")
                     with exp_col:
                         with st.expander(f"✉️ {wo_display} | ${comp} | Due: {due}"):
                             raw_locs = [s.strip() for s in g.get('locs', '').split('|') if s.strip()]
@@ -3002,7 +3021,7 @@ def run_pod_tab(pod_name):
                             _k_by_addr[_venue] = _k_by_addr.get(_venue, 0) + 1
                     _k_total = sum(_k_by_addr.values())
                     _k_pill = f" | 🛠️ {_k_total} Kiosk" if _k_total > 0 else ""
-                    exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                    exp_col, btn_col = st.columns([9.2, 0.8], vertical_alignment="center")
                     with exp_col:
                         with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_k_pill} | Due: {due}"):
                             st.success("Route accepted. Complete the checklist to finalize.")
@@ -3030,7 +3049,7 @@ def run_pod_tab(pod_name):
                     comp, due = g.get('pay', 0), g.get('due', 'N/A')
                     stops_cnt, tasks_cnt = g.get('stops', 0), g.get('tasks', 0)
                     
-                    exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                    exp_col, btn_col = st.columns([9.2, 0.8], vertical_alignment="center")
                     with exp_col:
                         _gk_total = g.get('kCnt', 0) or 0
                         _gk_pill = f" | 🛠️ {_gk_total} Kiosk" if _gk_total > 0 else ""
@@ -3066,7 +3085,7 @@ def run_pod_tab(pod_name):
                 ic_name = c.get('contractor_name', 'Unknown')
                 task_ids = [str(tid['id']).strip() for tid in c['data']]
                 cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
-                exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                exp_col, btn_col = st.columns([9.2, 0.8], vertical_alignment="center")
                 with exp_col:
                     with st.expander(f"❌ {ic_name} | {c['city']}, {c['state']}"):
                         st.error("Route declined. Re-route to a new IC.")
@@ -3103,7 +3122,7 @@ def run_pod_tab(pod_name):
                             _fk_by_addr[_venue] = _fk_by_addr.get(_venue, 0) + 1
                     _fk_total = sum(_fk_by_addr.values())
                     _fk_pill = f" | 🛠️ {_fk_total} Kiosk" if _fk_total > 0 else ""
-                    exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                    exp_col, btn_col = st.columns([9.2, 0.8], vertical_alignment="center")
                     with exp_col:
                         with st.expander(f"🏁 {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_fk_pill} | Due: {due}"):
                             u_locs = []
@@ -3130,7 +3149,7 @@ def run_pod_tab(pod_name):
                     comp, due = g.get('pay', 0), g.get('due', 'N/A')
                     stops_cnt, tasks_cnt = g.get('stops', 0), g.get('tasks', 0)
                     
-                    exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                    exp_col, btn_col = st.columns([9.2, 0.8], vertical_alignment="center")
                     with exp_col:
                         _gfk_total = g.get('kCnt', 0) or 0
                         _gfk_pill = f" | 🛠️ {_gfk_total} Kiosk" if _gfk_total > 0 else ""
@@ -3594,7 +3613,7 @@ with tabs[6]:
                         tasks_cnt, stops_cnt = len(c['data']), c['stops']
                         wo_display = c.get('wo', ic_name)
                         
-                        exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                        exp_col, btn_col = st.columns([9.2, 0.8], vertical_alignment="center")
                         with exp_col:
                             with st.expander(f"✉️ {wo_display} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
                                 st.info("Route sent. Awaiting contractor response.")
@@ -3615,7 +3634,7 @@ with tabs[6]:
                         comp, due = g.get('pay', 0), g.get('due', 'N/A')
                         stops_cnt, tasks_cnt = g.get('stops', 0), g.get('tasks', 0)
                         
-                        exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                        exp_col, btn_col = st.columns([9.2, 0.8], vertical_alignment="center")
                         with exp_col:
                             with st.expander(f"✉️ {wo_display} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
                                 st.info("Route sent. Awaiting contractor response.")
@@ -3654,7 +3673,7 @@ with tabs[6]:
                         
                         _dins_cnt = sum(1 for tk in c['data'] if 'ins' in str(tk.get('task_type','')).lower() or 'rem' in str(tk.get('task_type','')).lower())
                         _dins_pill = f" | 🔧 {_dins_cnt} Ins/Rem" if _dins_cnt > 0 else ""
-                        exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                        exp_col, btn_col = st.columns([9.2, 0.8], vertical_alignment="center")
                         with exp_col:
                             with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_dins_pill} | Due: {due}"):
                                 st.success("Route accepted. Complete the checklist to finalize.")
@@ -3677,7 +3696,7 @@ with tabs[6]:
                         comp, due = g.get('pay', 0), g.get('due', 'N/A')
                         stops_cnt, tasks_cnt = g.get('stops', 0), g.get('tasks', 0)
                         
-                        exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                        exp_col, btn_col = st.columns([9.2, 0.8], vertical_alignment="center")
                         with exp_col:
                             _gins_cnt = g.get('digi_ins', 0) or 0
                         _gins_pill = f" | 🔧 {_gins_cnt} Ins/Rem" if _gins_cnt > 0 else ""
@@ -3713,7 +3732,7 @@ with tabs[6]:
                     task_ids = [str(t['id']).strip() for t in c['data']]
                     cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
                     ic_name = c.get('contractor_name', 'Unknown')
-                    exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                    exp_col, btn_col = st.columns([9.2, 0.8], vertical_alignment="center")
                     with exp_col:
                         with st.expander(f"❌ {c.get('wo', ic_name)} | {c['city']}, {c['state']}"):
                             render_dispatch(i+12000, c, "Global_Digital", is_declined=True)
@@ -3743,7 +3762,7 @@ with tabs[6]:
                         
                         _dfins_cnt = sum(1 for tk in c['data'] if 'ins' in str(tk.get('task_type','')).lower() or 'rem' in str(tk.get('task_type','')).lower())
                         _dfins_pill = f" | 🔧 {_dfins_cnt} Ins/Rem" if _dfins_cnt > 0 else ""
-                        exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                        exp_col, btn_col = st.columns([9.2, 0.8], vertical_alignment="center")
                         with exp_col:
                             with st.expander(f"🏁 {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_dfins_pill} | Due: {due}"):
                                 u_locs = []
@@ -3764,7 +3783,7 @@ with tabs[6]:
                         comp, due = g.get('pay', 0), g.get('due', 'N/A')
                         stops_cnt, tasks_cnt = g.get('stops', 0), g.get('tasks', 0)
                         
-                        exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
+                        exp_col, btn_col = st.columns([9.2, 0.8], vertical_alignment="center")
                         with exp_col:
                             _gdfins_cnt = g.get('digi_ins', 0) or 0
                         _gdfins_pill = f" | 🔧 {_gdfins_cnt} Ins/Rem" if _gdfins_cnt > 0 else ""
