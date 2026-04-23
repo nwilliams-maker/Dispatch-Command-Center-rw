@@ -2782,19 +2782,8 @@ if "ic_df" not in st.session_state:
         st.session_state.ic_df = df
     except: st.error("Database connection failed.")
 
-# --- HEADER ROW (Title & Refresh Button) ---
-# [1, 8, 2] ratio gives the refresh button enough room to stay flat
-col_left_space, col_main_title, col_ref = st.columns([1, 8, 2])
-
-with col_main_title:
-    st.markdown("<h1 style='color: #633094;'>Terraboost Media: Dispatch Command Center</h1>", unsafe_allow_html=True)
-
-with col_ref:
-    st.markdown("<div class='refresh-btn-container' style='margin-top: 26px;'>", unsafe_allow_html=True)
-    if st.button("🔄 Refresh", key="top_ref_btn"):
-        st.cache_data.clear()
-        st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+# --- HEADER ROW ---
+st.markdown("<h1 style='color: #633094;'>Terraboost Media: Dispatch Command Center</h1>", unsafe_allow_html=True)
 
 # Updated Main Tabs
 tabs = st.tabs(["Global", "Blue Pod", "Green Pod", "Orange Pod", "Purple Pod", "Red Pod", "Digital"])
