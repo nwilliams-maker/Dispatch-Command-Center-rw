@@ -2847,14 +2847,28 @@ def run_pod_tab(pod_name):
                     comp, due = c.get('comp', 0), c.get('due', 'N/A')
                     tasks_cnt, stops_cnt = len(c['data']), c['stops']
                     
+                    _k_by_addr = {}
+                    for _tk in c['data']:
+                        if any(kw in str(_tk.get('task_type','')).lower() for kw in ['kiosk install','install']):
+                            _addr = _tk['full']
+                            _venue = _tk.get('venue_name', '') or _addr
+                            _k_by_addr[_venue] = _k_by_addr.get(_venue, 0) + 1
+                    _k_total = sum(_k_by_addr.values())
+                    _k_pill = f" | 🛠️ {_k_total} Kiosk" if _k_total > 0 else ""
                     exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                     with exp_col:
-                        with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                        with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_k_pill} | Due: {due}"):
                             st.success("Route accepted. Complete the checklist to finalize.")
                             u_locs = []
                             for tk in c['data']:
                                 if tk['full'] not in u_locs: u_locs.append(tk['full'])
-                            loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
+                            loc_rows = []
+                            for l in u_locs:
+                                _venue_key = next((_tk.get('venue_name','') or l for _tk in c['data'] if _tk['full'] == l), l)
+                                _k_cnt = _k_by_addr.get(_venue_key, 0) or _k_by_addr.get(l, 0)
+                                _k_tag = f" <span style='color:#16a34a; font-weight:800;'>🛠️ {_k_cnt} Kiosk</span>" if _k_cnt > 0 else ""
+                                loc_rows.append(f"<li>{l}{_k_tag}</li>")
+                            loc_html = "".join(loc_rows)
                             st.markdown(f"<div style='font-size:11px; color:#64748b; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:10px; border:1px solid #e2e8f0;'><b>Location Record:</b><ul style='margin-top:4px; margin-bottom:0; padding-left:20px;'>{loc_html}</ul></div>", unsafe_allow_html=True)
                             render_finalization_checklist(cluster_hash, pod_name, "chk")
                             st.divider()
@@ -2872,7 +2886,9 @@ def run_pod_tab(pod_name):
                     
                     exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                     with exp_col:
-                        with st.expander(f"✅ {g.get('wo', g_ic_name)} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                        _gk_total = g.get('kCnt', 0) or 0
+                        _gk_pill = f" | 🛠️ {_gk_total} Kiosk" if _gk_total > 0 else ""
+                        with st.expander(f"✅ {g.get('wo', g_ic_name)} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_gk_pill} | Due: {due}"):
                             st.success("Accepted and synced with OnFleet. Complete the checklist to finalize.")
                             raw_locs = [s.strip() for s in g.get('locs', '').split('|') if s.strip()]
                             if len(raw_locs) >= 3: task_locs = raw_locs[1:-1]
@@ -2933,13 +2949,27 @@ def run_pod_tab(pod_name):
                     comp, due = c.get('comp', 0), c.get('due', 'N/A')
                     tasks_cnt, stops_cnt = len(c['data']), c['stops']
                     
+                    _fk_by_addr = {}
+                    for _tk in c['data']:
+                        if any(kw in str(_tk.get('task_type','')).lower() for kw in ['kiosk install','install']):
+                            _addr = _tk['full']
+                            _venue = _tk.get('venue_name', '') or _addr
+                            _fk_by_addr[_venue] = _fk_by_addr.get(_venue, 0) + 1
+                    _fk_total = sum(_fk_by_addr.values())
+                    _fk_pill = f" | 🛠️ {_fk_total} Kiosk" if _fk_total > 0 else ""
                     exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                     with exp_col:
-                        with st.expander(f"🏁 {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                        with st.expander(f"🏁 {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_fk_pill} | Due: {due}"):
                             u_locs = []
                             for tk in c['data']:
                                 if tk['full'] not in u_locs: u_locs.append(tk['full'])
-                            loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
+                            loc_rows = []
+                            for l in u_locs:
+                                _venue_key = next((_tk.get('venue_name','') or l for _tk in c['data'] if _tk['full'] == l), l)
+                                _k_cnt = _fk_by_addr.get(_venue_key, 0) or _fk_by_addr.get(l, 0)
+                                _k_tag = f" <span style='color:#16a34a; font-weight:800;'>🛠️ {_k_cnt} Kiosk</span>" if _k_cnt > 0 else ""
+                                loc_rows.append(f"<li>{l}{_k_tag}</li>")
+                            loc_html = "".join(loc_rows)
                             st.markdown(f"<div style='font-size:11px; color:#64748b; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:10px; border:1px solid #e2e8f0;'><b>Location Record:</b><ul style='margin-top:4px; margin-bottom:0; padding-left:20px;'>{loc_html}</ul></div>", unsafe_allow_html=True)
                             render_dispatch(i+4000, c, pod_name, is_sent=True)
                     with btn_col:
@@ -2956,7 +2986,9 @@ def run_pod_tab(pod_name):
                     
                     exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                     with exp_col:
-                        with st.expander(f"🏁 {wo_display} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                        _gfk_total = g.get('kCnt', 0) or 0
+                        _gfk_pill = f" | 🛠️ {_gfk_total} Kiosk" if _gfk_total > 0 else ""
+                        with st.expander(f"🏁 {wo_display} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_gfk_pill} | Due: {due}"):
                             st.success("Route Finalized and Archived.")
                             raw_locs = [s.strip() for s in g.get('locs', '').split('|') if s.strip()]
                             if len(raw_locs) >= 3: task_locs = raw_locs[1:-1]
