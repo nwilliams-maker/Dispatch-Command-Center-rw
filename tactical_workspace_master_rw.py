@@ -1180,6 +1180,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
         teams_res = requests.get("https://onfleet.com/api/v2/teams", headers=headers).json()
         target_team_ids = [t['id'] for t in teams_res if any(appr in str(t.get('name', '')).lower() for appr in APPROVED_TEAMS)]
         esc_team_ids = [t['id'] for t in teams_res if 'escalation' in str(t.get('name', '')).lower()]
+        cvs_remov_team_ids = [t['id'] for t in teams_res if 'cvs kiosk remov' in str(t.get('name', '')).lower()]
 
         all_tasks_raw = []
         # Change the 80 to 45 right here:
@@ -1311,7 +1312,8 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             
             if stt in config['states']:
                 _remov_keywords = ["kiosk removal", "remove kiosk"]
-                _is_removal = any(kw in f"{native_details} {custom_task_type}".lower() for kw in _remov_keywords)
+                _is_cvs_team = (c_type == 'TEAM' and container.get('team') in cvs_remov_team_ids)
+                _is_removal = _is_cvs_team and any(kw in f"{native_details} {custom_task_type}".lower() for kw in _remov_keywords)
                 pool.append({
                     "id": t['id'], 
                     "city": addr.get('city', 'Unknown'), 
@@ -2653,7 +2655,7 @@ def run_pod_tab(pod_name):
                     inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else "" 
                     remov_pill = f"  [ 🗑️ {c.get('remov_count', 0)} Removal ]" if c.get('remov_count', 0) > 0 else ""
                     
-                    remov_tag = " 🗑️ REMOVAL" if c.get('is_removal') else ""
+                    remov_tag = " 🗑️ CVS Removal" if c.get('is_removal') else ""
                     with st.expander(f"{badges} 🟢{remov_tag} {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{remov_pill}{esc_pill}"):
                         render_dispatch(i, c, pod_name)
                     
@@ -2671,7 +2673,7 @@ def run_pod_tab(pod_name):
                     inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else ""
                     remov_pill = f"  [ 🗑️ {c.get('remov_count', 0)} Removal ]" if c.get('remov_count', 0) > 0 else ""
                     
-                    remov_tag = " 🗑️ REMOVAL" if c.get('is_removal') else ""
+                    remov_tag = " 🗑️ CVS Removal" if c.get('is_removal') else ""
                     with st.expander(f"🔒 🔴{remov_tag} {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{remov_pill}{esc_pill}"):
                         render_dispatch(i+1000, c, pod_name)
 
@@ -2948,10 +2950,13 @@ with tabs[0]:
         st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("---")
-    if not has_global_data:
-        st.info("No operational data initialized. Click '🚀 Initialize All Pods' at the top right to fetch tasks across all pods.")
     loading_placeholder = st.empty()
     bar_placeholder = st.empty()
+    if not has_global_data:
+        st.info("No operational data initialized. Click '🚀 Initialize All Pods' at the top right to fetch tasks across all pods.")
+
+    if st.session_state.get("trigger_pull"):
+        st.markdown("<style>.pod-card-pill { opacity: 0.35 !important; filter: grayscale(40%) !important; pointer-events: none !important; transition: opacity 0.3s ease !important; }</style>", unsafe_allow_html=True)
 
     cols = st.columns(len(POD_CONFIGS))
     pod_keys = list(POD_CONFIGS.keys())
