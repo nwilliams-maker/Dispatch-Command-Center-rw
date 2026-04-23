@@ -45,13 +45,21 @@ PAY_PER_STOP = 20.0
 # ---------------------------------------------------------------------------
 # Background sheet save — never blocks the UI
 # ---------------------------------------------------------------------------
-def save_fn_to_sheet(gas_url: str, payload: dict) -> None:
-    """Fire-and-forget: saves a route to the Field Nation Google Sheet tab."""
+def save_fn_to_sheet(gas_url: str, payload: dict, session_state=None) -> None:
+    """Fire-and-forget: saves a route to the Field Nation Google Sheet tab.
+    Clears the reverted flag from session_state after the write completes."""
+    cluster_hash = payload.get("cluster_hash")
+
     def _worker():
         try:
             requests.post(gas_url, json={"action": "saveToFieldNation", "payload": payload}, timeout=15)
         except Exception:
             pass
+        finally:
+            # Clear reverted flag once sheet write is done (success or fail)
+            if session_state is not None and cluster_hash:
+                session_state.pop(f"reverted_{cluster_hash}", None)
+
     threading.Thread(target=_worker, daemon=True).start()
 
 
