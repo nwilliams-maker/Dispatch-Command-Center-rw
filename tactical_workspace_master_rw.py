@@ -158,10 +158,18 @@ div[data-baseweb="select"] div {{
     font-weight: 600 !important;
 }}
 
-/* Specifically target and neutralize the Number Input step container */
+/* Number Input — match date input outline style */
 div[data-testid="stNumberInputContainer"] {{
     border-radius: 8px !important;
+    border: 1px solid #cbd5e1 !important;
     background-color: #ffffff !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important;
+    overflow: hidden !important;
+}}
+
+div[data-testid="stNumberInputContainer"]:focus-within {{
+    border-color: #633094 !important;
+    box-shadow: 0 0 0 2px rgba(99,48,148,0.15) !important;
 }}
 
 /* Kills the white box by forcing transparency on the button wrapper */
@@ -2892,20 +2900,24 @@ def run_pod_tab(pod_name):
                     with exp_col:
                         with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_k_pill} | Due: {due}"):
                             st.success("Route accepted. Complete the checklist to finalize.")
+                            # Build address → venue name map
+                            _addr_venue = {}
+                            for _tk in c['data']:
+                                if _tk['full'] not in _addr_venue and _tk.get('venue_name'):
+                                    _addr_venue[_tk['full']] = _tk['venue_name']
                             u_locs = []
                             for tk in c['data']:
                                 if tk['full'] not in u_locs: u_locs.append(tk['full'])
                             loc_rows = []
                             for l in u_locs:
-                                _venue_key = next((_tk.get('venue_name','') or l for _tk in c['data'] if _tk['full'] == l), l)
+                                _venue_key = _addr_venue.get(l, '')
                                 _k_cnt = _k_by_addr.get(_venue_key, 0) or _k_by_addr.get(l, 0)
                                 _k_tag = f" <span style='color:#16a34a; font-weight:800;'>🛠️ {_k_cnt} Kiosk</span>" if _k_cnt > 0 else ""
-                                loc_rows.append(f"<li>{l}{_k_tag}</li>")
+                                _v_prefix = f"<span style='color:#94a3b8; font-weight:600;'>{_venue_key} — </span>" if _venue_key else ""
+                                loc_rows.append(f"<li>{_v_prefix}{l}{_k_tag}</li>")
                             loc_html = "".join(loc_rows)
                             st.markdown(f"<div style='font-size:11px; color:#64748b; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:10px; border:1px solid #e2e8f0;'><b>Location Record:</b><ul style='margin-top:4px; margin-bottom:0; padding-left:20px;'>{loc_html}</ul></div>", unsafe_allow_html=True)
                             render_finalization_checklist(cluster_hash, pod_name, "chk")
-                            st.divider()
-                            render_dispatch(i+2000, c, pod_name, is_sent=True)
                     with btn_col:
                         with st.popover("↩️ Revoke", use_container_width=True):
                             st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
@@ -2996,15 +3008,19 @@ def run_pod_tab(pod_name):
                             u_locs = []
                             for tk in c['data']:
                                 if tk['full'] not in u_locs: u_locs.append(tk['full'])
+                            _faddr_venue = {}
+                            for _tk in c['data']:
+                                if _tk['full'] not in _faddr_venue and _tk.get('venue_name'):
+                                    _faddr_venue[_tk['full']] = _tk['venue_name']
                             loc_rows = []
                             for l in u_locs:
-                                _venue_key = next((_tk.get('venue_name','') or l for _tk in c['data'] if _tk['full'] == l), l)
-                                _k_cnt = _fk_by_addr.get(_venue_key, 0) or _fk_by_addr.get(l, 0)
+                                _fvk = _faddr_venue.get(l, '')
+                                _k_cnt = _fk_by_addr.get(_fvk, 0) or _fk_by_addr.get(l, 0)
                                 _k_tag = f" <span style='color:#16a34a; font-weight:800;'>🛠️ {_k_cnt} Kiosk</span>" if _k_cnt > 0 else ""
-                                loc_rows.append(f"<li>{l}{_k_tag}</li>")
+                                _fv_prefix = f"<span style='color:#94a3b8; font-weight:600;'>{_fvk} — </span>" if _fvk else ""
+                                loc_rows.append(f"<li>{_fv_prefix}{l}{_k_tag}</li>")
                             loc_html = "".join(loc_rows)
                             st.markdown(f"<div style='font-size:11px; color:#64748b; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:10px; border:1px solid #e2e8f0;'><b>Location Record:</b><ul style='margin-top:4px; margin-bottom:0; padding-left:20px;'>{loc_html}</ul></div>", unsafe_allow_html=True)
-                            render_dispatch(i+4000, c, pod_name, is_sent=True)
                     with btn_col:
                         with st.popover("↩️ Re-Route", use_container_width=True):
                             st.markdown(f"<p style='font-size:13px; text-align:center;'>Re-route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
