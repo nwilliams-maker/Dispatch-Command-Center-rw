@@ -1673,6 +1673,8 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if metrics['digi_srv'] > 0: pill_parts.append(f"⚙️ {metrics['digi_srv']} Service")
         
         pill_str = " | ".join(pill_parts)
+        esc_count_stop = sum(1 for t in cluster['data'] if t.get('full') == addr and t.get('escalated'))
+        esc_inline = f" <span style='color:#dc2626; font-weight:900; font-size:11px;'>❗ {esc_count_stop}</span>" if esc_count_stop > 0 else ""
         display_addr = addr
         if metrics.get('is_new'):
             display_addr = f"+ {display_addr}"
