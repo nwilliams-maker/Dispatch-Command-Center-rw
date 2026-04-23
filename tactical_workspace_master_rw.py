@@ -1782,9 +1782,6 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     route_state = st.session_state.get(f"route_state_{cluster_hash}")
     is_fn = (route_state == "field_nation") # 🌟 MOVED UP to control the Contractor field
     
-    # Default ic for FN routes — overridden below if not is_fn
-    ic = {"name": "Field Nation", "location": f"{cluster['center'][0]},{cluster['center'][1]}", "d": 0}
-
     if not is_fn:
         col_a, col_b, col_c, col_d = st.columns([2, 1.5, 1.5, 1.5])
         with col_a:
@@ -1796,89 +1793,89 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 st.info("No ICs within 100mi.")
 
         st.divider()
-
-    # --- 🌐 FIELD NATION PERSISTENCE (CHECKBOX) ---
-
-    if route_state != "email_sent":
-        # 🌟 UNIQUE KEY
-        fn_checked = st.checkbox("🌐 Assign to Field Nation", value=is_fn, key=f"fn_check_{pod_name}_{cluster_hash}")
     
-        if fn_checked and not is_fn:
-            # 🌟 INSTANT UI UPDATE — Sheet write fires in background
-            home = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
-            fn_payload = {
-                "cluster_hash": cluster_hash,
-                "icn": "Field Nation",
-                "city": cluster.get('city', 'Unknown'),
-                "state": cluster.get('state', 'Unknown'),
-                "taskIds": ",".join(task_ids),
-                "wo": f"FN-{datetime.now().strftime('%m%d%Y')}",
-                "lCnt": cluster['stops'],
-                "tCnt": len(task_ids),
-                "kCnt": cluster.get('inst_count', 0),
-                "locs": " | ".join([home] + list(stop_metrics.keys()) + [home])
-            }
-
-            save_fn_to_sheet(GAS_WEB_APP_URL, fn_payload, session_state=st.session_state)
-            st.session_state[f"route_state_{cluster_hash}"] = "field_nation"
-            st.session_state[f"reverted_{cluster_hash}"] = True  # 🌟 Block stale sheet match until background write completes
-            st.toast("✅ Saved to Field Nation Tab")
-            st.rerun()
+        # --- 🌐 FIELD NATION PERSISTENCE (CHECKBOX) ---
     
-        elif not fn_checked and is_fn:
-            # 🌟 ADDED Safety check for Field Nation revocation
-            with st.popover("🚨 Confirm Field Nation Revocation", use_container_width=True):
-                st.error("Remove this route from Field Nation tracking?")
-                # 🌟 THE FIX: Upgraded to a callback so it doesn't freeze the screen!
-                st.button("🚨 Yes, Revoke FN", key=f"fn_rev_confirm_{pod_name}_{cluster_hash}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": cluster_hash, "ic_name": "Field Nation", "pod_name": pod_name, "action_label": "Field Nation Revoked", "check_onfleet": True})
-            st.stop()
+        if route_state != "email_sent":
+            # 🌟 UNIQUE KEY
+            fn_checked = st.checkbox("🌐 Assign to Field Nation", value=is_fn, key=f"fn_check_{pod_name}_{cluster_hash}")
+        
+            if fn_checked and not is_fn:
+                # 🌟 INSTANT UI UPDATE — Sheet write fires in background
+                home = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
+                fn_payload = {
+                    "cluster_hash": cluster_hash,
+                    "icn": "Field Nation",
+                    "city": cluster.get('city', 'Unknown'),
+                    "state": cluster.get('state', 'Unknown'),
+                    "taskIds": ",".join(task_ids),
+                    "wo": f"FN-{datetime.now().strftime('%m%d%Y')}",
+                    "lCnt": cluster['stops'],
+                    "tCnt": len(task_ids),
+                    "kCnt": cluster.get('inst_count', 0),
+                    "locs": " | ".join([home] + list(stop_metrics.keys()) + [home])
+                }
 
-    BG_COLOR = "#FEF9C3"
-    TEXT_COLOR = "#854D0E"
-    BORDER_COLOR = "#FACC15"
+                save_fn_to_sheet(GAS_WEB_APP_URL, fn_payload, session_state=st.session_state)
+                st.session_state[f"route_state_{cluster_hash}"] = "field_nation"
+                st.session_state[f"reverted_{cluster_hash}"] = True  # 🌟 Block stale sheet match until background write completes
+                st.toast("✅ Saved to Field Nation Tab")
+                st.rerun()
+        
+            elif not fn_checked and is_fn:
+                # 🌟 ADDED Safety check for Field Nation revocation
+                with st.popover("🚨 Confirm Field Nation Revocation", use_container_width=True):
+                    st.error("Remove this route from Field Nation tracking?")
+                    # 🌟 THE FIX: Upgraded to a callback so it doesn't freeze the screen!
+                    st.button("🚨 Yes, Revoke FN", key=f"fn_rev_confirm_{pod_name}_{cluster_hash}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": cluster_hash, "ic_name": "Field Nation", "pod_name": pod_name, "action_label": "Field Nation Revoked", "check_onfleet": True})
+                st.stop()
 
-    if route_state == "field_nation":
-        st.info("💡 Route is currently tracked in the Field Nation tab.")
+        BG_COLOR = "#FEF9C3"
+        TEXT_COLOR = "#854D0E"
+        BORDER_COLOR = "#FACC15"
 
-        # 🌟 FIELD NATION BUTTONS
-        _due = st.session_state.get(f"dd_{pod_name}_{cluster_hash}", datetime.now().date() + timedelta(14))
-        _pay = st.session_state.get(pay_key, 0.0)
-        fn_buf, _ = generate_fn_upload(stop_metrics, cluster, _due, _pay, cluster_hash)
+        if route_state == "field_nation":
+            st.info("💡 Route is currently tracked in the Field Nation tab.")
 
-        dl_col, link_col = st.columns(2)
-        with dl_col:
-            if fn_buf:
-                st.download_button(
-                    label="📥 Download FN Upload",
-                    data=fn_buf,
-                    file_name=f"FN_Upload_{cluster.get('city', 'Route')}_{datetime.now().strftime('%m%d%Y')}.csv",
-                    mime="text/csv",
-                    key=f"fn_dl_{cluster_hash}",
+            # 🌟 FIELD NATION BUTTONS
+            _due = st.session_state.get(f"dd_{pod_name}_{cluster_hash}", datetime.now().date() + timedelta(14))
+            _pay = st.session_state.get(pay_key, 0.0)
+            fn_buf, _ = generate_fn_upload(stop_metrics, cluster, _due, _pay, cluster_hash)
+
+            dl_col, link_col = st.columns(2)
+            with dl_col:
+                if fn_buf:
+                    st.download_button(
+                        label="📥 Download FN Upload",
+                        data=fn_buf,
+                        file_name=f"FN_Upload_{cluster.get('city', 'Route')}_{datetime.now().strftime('%m%d%Y')}.csv",
+                        mime="text/csv",
+                        key=f"fn_dl_{cluster_hash}",
+                        use_container_width=True
+                    )
+            with link_col:
+                st.link_button(
+                    "🌐 Open Field Nation",
+                    url="https://app.fieldnation.com/projects",
                     use_container_width=True
                 )
-        with link_col:
-            st.link_button(
-                "🌐 Open Field Nation",
-                url="https://app.fieldnation.com/projects",
-                use_container_width=True
-            )
 
-        # 🌟 UNIQUE KEY
-        if st.button("📢 Mark as Posted (Move to Sent)", key=f"posted_{pod_name}_{cluster_hash}", type="primary", use_container_width=True):
-            with st.spinner("Moving route to Sent database..."):
-                try:
-                    res = requests.post(GAS_WEB_APP_URL, json={"action": "postFieldNationRoute", "cluster_hash": cluster_hash}, timeout=10).json()
-                    if res.get("success"):
-                        st.session_state[f"route_state_{cluster_hash}"] = "email_sent"
-                        st.session_state[f"contractor_{cluster_hash}"] = "Field Nation"
-                        st.session_state[f"sent_ts_{cluster_hash}"] = datetime.now().strftime('%m/%d %I:%M %p')
-                        st.session_state[f"sync_{cluster_hash}"] = res.get("routeId") 
-                        st.toast("🚀 Moved to Sent in Google Sheets!")
-                        st.rerun()
-                    else:
-                        st.error(f"Sheet Error: {res.get('error')}")
-                except Exception as e:
-                    st.error(f"Connection Failed: {e}")
+            # 🌟 UNIQUE KEY
+            if st.button("📢 Mark as Posted (Move to Sent)", key=f"posted_{pod_name}_{cluster_hash}", type="primary", use_container_width=True):
+                with st.spinner("Moving route to Sent database..."):
+                    try:
+                        res = requests.post(GAS_WEB_APP_URL, json={"action": "postFieldNationRoute", "cluster_hash": cluster_hash}, timeout=10).json()
+                        if res.get("success"):
+                            st.session_state[f"route_state_{cluster_hash}"] = "email_sent"
+                            st.session_state[f"contractor_{cluster_hash}"] = "Field Nation"
+                            st.session_state[f"sent_ts_{cluster_hash}"] = datetime.now().strftime('%m/%d %I:%M %p')
+                            st.session_state[f"sync_{cluster_hash}"] = res.get("routeId") 
+                            st.toast("🚀 Moved to Sent in Google Sheets!")
+                            st.rerun()
+                        else:
+                            st.error(f"Sheet Error: {res.get('error')}")
+                    except Exception as e:
+                        st.error(f"Connection Failed: {e}")
 
         ic_location = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
         mi, hrs, t_str = get_gmaps(ic_location, tuple(stop_metrics.keys()))
