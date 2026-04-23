@@ -3087,6 +3087,7 @@ with tabs[0]:
     # 🌟 THE FIX: Inject the blue prompt right above the map if no data exists
     if not has_global_data:
         st.info("No operational data initialized. Click '🚀 Initialize All Pods' at the top right to fetch tasks across all pods.")
+
     loading_placeholder = st.empty()
 
     st.markdown("<br> 🗺️ Master Route Map", unsafe_allow_html=True)
