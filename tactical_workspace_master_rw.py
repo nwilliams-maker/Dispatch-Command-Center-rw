@@ -2653,10 +2653,9 @@ def run_pod_tab(pod_name):
 
                     esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
                     inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else "" 
-                    remov_pill = f"  [ 🗑️ {c.get('remov_count', 0)} Removal ]" if c.get('remov_count', 0) > 0 else ""
-                    
-                    remov_tag = " 🗑️ CVS Removal" if c.get('is_removal') else ""
-                    with st.expander(f"{badges} 🟢{remov_tag} {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{remov_pill}{esc_pill}"):
+                    remov_pill = f"  [ 🗑️ {c.get('remov_count', 0)} Removal ]" if (c.get('remov_count', 0) > 0 and not c.get('is_removal')) else ""
+                    remov_tag = f" 🗑️ CVS Removal — {c.get('remov_count', 0)} Units" if c.get('is_removal') else ""
+                    with st.expander(f"{badges} 🟢 {c['city']}, {c['state']} | {c['stops']} Stops | 🗑️ CVS Kiosk Removal") if c.get('is_removal') else st.expander(f"{badges} 🟢 {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{remov_pill}{esc_pill}"):
                         render_dispatch(i, c, pod_name)
                     
         with t_flagged:
@@ -2671,10 +2670,9 @@ def run_pod_tab(pod_name):
                     
                     esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
                     inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else ""
-                    remov_pill = f"  [ 🗑️ {c.get('remov_count', 0)} Removal ]" if c.get('remov_count', 0) > 0 else ""
-                    
-                    remov_tag = " 🗑️ CVS Removal" if c.get('is_removal') else ""
-                    with st.expander(f"🔒 🔴{remov_tag} {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{remov_pill}{esc_pill}"):
+                    remov_pill = f"  [ 🗑️ {c.get('remov_count', 0)} Removal ]" if (c.get('remov_count', 0) > 0 and not c.get('is_removal')) else ""
+                    remov_tag = f" 🗑️ CVS Removal — {c.get('remov_count', 0)} Units" if c.get('is_removal') else ""
+                    with st.expander(f"🔒 🔴 {c['city']}, {c['state']} | {c['stops']} Stops | 🗑️ CVS Kiosk Removal") if c.get('is_removal') else st.expander(f"🔒 🔴 {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{remov_pill}{esc_pill}"):
                         render_dispatch(i+1000, c, pod_name)
 
         with t_fn:
