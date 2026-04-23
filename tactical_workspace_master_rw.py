@@ -110,11 +110,33 @@ else:
     st.sidebar.error("Logo file not found! Check the file name.")
 
 # --- UI STYLING ---
+st.components.v1.html("""
+<script>
+(function() {
+    var SCROLL_KEY = 'tbm_scroll_pos';
+
+    // Save scroll position on every scroll
+    window.parent.document.addEventListener('scroll', function() {
+        sessionStorage.setItem(SCROLL_KEY, window.parent.scrollY);
+    }, { passive: true });
+
+    // Restore scroll position whenever Streamlit rerenders
+    var observer = new MutationObserver(function() {
+        var saved = sessionStorage.getItem(SCROLL_KEY);
+        if (saved && parseInt(saved) > 50) {
+            window.parent.scrollTo({ top: parseInt(saved), behavior: 'instant' });
+        }
+    });
+    observer.observe(window.parent.document.body, { childList: true, subtree: false });
+})();
+</script>
+""", height=0)
+
 st.markdown(f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
 .stApp {{ background-color: {TB_APP_BG} !important; color: #000000 !important; font-family: 'Inter', sans-serif !important; }}
-.main .block-container {{ max-width: 1100px !important; padding-top: 2rem; }}
+.main .block-container {{ max-width: 1400px !important; padding-top: 1rem; padding-left: 1.5rem; padding-right: 1.5rem; }}
 
 /* =========================================
    WIDGET & INPUT STANDARDIZATION (Fixes the White Box Glitch)
@@ -136,10 +158,18 @@ div[data-baseweb="select"] div {{
     font-weight: 600 !important;
 }}
 
-/* Specifically target and neutralize the Number Input step container */
+/* Number Input — match date input outline style */
 div[data-testid="stNumberInputContainer"] {{
     border-radius: 8px !important;
+    border: 1px solid #cbd5e1 !important;
     background-color: #ffffff !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important;
+    overflow: hidden !important;
+}}
+
+div[data-testid="stNumberInputContainer"]:focus-within {{
+    border-color: #633094 !important;
+    box-shadow: 0 0 0 2px rgba(99,48,148,0.15) !important;
 }}
 
 /* Kills the white box by forcing transparency on the button wrapper */
@@ -327,15 +357,16 @@ button[kind="secondary"] {{
    ========================================= */
 div[data-testid="stExpander"] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(2) button {{
     margin-top: 2px !important;
-    transform: scale(0.9) !important;
+    transform: scale(1.1) !important;
     transform-origin: center right !important;
-    padding: 0 4px !important;
+    padding: 0 6px !important;
     border: none !important;
     box-shadow: none !important;
     background: transparent !important;
     color: #ef4444 !important;
-    font-weight: 800 !important;
-    font-size: 16px !important;
+    font-weight: 900 !important;
+    font-size: 26px !important;
+    line-height: 1 !important;
 }}
 
 /* =========================================
@@ -354,8 +385,7 @@ div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"]:nth-child
     width: calc(100% + 1rem) !important;
     border-top-left-radius: 0px !important;
     border-bottom-left-radius: 0px !important;
-    height: 36px !important;
-    font-size: 14px !important;
+    height: 40px !important; /* 🌟 Matches Expander Height */
     margin-top: 0px !important;
     border: 1px solid #cbd5e1 !important;
     border-left: 1px solid #e2e8f0 !important; /* Subtle inner line */
@@ -611,6 +641,7 @@ def background_sheet_move(cluster_hash, payload_json, task_ids=None):
         requests.post(GAS_WEB_APP_URL, json={
             "action": "archiveRoute",
             "cluster_hash": cluster_hash,
+            "taskIds": ",".join(task_ids) if task_ids else "",  # 🌟 Fallback for hash mismatch
             "payload": payload_json if payload_json else {}
         }, timeout=15)
     except:
@@ -679,6 +710,55 @@ def background_sheet_finalize(cluster_hash):
         requests.post(GAS_WEB_APP_URL, json={"action": "finalizeRoute", "cluster_hash": cluster_hash}, timeout=15)
     except:
         pass
+
+@st.fragment(run_every=30)
+def auto_sync_checker():
+    """Polls GAS every 30s. If any sent route has been accepted/declined, triggers a full app rerun."""
+    sent_db = st.session_state.get('sent_db', {})
+    if not sent_db:
+        return  # Nothing pending, skip
+
+    # Collect route IDs for routes currently in 'sent' state
+    pending_route_ids = set()
+    for tid, info in sent_db.items():
+        if info.get('status', '').lower() == 'sent':
+            wo = info.get('wo', '')
+            if wo:
+                pending_route_ids.add(wo.strip().upper())
+
+    if not pending_route_ids:
+        return
+
+    try:
+        # Lightweight check — fetch just Accepted and Declined sheets via CSV
+        base_url = f"{IC_SHEET_URL.split('/edit')[0]}/export?format=csv&gid="
+        changed = False
+        for gid, status_label in [(ACCEPTED_ROUTES_GID, 'accepted'), (DECLINED_ROUTES_GID, 'declined')]:
+            try:
+                df = pd.read_csv(base_url + str(gid))
+                df.columns = [str(c).strip().lower() for c in df.columns]
+                if 'json payload' not in df.columns:
+                    continue
+                for _, row in df.iterrows():
+                    try:
+                        p = json.loads(row['json payload'])
+                        tids = str(p.get('taskIds', '')).split(',')
+                        for tid in tids:
+                            tid = tid.strip()
+                            if tid in sent_db and sent_db[tid].get('status', '').lower() == 'sent':
+                                sent_db[tid]['status'] = status_label
+                                changed = True
+                    except:
+                        pass
+            except:
+                pass
+
+        if changed:
+            st.session_state.sent_db = sent_db
+            st.rerun(scope="app")
+
+    except:
+        pass  # Never crash the UI on a background poll
 
 @st.fragment
 def render_finalization_checklist(cluster_hash, pod_name, prefix="chk"):
@@ -1044,6 +1124,7 @@ def process_digital_pool(master_bar=None):
             "zip": addr.get('postalCode', ''),
             "lat": t['destination']['location'][1], "lon": t['destination']['location'][0],
             "escalated": is_esc, "task_type": tt_val, "is_digital": True, "db_status": t_status, "wo": t_wo,
+            "boosted_standard": custom_boosted,
             "venue_name": venue_name,
             "venue_id": venue_id,
             "client_company": client_company,
@@ -1114,11 +1195,15 @@ def process_digital_pool(master_bar=None):
                 if d_rate > 50.0:
                     status = "Flagged"
 
+        _d_boosted_vals = [str(x.get('boosted_standard', '')).lower() for x in group if x.get('boosted_standard')]
+        _d_important_tags = ['local plus', 'boosted', 'digital with bottom']
+        _d_boosted_tag = next((b for b in _d_important_tags if any(b in v for v in _d_boosted_vals)), '')
         clusters.append({
             "data": group, "center": [anc['lat'], anc['lon']], "stops": len(unique_stops), 
             "city": anc['city'], "state": anc['state'], "status": status, "has_ic": has_ic,
             "esc_count": sum(1 for x in group if x.get('escalated')),
             "is_digital": True,
+            "boosted_tag": _d_boosted_tag,
             "inst_count": sum(1 for x in group if "install" in str(x.get('task_type', '')).lower()),
             "remov_count": sum(1 for x in group if "remove" in str(x.get('task_type', '')).lower()),
             "wo": anc['wo']
@@ -1181,6 +1266,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
         teams_res = requests.get("https://onfleet.com/api/v2/teams", headers=headers).json()
         target_team_ids = [t['id'] for t in teams_res if any(appr in str(t.get('name', '')).lower() for appr in APPROVED_TEAMS)]
         esc_team_ids = [t['id'] for t in teams_res if 'escalation' in str(t.get('name', '')).lower()]
+        cvs_remov_team_ids = [t['id'] for t in teams_res if 'cvs kiosk remov' in str(t.get('name', '')).lower()]
 
         all_tasks_raw = []
         # Change the 80 to 45 right here:
@@ -1311,6 +1397,9 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 t_wo = fresh_sent_db[t['id']].get('wo', 'none')
             
             if stt in config['states']:
+                _remov_keywords = ["kiosk removal", "remove kiosk"]
+                _is_cvs_team = (c_type == 'TEAM' and container.get('team') in cvs_remov_team_ids)
+                _is_removal = _is_cvs_team and any(kw in f"{native_details} {custom_task_type}".lower() for kw in _remov_keywords)
                 pool.append({
                     "id": t['id'], 
                     "city": addr.get('city', 'Unknown'), 
@@ -1321,7 +1410,9 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                     "lon": t['destination']['location'][0],
                     "escalated": is_esc, 
                     "task_type": tt_val,
-                    "is_digital": is_digital_task, # 🔌 Drives the plug icon
+                    "is_digital": is_digital_task,
+                    "is_removal": _is_removal,
+                    "boosted_standard": custom_boosted,
                     "db_status": t_status, 
                     "wo": t_wo,
                     "venue_name": venue_name,
@@ -1353,21 +1444,23 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             # --- NEW: Strict Digital Separation & Dynamic Radius ---
             anc_tt = str(anc.get('task_type', '')).lower()
             anc_is_digital = anc.get('is_digital', False)
+            anc_is_removal = anc.get('is_removal', False)
             anc_status = anc.get('db_status', 'ready')
             anc_wo = anc.get('wo', 'none')
             
-            # Set radius strictly based on the whitelist result
+            # Set radius strictly based on type
             route_radius = 25 if anc_is_digital else 35
             
             candidates = []; rem = []
             for t in pool:
                 t_tt = str(t.get('task_type', '')).lower()
                 t_is_digital = t.get('is_digital', False)
+                t_is_removal = t.get('is_removal', False)
                 t_status = t.get('db_status', 'ready')
                 t_wo = t.get('wo', 'none')
                 
-                # Rule 1: Digital and Standard never mix
-                if anc_is_digital == t_is_digital:
+                # Rule 1: Digital, Removal, and Standard never mix
+                if anc_is_digital == t_is_digital and anc_is_removal == t_is_removal:
                     
                     # Rule 2: Sent and Accepted are FROZEN
                     # 🌟 FIX 1: Add 'field_nation' so these routes stay grouped together!
@@ -1393,14 +1486,14 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             
             candidates.sort(key=lambda x: x[0])
             
-            # --- PRESERVED: 20 STOP LIMIT LOGIC ---
+            # --- STOP LIMIT: 10 for CVS Removal, 20 for all others ---
+            stop_limit = 10 if anc_is_removal else 20
             group = [anc]
             unique_stops = {anc['full']}
             spillover = []
             
             for _, t in candidates:
-                # Only add the task if we're under 20 stops OR the task is at an address we already have
-                if len(unique_stops) < 20 or t['full'] in unique_stops:
+                if len(unique_stops) < stop_limit or t['full'] in unique_stops:
                     group.append(t)
                     unique_stops.add(t['full'])
                 else:
@@ -1474,6 +1567,11 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             # 🌟 CLEANUP: No need to loop again; the anchor already knows!
             route_is_digital = anc_is_digital
             
+            # Determine dominant boosted_standard for this cluster
+            _boosted_vals = [str(x.get('boosted_standard', '')).lower() for x in g_data if x.get('boosted_standard')]
+            _important_tags = ['local plus', 'boosted', 'digital with bottom']
+            _boosted_tag = next((b for b in _important_tags if any(b in v for v in _boosted_vals)), '')
+
             clusters.append({
                 "data": g_data, 
                 "center": [anc['lat'], anc['lon']], 
@@ -1482,7 +1580,9 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 "status": status,
                 "has_ic": has_ic,
                 "esc_count": sum(1 for x in g_data if x.get('escalated')),
-                "is_digital": route_is_digital, # 🔌 Driven by the anchor's verified flag
+                "is_digital": route_is_digital,
+                "is_removal": anc_is_removal,
+                "boosted_tag": _boosted_tag,
                 "inst_count": sum(1 for x in g_data if "install" in str(x.get('task_type', '')).lower()),
                 "remov_count": sum(1 for x in g_data if str(x.get('task_type', '')).lower() in ["kiosk removal", "remove kiosk"]),
                 "wo": anc_wo
@@ -1577,7 +1677,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     sel_key = f"sel_{pod_name}_{cluster_hash}"
     last_sel_key = f"last_sel_{pod_name}_{cluster_hash}"
 
-    st.write("### Route Stops")
+    st.markdown("<div style='font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:4px; margin-top:4px;'>Route Stops</div>", unsafe_allow_html=True)
 
     # --- HISTORY LOG ---
     hist = st.session_state.get(f"history_{cluster_hash}", [])
@@ -1657,7 +1757,9 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if metrics['digi_srv'] > 0: pill_parts.append(f"⚙️ {metrics['digi_srv']} Service")
         
         pill_str = " | ".join(pill_parts)
-        display_addr = f"⭐ {addr}" if metrics['esc'] else addr
+        esc_count_stop = sum(1 for t in cluster['data'] if t.get('full') == addr and t.get('escalated'))
+        esc_inline = f" <span style='color:#dc2626; font-weight:900; font-size:11px;'>❗ {esc_count_stop}</span>" if esc_count_stop > 0 else ""
+        display_addr = addr
         if metrics.get('is_new'):
             display_addr = f"+ {display_addr}"
         venue_prefix = f"<span style='color:#94a3b8; font-weight:600; font-size:12px;'>{metrics['venue_name']} — </span>" if metrics.get('venue_name') else ""
@@ -1787,8 +1889,11 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             _, h, _ = get_gmaps(f"{cluster['center'][0]},{cluster['center'][1]}", tuple(stop_metrics.keys()))
             initial_pay = float(round(h * 25.0, 2)) # 🌟 STRICTLY HOURLY
 
+        # 🌟 Floor: if Maps returned 0 (fail/no IC), seed from $20/stop default
+        if initial_pay == 0:
+            initial_pay = round(20.0 * cluster.get('stops', 1), 2)
         st.session_state[pay_key] = initial_pay
-        st.session_state[rate_key] = round(initial_pay / cluster['stops'], 2) if cluster['stops'] > 0 else 18.0
+        st.session_state[rate_key] = round(initial_pay / cluster['stops'], 2) if cluster['stops'] > 0 else 20.0
     
     # --- 4. UI RENDERING & BUTTON LOGIC ---
     route_state = st.session_state.get(f"route_state_{cluster_hash}")
@@ -1800,61 +1905,75 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     is_unlocked = True
 
     if not is_fn:
-        col_a, col_b, col_c, col_d = st.columns([2, 1.5, 1.5, 1.5])
-        with col_a:
-            if ic_opts:
-                selected_label = st.selectbox("Select IC", list(ic_opts.keys()), key=sel_key, on_change=update_for_new_contractor)
-                ic = ic_opts[selected_label]
-            else:
-                ic = {"name": "Manual/FN", "location": f"{cluster['center'][0]},{cluster['center'][1]}", "d": 0}
-                st.info("No ICs within 100mi.")
+        ic_location_tmp = f"{cluster['center'][0]},{cluster['center'][1]}"
 
-        st.divider()
-        ic_location = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
+        # ── CONTRACTOR ──────────────────────────────────────────────────
+        st.markdown(f"""<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+            <span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Contractor</span>
+            <span style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em;">{cluster['stops']} Stops / {len(cluster['data'])} Tasks</span>
+        </div>""", unsafe_allow_html=True)
+
+        if ic_opts:
+            selected_label = st.selectbox("Contractor", list(ic_opts.keys()), key=sel_key, on_change=update_for_new_contractor, label_visibility="collapsed")
+            ic = ic_opts[selected_label]
+            ic_location_tmp = ic.get('location', ic_location_tmp)
+        else:
+            ic = {"name": "Manual/FN", "location": ic_location_tmp, "d": 0}
+            st.info("No ICs within 100mi.")
+
+        ic_location = ic_location_tmp
         mi, hrs, t_str = get_gmaps(ic_location, tuple(stop_metrics.keys()))
-    
+
         curr_rate = st.session_state[rate_key]
         ic_dist = ic.get('d', 0)
         needs_unlock = (curr_rate >= 25.0) or (ic_dist > 60) or (cluster['status'] == 'Flagged')
-        is_unlocked = True 
-    
+        is_unlocked = True
+
         if needs_unlock:
             reasons = []
             if curr_rate >= 25.0: reasons.append(f"High Rate (${curr_rate})")
             if ic['d'] > 60: reasons.append(f"Distance ({round(ic['d'],1)}mi)")
             if cluster['status'] == 'Flagged': reasons.append("Flagged Route")
-            st.markdown(f"""<div style="background-color:#fef2f2; border:1px solid #ef4444; padding:10px; border-radius:8px; margin-bottom:15px;"><span style="color:#b91c1c; font-weight:800;">🔒 ACTION REQUIRED:</span> <span style="color:#7f1d1d;">{" & ".join(reasons)}</span></div>""", unsafe_allow_html=True)
-            # 🌟 UNIQUE KEY
+            st.markdown(f"""<div style="background:#fef2f2; border:1px solid #ef4444; padding:8px 10px; border-radius:8px; margin:6px 0;"><span style="color:#b91c1c; font-weight:800; font-size:11px;">🔒 ACTION REQUIRED:</span> <span style="color:#7f1d1d; font-size:11px;">{" & ".join(reasons)}</span></div>""", unsafe_allow_html=True)
             is_unlocked = st.checkbox("Authorize Premium Rate / Distance", key=f"lock_{pod_name}_{cluster_hash}")
 
-        with col_b:
+        # ── INPUTS ──────────────────────────────────────────────────────
+        st.markdown("<div style='border-top:1px solid #f1f5f9; margin:8px 0 6px 0;'></div>", unsafe_allow_html=True)
+        _inp_a, _inp_b, _inp_c = st.columns([1.5, 1.5, 1.5])
+        with _inp_a:
             st.number_input("Total Comp ($)", min_value=0.0, step=5.0, format="%.2f", key=pay_key, on_change=sync_on_total, disabled=not is_unlocked)
-        with col_c:
+        with _inp_b:
             st.number_input("Rate/Stop ($)", min_value=0.0, step=1.0, format="%.2f", key=rate_key, on_change=sync_on_rate, disabled=not is_unlocked)
-        with col_d:
-            # 🌟 UNIQUE KEY
+        with _inp_c:
             st.date_input("Deadline", datetime.now().date()+timedelta(14), key=f"dd_{pod_name}_{cluster_hash}", disabled=not is_unlocked)
 
-        # --- 6. UPDATED FINANCIALS & PREVIEW ---
+        # ── FINANCIALS CARD ──────────────────────────────────────────────
         final_pay = st.session_state.get(pay_key, 0.0)
         final_rate = st.session_state.get(rate_key, 0.0)
 
-        m1, m2 = st.columns(2)
-        with m1: 
-            # 🌟 THE FIX: Updated 3-Tier Color Logic
-            if final_rate >= 24.00:
-                status_color = "#ef4444" # Red ($24.00+)
-            elif final_rate >= 21.00:
-                status_color = "#f97316" # Orange ($21.00 - $23.99)
-            else:
-                status_color = TB_GREEN  # Green ($20.99 and below)
-            
-            st.markdown(f"<div style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:15px; margin-bottom:10px;'><p style='font-size:11px; font-weight:800; text-transform:uppercase;'>Financials</p><p style='margin:0; font-size:24px; font-weight:800; color:{status_color};'>Total: ${final_pay:,.2f}</p><p style='margin:0; font-size:13px;'>Breakdown: ${final_rate}/stop</p></div>", unsafe_allow_html=True)
-        with m2: 
-            st.markdown(f"<div style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:15px; margin-bottom:10px;'><p style='font-size:11px; font-weight:800; text-transform:uppercase;'>Logistics</p><p style='margin:0; font-size:24px; font-weight:800;'>{t_str}</p><p style='margin:0; font-size:13px;'>Round Trip: {mi} mi</p></div>", unsafe_allow_html=True)
+        if final_rate >= 24.00: status_color = "#ef4444"
+        elif final_rate >= 21.00: status_color = "#f97316"
+        else: status_color = TB_GREEN
+
+        st.markdown(f"""
+<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:8px;">
+    <div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;">
+        <div>
+            <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div>
+            <div style="font-size:20px; font-weight:900; color:{status_color};">${final_pay:,.2f}</div>
+            <div style="font-size:10px; color:#94a3b8; margin-top:1px;">${final_rate}/stop</div>
+        </div>
+        <div style="text-align:right;">
+            <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Drive Time</div>
+            <div style="font-size:20px; font-weight:900; color:#0f172a;">{t_str}</div>
+            <div style="font-size:10px; color:#94a3b8; margin-top:1px;">Round Trip: {mi} mi</div>
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
         stops_text = ""
         for i, (addr, metrics) in enumerate(list(stop_metrics.items())[:2], start=1):
-            esc_star = "⭐ " if metrics['esc'] else ""
+            esc_star = "" if metrics['esc'] else ""
             stops_text += f"📍 Stop {i}: {esc_star}{addr}\n"
         
         if len(stop_metrics) > 2:
@@ -1864,7 +1983,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         for t in cluster['data']:
             addr = t.get('full', 'Unknown')
             if addr not in loc_pills: loc_pills[addr] = ""
-            if t.get('escalated') and "⭐" not in loc_pills[addr]: loc_pills[addr] += "⭐"
+            if t.get('escalated'): pass  # escalation shown in header only
         
             # 🌟 THE FIX: Split Digital Email Output
             if t.get('is_digital'):
@@ -1968,7 +2087,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             st.session_state[active_tx_key] = st.session_state[active_tx_key].replace("LINK_PENDING", real_id)
     
        # 🌟 UNIQUE KEY & PERFECT INDENTATION
-        email_body_content = st.text_area("Email Content Preview", value=sig_preview, height=180, key=f"txt_area_{pod_name}_{current_data_fingerprint}_{cluster_hash}", disabled=not is_unlocked)
+        email_body_content = st.text_area("Email Content Preview", value=sig_preview, height=120, key=f"txt_area_{pod_name}_{current_data_fingerprint}_{cluster_hash}", disabled=not is_unlocked)
 
         # --- HIGH-SPEED DISPATCH BUTTON ---
         btn_label = "✉️ RESEND LINK & OPEN GMAIL" if is_already_sent else "🚀 GENERATE LINK & OPEN GMAIL"
@@ -1987,6 +2106,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 return
 
             # 🚀 STEP 2: PROCEED WITH DISPATCH
+            _dispatch_result = {}
             with st.spinner("Generating link..."):
                 home = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
                 payload = {
@@ -1994,8 +2114,8 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                     "icn": ic.get('name', 'Unknown'), 
                     "ice": ic.get('email', ''), 
                     "wo": wo_val, 
-                    "city": cluster.get('city', 'Unknown'),   # 🌟 ADDED
-                    "state": cluster.get('state', 'Unknown'), # 🌟 ADDED
+                    "city": cluster.get('city', 'Unknown'),
+                    "state": cluster.get('state', 'Unknown'),
                     "due": str(due), "comp": final_pay, "lCnt": cluster['stops'], "mi": mi, "time": t_str,
                     "phone": str(ic.get('phone', '')),
                     "locs": " | ".join([home] + list(stop_metrics.keys()) + [home]),
@@ -2006,37 +2126,37 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                     "dCnt": sum(1 for t in cluster['data'] if t.get('is_digital')),
                     "jobOnly": " | ".join([f"{addr} {pills}" for addr, pills in loc_pills.items()])
                 }
-
                 try:
-                    res = requests.post(GAS_WEB_APP_URL, json={"action": "saveRoute", "payload": payload}, timeout=10).json()
+                    _dispatch_result = requests.post(GAS_WEB_APP_URL, json={"action": "saveRoute", "payload": payload}, timeout=25).json()
+                except requests.exceptions.Timeout:
+                    _dispatch_result = {"_timeout": True}
                 except Exception as e:
-                    st.error(f"Connection Error: {e}")
-                    st.stop()
-            
-                if res.get("success"):
-                    # 3. 🧠 UPDATE STATE INSTANTLY
-                    final_route_id = res.get("routeId")
-                    st.session_state[sync_key] = final_route_id
-                    st.session_state[f"sent_ts_{cluster_hash}"] = datetime.now().strftime('%m/%d %I:%M %p')
-                    st.session_state[f"contractor_{cluster_hash}"] = ic.get('name', 'Unknown')
-                    st.session_state[f"wo_{cluster_hash}"] = wo_val  # 🌟 NEW: Save WO to memory!
-                    st.session_state[f"route_state_{cluster_hash}"] = "email_sent"
-                    st.session_state[f"reverted_{cluster_hash}"] = False
-                
-                    # 4. ✉️ TRIGGER GMAIL WINDOW
-                    final_sig = email_body_content.replace("LINK_PENDING", final_route_id)
-                    subject_line = requests.utils.quote(f"Route Request | {wo_val}")
-                    body_content = requests.utils.quote(final_sig)
-                    gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={ic.get('email', '')}&su={subject_line}&body={body_content}"
-                    st.components.v1.html(f"<script>window.open('{gmail_url}', '_blank');</script>", height=0)
-                
-                    # 5. ⏳ VISUAL COUNTDOWN & MOVE (Restored)
-                    timer_placeholder = st.empty()
-                    for seconds in range(2, 0, -1):
-                        timer_placeholder.success(f"✅ Link Live! Moving to 'Sent' in {seconds}s...")
-                        time.sleep(1)
-                    timer_placeholder.empty()
-                    st.rerun()
+                    _dispatch_result = {"_error": str(e)}
+
+            # Spinner now closed — handle result
+            if _dispatch_result.get("_timeout"):
+                st.warning("⏱️ Google Sheets is taking too long. The route may still have saved — click **Generate Link** again to retry.")
+            elif _dispatch_result.get("_error"):
+                st.error(f"Connection Error: {_dispatch_result['_error']} — Please try again.")
+            elif _dispatch_result.get("success"):
+                final_route_id = _dispatch_result.get("routeId")
+                st.session_state[sync_key] = final_route_id
+                st.session_state[f"sent_ts_{cluster_hash}"] = datetime.now().strftime('%m/%d %I:%M %p')
+                st.session_state[f"contractor_{cluster_hash}"] = ic.get('name', 'Unknown')
+                st.session_state[f"wo_{cluster_hash}"] = wo_val
+                st.session_state[f"route_state_{cluster_hash}"] = "email_sent"
+                st.session_state[f"reverted_{cluster_hash}"] = False
+                final_sig = email_body_content.replace("LINK_PENDING", final_route_id)
+                subject_line = requests.utils.quote(f"Route Request | {wo_val}")
+                body_content = requests.utils.quote(final_sig)
+                gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={ic.get('email', '')}&su={subject_line}&body={body_content}"
+                # Fire Gmail popup immediately then give browser 1s to execute before rerun
+                st.components.v1.html(f"<script>window.open('{gmail_url}', '_blank');</script>", height=0)
+                _link_ph = st.empty()
+                _link_ph.success("✅ Link Live! Gmail opening...")
+                time.sleep(1)
+                _link_ph.empty()
+                st.rerun()
     
     # --- 🌐 FIELD NATION PERSISTENCE (CHECKBOX) ---
     
@@ -2108,7 +2228,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if st.button("📢 Mark as Posted (Move to Sent)", key=f"posted_{pod_name}_{cluster_hash}", type="primary", use_container_width=True):
             with st.spinner("Moving route to Sent database..."):
                 try:
-                    res = requests.post(GAS_WEB_APP_URL, json={"action": "postFieldNationRoute", "cluster_hash": cluster_hash}, timeout=10).json()
+                    res = requests.post(GAS_WEB_APP_URL, json={"action": "postFieldNationRoute", "cluster_hash": cluster_hash}, timeout=25).json()
                     if res.get("success"):
                         st.session_state[f"route_state_{cluster_hash}"] = "email_sent"
                         st.session_state[f"contractor_{cluster_hash}"] = "Field Nation"
@@ -2291,6 +2411,9 @@ def smart_sync_pod(pod_name):
                 remaining.append(t)
         unmatched = remaining
 
+        _ss_boosted_vals = [str(x.get('boosted_standard', '')).lower() for x in group if x.get('boosted_standard')]
+        _ss_important_tags = ['local plus', 'boosted', 'digital with bottom']
+        _ss_boosted_tag = next((b for b in _ss_important_tags if any(b in v for v in _ss_boosted_vals)), '')
         existing_clusters.append({
             "data": group,
             "center": [anc['lat'], anc['lon']],
@@ -2300,6 +2423,8 @@ def smart_sync_pod(pod_name):
             "has_ic": False,
             "esc_count": sum(1 for x in group if x.get('escalated')),
             "is_digital": anc.get('is_digital', False),
+            "is_removal": anc.get('is_removal', False),
+            "boosted_tag": _ss_boosted_tag,
             "inst_count": sum(1 for x in group if "install" in str(x.get('task_type', '')).lower()),
             "remov_count": sum(1 for x in group if str(x.get('task_type', '')).lower() in ["kiosk removal", "remove kiosk"]),
             "wo": anc['wo']
@@ -2311,13 +2436,14 @@ def smart_sync_pod(pod_name):
 
 
 def run_pod_tab(pod_name):
+    auto_sync_checker()  # 🔄 Auto-detect accepted/declined routes every 30s
     # Grab the contractor database from session state
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
     
     # Grab the matching "Midnight" text color for the current pod
     text_color = {
-        "Blue": "#1e3a8a", "Green": "#064e3b", "Orange": "#7c2d12",
-        "Purple": "#4c1d95", "Red": "#7f1d1d"
+        "Blue": "#2563eb", "Green": "#16a34a", "Orange": "#ea580c",
+        "Purple": "#9333ea", "Red": "#dc2626"
     }.get(pod_name, "#633094")
     
     # Check if data exists for this pod to determine button state
@@ -2595,23 +2721,62 @@ def run_pod_tab(pod_name):
     st_folium(m, height=400, use_container_width=True, key=f"map_{pod_name}")
     
     st.markdown("""
-<div style="display: flex; justify-content: center; flex-wrap: wrap; gap: 20px; background: #ffffff; padding: 12px; border-radius: 12px; border: 1px solid #cbd5e1; margin-top: -10px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-    <div style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; align-self: center; margin-right: 10px;">Route Key:</div>
-    <div style="font-size: 13px; cursor: help;" title="Route is within distance limits (<60mi) and standard rate (<$25/stop).">🟢 Ready</div>
-    <div style="font-size: 13px; cursor: help;" title="Route is frozen and requires manual authorization before sending.">🔒 Action Required</div>
-    <div style="font-size: 13px; cursor: help;" title="The calculated price per stop is $25.00 or higher.">💰 High Rate</div>
-    <div style="font-size: 13px; cursor: help;" title="The closest contractor is more than 60 miles away.">📡 Long Distance</div>
-    <div style="font-size: 13px; cursor: help;" title="Priority: Contains escalated tasks.">⭐ Escalated</div>
-    <div style="font-size: 13px; cursor: help;" title="Digital Offline: Screen reported offline.">📵 Offline</div>
-    <div style="font-size: 13px; cursor: help;" title="Digital Ins/Rem: Installation or removal of digital screen.">🔧 Ins/Rem</div>
-    <div style="font-size: 13px; cursor: help;" title="Digital Service: Standard digital maintenance.">⚙️ Service</div>
-    <div style="font-size: 13px; cursor: help;" title="Route was flagged for review (e.g., low density).">🔴 Flagged</div>
+<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:14px 20px; margin-bottom:20px; box-shadow:0 2px 4px rgba(0,0,0,0.04);">
+    <div style="font-size:10px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:12px;">📖 Route Key</div>
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr 1fr; gap:12px;">
+        <div>
+            <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px;">Status</div>
+            <div style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:#334155;">
+                <span title="Route is within distance limits and standard rate — ready to dispatch.">🟢 Ready</span>
+                <span title="Rate is $25+/stop or IC is 60+ miles away. Unlock required before sending.">🔒 Action Required</span>
+                <span title="Route was flagged for review — low density or pricing issue.">🔴 Flagged</span>
+                <span title="Route has been assigned to Field Nation for external dispatch.">🌐 Field Nation</span>
+            </div>
+        </div>
+        <div>
+            <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px;">Flags</div>
+            <div style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:#334155;">
+                <span title="Calculated rate is at or above $25/stop — requires authorization to dispatch.">💰 High Rate</span>
+                <span title="Closest available IC is 60+ miles from the route center.">📡 Long Distance</span>
+                <span title="Route contains one or more escalated tasks requiring priority handling.">❗ Escalated</span>
+                <span title="Route consists exclusively of CVS Kiosk Removal tasks — capped at 10 stops.">🗑️ CVS Removal</span>
+            </div>
+        </div>
+        <div>
+            <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px;">Campaign Type</div>
+            <div style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:#334155;">
+                <span title="Local Plus campaign — higher value placements in targeted local markets.">⭐ Local Plus</span>
+                <span title="Boosted campaign — premium national or regional campaign with elevated priority.">🔥 Boosted</span>
+                <span title="Digital with Bottom campaign — includes both digital screen and bottom panel placement.">📺 Dig+Bottom</span>
+            </div>
+        </div>
+        <div>
+            <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px;">Task Types</div>
+            <div style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:#334155;">
+                <span title="New Ad: Fresh creative installation at this location.">🆕 New Ad</span>
+                <span title="Continuity: Replacing an existing ad with updated creative.">🔄 Continuity</span>
+                <span title="Default: Pull-down or placeholder installation.">⚪ Default</span>
+                <span title="Kiosk Install: Physical kiosk installation at this stop.">🛠️ Kiosk Install</span>
+                <span title="Kiosk Removal: Physical kiosk removal — CVS routes only.">🗑️ Kiosk Removal</span>
+                <span title="Custom task type defined in Onfleet outside of standard categories.">📋 Custom</span>
+            </div>
+        </div>
+        <div>
+            <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px;">Digital</div>
+            <div style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:#334155;">
+                <span title="Digital Offline: Screen at this location has been reported offline.">📵 Offline</span>
+                <span title="Digital Ins/Rem: Installation or removal of a digital screen unit.">🔧 Ins/Rem</span>
+                <span title="Digital Service: Routine maintenance or software service of a digital screen.">⚙️ Service</span>
+                <span title="Digital route — IC must be digital-certified to receive this route.">🔌 Digital</span>
+            </div>
+        </div>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
     st.markdown("---")
 
-    col_left, col_right = st.columns([4.5, 5.5])
+    col_left, col_right = st.columns([5, 5])
 
     with col_left:
         st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_PURPLE}; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
@@ -2644,11 +2809,13 @@ def run_pod_tab(pod_name):
                                 if est_rate >= 25.0: badges += " 💰"
                                 if closest_ic['d'] > 60: badges += " 📡"
 
-                    esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
+                    esc_pill = f"  [ ❗ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
                     inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else "" 
-                    remov_pill = f"  [ 🗑️ {c.get('remov_count', 0)} Removal ]" if c.get('remov_count', 0) > 0 else ""
-                    
-                    with st.expander(f"{badges} 🟢 {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{remov_pill}{esc_pill}"):
+                    remov_pill = f"  [ 🗑️ {c.get('remov_count', 0)} Removal ]" if (c.get('remov_count', 0) > 0 and not c.get('is_removal')) else ""
+                    remov_tag = f" 🗑️ CVS Removal — {c.get('remov_count', 0)} Units" if c.get('is_removal') else ""
+                    _BOOSTED_BADGES = {'local plus': '⭐ LOCAL PLUS', 'boosted': '🔥 BOOSTED', 'digital with bottom': '📺 DIG+BOTTOM'}
+                    boosted_pill = f"  [ {next((v for k,v in _BOOSTED_BADGES.items() if k in c.get('boosted_tag','')), '')} ]" if c.get('boosted_tag') and any(k in c.get('boosted_tag','') for k in _BOOSTED_BADGES) else ""
+                    with st.expander(f"{badges} 🟢 {c['city']}, {c['state']} | {c['stops']} Stops | 🗑️ CVS Kiosk Removal") if c.get('is_removal') else st.expander(f"{badges} 🟢 {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{remov_pill}{boosted_pill}{esc_pill}"):
                         render_dispatch(i, c, pod_name)
                     
         with t_flagged:
@@ -2661,11 +2828,13 @@ def run_pod_tab(pod_name):
                         current_state = c['state']
                         st.markdown(f"<div style='font-size: 12px; font-weight: 800; color: #94a3b8; margin-top: 15px; margin-bottom: 5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 2px; text-transform: uppercase; letter-spacing: 1px;'>📍 {current_state}</div>", unsafe_allow_html=True)
                     
-                    esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
+                    esc_pill = f"  [ ❗ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
                     inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else ""
-                    remov_pill = f"  [ 🗑️ {c.get('remov_count', 0)} Removal ]" if c.get('remov_count', 0) > 0 else ""
-                    
-                    with st.expander(f"🔒 🔴 {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{remov_pill}{esc_pill}"):
+                    remov_pill = f"  [ 🗑️ {c.get('remov_count', 0)} Removal ]" if (c.get('remov_count', 0) > 0 and not c.get('is_removal')) else ""
+                    remov_tag = f" 🗑️ CVS Removal — {c.get('remov_count', 0)} Units" if c.get('is_removal') else ""
+                    _BOOSTED_BADGES = {'local plus': '⭐ LOCAL PLUS', 'boosted': '🔥 BOOSTED', 'digital with bottom': '📺 DIG+BOTTOM'}
+                    boosted_pill = f"  [ {next((v for k,v in _BOOSTED_BADGES.items() if k in c.get('boosted_tag','')), '')} ]" if c.get('boosted_tag') and any(k in c.get('boosted_tag','') for k in _BOOSTED_BADGES) else ""
+                    with st.expander(f"🔒 🔴 {c['city']}, {c['state']} | {c['stops']} Stops | 🗑️ CVS Kiosk Removal") if c.get('is_removal') else st.expander(f"🔒 🔴 {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{remov_pill}{boosted_pill}{esc_pill}"):
                         render_dispatch(i+1000, c, pod_name)
 
         with t_fn:
@@ -2678,7 +2847,7 @@ def run_pod_tab(pod_name):
                         current_state = c['state']
                         st.markdown(f"<div style='font-size: 12px; font-weight: 800; color: #94a3b8; margin-top: 15px; margin-bottom: 5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 2px; text-transform: uppercase; letter-spacing: 1px;'>📍 {current_state}</div>", unsafe_allow_html=True)
                     
-                    esc_pill = f"  [ ⭐ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
+                    esc_pill = f"  [ ❗ {c.get('esc_count', 0)} ]" if c.get('esc_count', 0) > 0 else ""
                     digi_pill = " 🔌" if c.get('is_digital') else ""
                     inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else ""
                     remov_pill = f"  [ 🗑️ {c.get('remov_count', 0)} Removal ]" if c.get('remov_count', 0) > 0 else ""
@@ -2731,15 +2900,36 @@ def run_pod_tab(pod_name):
                     exp_col, btn_col = st.columns([8.5, 1.5], vertical_alignment="center")
                     with exp_col:
                         with st.expander(f"✉️ {wo_display} | ${comp} | Due: {due}"):
-                            u_locs, _sent_venues = [], []
+                            u_locs = []
+                            _sent_venues = []
                             for tk in c['data']:
                                 if tk['full'] not in u_locs:
                                     u_locs.append(tk['full'])
                                     _v = tk.get('venue_name', '')
                                     _sent_venues.append(f"{_v} — {tk['full']}" if _v else tk['full'])
                             _loc_items = "".join([f"<li>{l}</li>" for l in _sent_venues])
-                            _venues_html = f'''<div style="border-top:1px solid #e2e8f0; padding:10px 12px;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Venue Locations</div><ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{_loc_items}</ul></div>'''
-                            st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span></div><div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Contractor</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{ic_name}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Stops / Tasks</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{stops_cnt} <span style="color:#94a3b8; font-size:11px; font-weight:500;">Stops / {tasks_cnt} Tasks</span></div></div></div><div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Due Date</div><div style="font-size:13px; font-weight:700; color:#0f172a;">{due}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div><div style="font-size:18px; font-weight:900; color:#16a34a;">${comp}</div></div></div>{_venues_html}</div>""", unsafe_allow_html=True)
+                            _venues_html = f"""    <div style="border-top:1px solid #e2e8f0; padding:10px 12px;">
+        <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Venue Locations</div>
+        <ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{_loc_items}</ul>
+    </div>"""
+                            st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;">
+    <div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;">
+        <span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span>
+    </div>
+    <div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;">
+        <div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Contractor</div>
+        <div style="font-size:14px; font-weight:800; color:#0f172a;">{ic_name}</div></div>
+        <div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Stops / Tasks</div>
+        <div style="font-size:14px; font-weight:800; color:#0f172a;">{stops_cnt} <span style="color:#94a3b8; font-size:11px; font-weight:500;">Stops / {tasks_cnt} Tasks</span></div></div>
+    </div>
+    <div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;">
+        <div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Due Date</div>
+        <div style="font-size:13px; font-weight:700; color:#0f172a;">{due}</div></div>
+        <div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div>
+        <div style="font-size:18px; font-weight:900; color:#16a34a;">${comp}</div></div>
+    </div>
+    {_venues_html}
+</div>""", unsafe_allow_html=True)
                     with btn_col:
                         with st.popover("↩️", use_container_width=True):
                             st.markdown(f"<p style='font-size:13px; text-align:center;'>Re-route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
@@ -2760,8 +2950,28 @@ def run_pod_tab(pod_name):
                             else: task_locs = raw_locs
                             u_locs = list(dict.fromkeys(task_locs))
                             _gloc_items = "".join([f"<li>{l}</li>" for l in u_locs])
-                            _gvenues_html = f'''<div style="border-top:1px solid #e2e8f0; padding:10px 12px;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Venue Locations</div><ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{_gloc_items}</ul></div>''' if u_locs else ""
-                            st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span></div><div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Contractor</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{g_ic_name}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Stops / Tasks</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{stops_cnt} <span style="color:#94a3b8; font-size:11px; font-weight:500;">Stops / {tasks_cnt} Tasks</span></div></div></div><div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Due Date</div><div style="font-size:13px; font-weight:700; color:#0f172a;">{due}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div><div style="font-size:18px; font-weight:900; color:#16a34a;">${comp}</div></div></div>{_gvenues_html}</div>""", unsafe_allow_html=True)
+                            _gvenues_html = f"""    <div style="border-top:1px solid #e2e8f0; padding:10px 12px;">
+        <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Venue Locations</div>
+        <ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{_gloc_items}</ul>
+    </div>""" if u_locs else ""
+                            st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;">
+    <div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;">
+        <span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span>
+    </div>
+    <div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;">
+        <div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Contractor</div>
+        <div style="font-size:14px; font-weight:800; color:#0f172a;">{g_ic_name}</div></div>
+        <div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Stops / Tasks</div>
+        <div style="font-size:14px; font-weight:800; color:#0f172a;">{stops_cnt} <span style="color:#94a3b8; font-size:11px; font-weight:500;">Stops / {tasks_cnt} Tasks</span></div></div>
+    </div>
+    <div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;">
+        <div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Due Date</div>
+        <div style="font-size:13px; font-weight:700; color:#0f172a;">{due}</div></div>
+        <div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div>
+        <div style="font-size:18px; font-weight:900; color:#16a34a;">${comp}</div></div>
+    </div>
+    {_gvenues_html}
+</div>""", unsafe_allow_html=True)
                     with btn_col:
                         with st.popover("↩️", use_container_width=True):
                             st.markdown(f"<p style='font-size:13px; text-align:center;'>Re-route from <b>{g_ic_name}</b>?</p>", unsafe_allow_html=True)
@@ -2786,18 +2996,31 @@ def run_pod_tab(pod_name):
                     comp, due = c.get('comp', 0), c.get('due', 'N/A')
                     tasks_cnt, stops_cnt = len(c['data']), c['stops']
                     
+                    _k_by_addr = {}
+                    for _tk in c['data']:
+                        if any(kw in str(_tk.get('task_type','')).lower() for kw in ['kiosk install','install']):
+                            _addr = _tk['full']
+                            _venue = _tk.get('venue_name', '') or _addr
+                            _k_by_addr[_venue] = _k_by_addr.get(_venue, 0) + 1
+                    _k_total = sum(_k_by_addr.values())
+                    _k_pill = f" | 🛠️ {_k_total} Kiosk" if _k_total > 0 else ""
                     exp_col, btn_col = st.columns([8.5, 1.5], vertical_alignment="center")
                     with exp_col:
-                        with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                        with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_k_pill} | Due: {due}"):
                             st.success("Route accepted. Complete the checklist to finalize.")
                             u_locs = []
                             for tk in c['data']:
                                 if tk['full'] not in u_locs: u_locs.append(tk['full'])
-                            loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
+                            loc_rows = []
+                            for l in u_locs:
+                                _venue_key = next((_tk.get('venue_name','') for _tk in c['data'] if _tk['full'] == l and _tk.get('venue_name')), '')
+                                _k_cnt = sum(1 for _tk in c['data'] if _tk['full'] == l and 'install' in str(_tk.get('task_type','')).lower())
+                                _k_tag = f" <span style='color:#16a34a; font-weight:800;'>🛠️ {_k_cnt} Kiosk</span>" if _k_cnt > 0 else ""
+                                _v_prefix = f"<span style='color:#94a3b8; font-weight:600;'>{_venue_key} — </span>" if _venue_key else ""
+                                loc_rows.append(f"<li>{_v_prefix}{l}{_k_tag}</li>")
+                            loc_html = "".join(loc_rows)
                             st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Venue Locations</span></div><div style="padding:10px 12px;"><ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{loc_html}</ul></div></div>""", unsafe_allow_html=True)
                             render_finalization_checklist(cluster_hash, pod_name, "chk")
-                            st.divider()
-                            render_dispatch(i+2000, c, pod_name, is_sent=True)
                     with btn_col:
                         with st.popover("↩️", use_container_width=True):
                             st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
@@ -2811,7 +3034,9 @@ def run_pod_tab(pod_name):
                     
                     exp_col, btn_col = st.columns([8.5, 1.5], vertical_alignment="center")
                     with exp_col:
-                        with st.expander(f"✅ {g.get('wo', g_ic_name)} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                        _gk_total = g.get('kCnt', 0) or 0
+                        _gk_pill = f" | 🛠️ {_gk_total} Kiosk" if _gk_total > 0 else ""
+                        with st.expander(f"✅ {g.get('wo', g_ic_name)} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_gk_pill} | Due: {due}"):
                             st.success("Accepted and synced with OnFleet. Complete the checklist to finalize.")
                             raw_locs = [s.strip() for s in g.get('locs', '').split('|') if s.strip()]
                             if len(raw_locs) >= 3: task_locs = raw_locs[1:-1]
@@ -2872,15 +3097,29 @@ def run_pod_tab(pod_name):
                     comp, due = c.get('comp', 0), c.get('due', 'N/A')
                     tasks_cnt, stops_cnt = len(c['data']), c['stops']
                     
+                    _fk_by_addr = {}
+                    for _tk in c['data']:
+                        if any(kw in str(_tk.get('task_type','')).lower() for kw in ['kiosk install','install']):
+                            _addr = _tk['full']
+                            _venue = _tk.get('venue_name', '') or _addr
+                            _fk_by_addr[_venue] = _fk_by_addr.get(_venue, 0) + 1
+                    _fk_total = sum(_fk_by_addr.values())
+                    _fk_pill = f" | 🛠️ {_fk_total} Kiosk" if _fk_total > 0 else ""
                     exp_col, btn_col = st.columns([8.5, 1.5], vertical_alignment="center")
                     with exp_col:
-                        with st.expander(f"🏁 {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                        with st.expander(f"🏁 {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_fk_pill} | Due: {due}"):
                             u_locs = []
                             for tk in c['data']:
                                 if tk['full'] not in u_locs: u_locs.append(tk['full'])
-                            loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
+                            loc_rows = []
+                            for l in u_locs:
+                                _fvk = next((_tk.get('venue_name','') for _tk in c['data'] if _tk['full'] == l and _tk.get('venue_name')), '')
+                                _k_cnt = sum(1 for _tk in c['data'] if _tk['full'] == l and 'install' in str(_tk.get('task_type','')).lower())
+                                _k_tag = f" <span style='color:#16a34a; font-weight:800;'>🛠️ {_k_cnt} Kiosk</span>" if _k_cnt > 0 else ""
+                                _fv_prefix = f"<span style='color:#94a3b8; font-weight:600;'>{_fvk} — </span>" if _fvk else ""
+                                loc_rows.append(f"<li>{_fv_prefix}{l}{_k_tag}</li>")
+                            loc_html = "".join(loc_rows)
                             st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Venue Locations</span></div><div style="padding:10px 12px;"><ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{loc_html}</ul></div></div>""", unsafe_allow_html=True)
-                            render_dispatch(i+4000, c, pod_name, is_sent=True)
                     with btn_col:
                         with st.popover("↩️", use_container_width=True):
                             st.markdown(f"<p style='font-size:13px; text-align:center;'>Re-route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
@@ -2895,7 +3134,9 @@ def run_pod_tab(pod_name):
                     
                     exp_col, btn_col = st.columns([8.5, 1.5], vertical_alignment="center")
                     with exp_col:
-                        with st.expander(f"🏁 {wo_display} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                        _gfk_total = g.get('kCnt', 0) or 0
+                        _gfk_pill = f" | 🛠️ {_gfk_total} Kiosk" if _gfk_total > 0 else ""
+                        with st.expander(f"🏁 {wo_display} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_gfk_pill} | Due: {due}"):
                             st.success("Route Finalized and Archived.")
                             raw_locs = [s.strip() for s in g.get('locs', '').split('|') if s.strip()]
                             if len(raw_locs) >= 3: task_locs = raw_locs[1:-1]
@@ -2942,6 +3183,13 @@ with tabs[0]:
 
     st.markdown("---")
     loading_placeholder = st.empty()
+    bar_placeholder = st.empty()
+    if not has_global_data:
+        st.info("No operational data initialized. Click '🚀 Initialize All Pods' at the top right to fetch tasks across all pods.")
+
+    if st.session_state.get("trigger_pull"):
+        st.markdown("<style>.pod-card-pill { opacity: 0.35 !important; filter: grayscale(40%) !important; pointer-events: none !important; transition: opacity 0.3s ease !important; }</style>", unsafe_allow_html=True)
+
     cols = st.columns(len(POD_CONFIGS))
     pod_keys = list(POD_CONFIGS.keys())
     global_map = folium.Map(location=[39.8283, -98.5795], zoom_start=4, tiles="cartodbpositron")
@@ -3070,7 +3318,7 @@ with tabs[0]:
 
         _render_global_card(_g_overlay, "Loading route database...", _g_start)
         _time.sleep(0.05)
-        p_bar = st.progress(0, text="📋 Loading route database from Google Sheets...")
+        p_bar = bar_placeholder.progress(0, text="📋 Loading route database from Google Sheets...")
         st.session_state.sent_db, st.session_state.ghost_db = fetch_sent_records_from_sheet()
         _render_global_card(_g_overlay, f"Fetching tasks across {len(pod_keys)} pods...", _g_start)
         p_bar.progress(0.03, text=f"⏳ Fetching tasks across {len(pod_keys)} pods...")
@@ -3079,7 +3327,7 @@ with tabs[0]:
             process_pod(p, master_bar=p_bar, pod_idx=idx, total_pods=len(pod_keys))
         st.session_state.current_loading_pod = None
         _g_overlay.empty()
-        p_bar.empty()
+        bar_placeholder.empty()
         st.session_state.pop('_loading_overlay', None)
         st.session_state.pop('_loading_start', None)
         st.session_state.pop('_loading_pod', None)
@@ -3087,8 +3335,7 @@ with tabs[0]:
         st.rerun()
 
     # 🌟 THE FIX: Inject the blue prompt right above the map if no data exists
-    if not has_global_data:
-        st.info("No operational data initialized. Click '🚀 Initialize All Pods' at the top right to fetch tasks across all pods.")
+
 
     st.markdown("<br> 🗺️ Master Route Map", unsafe_allow_html=True)
     st_folium(global_map, height=500, use_container_width=True, key="global_master_map")
@@ -3262,20 +3509,28 @@ with tabs[6]:
         for c in global_digital: folium.CircleMarker(c['center'], radius=8, color="#0f766e", fill=True, opacity=0.8).add_to(m_digi)
         st_folium(m_digi, height=400, use_container_width=True, key="digital_pool_map")
         
+        # 5. 🚀 TWO-COLUMN DISPATCH (Parity with Pods)
         st.markdown("""
-<div style="display: flex; justify-content: center; flex-wrap: wrap; gap: 20px; background: #ffffff; padding: 12px; border-radius: 12px; border: 1px solid #cbd5e1; margin-top: -10px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-    <div style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; align-self: center; margin-right: 10px;">Route Key:</div>
-    <div style="font-size: 13px; cursor: help;" title="Route is within distance limits (<60mi) and standard rate (<$25/stop).">🟢 Ready</div>
-    <div style="font-size: 13px; cursor: help;" title="Digital Offline: Screen reported offline.">📵 Offline</div>
-    <div style="font-size: 13px; cursor: help;" title="Digital Ins/Rem: Installation or removal of digital screen.">🔧 Ins/Rem</div>
-    <div style="font-size: 13px; cursor: help;" title="Digital Service: Standard digital maintenance.">⚙️ Service</div>
-    <div style="font-size: 13px; cursor: help;" title="Route was flagged for review (e.g., low density).">🔴 Flagged</div>
+<div style="display:flex; justify-content:center; flex-wrap:wrap; gap:8px 20px; background:#ffffff; padding:12px 20px; border-radius:12px; border:1px solid #99f6e4; margin-bottom:20px; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
+    <div style="font-size:11px; font-weight:900; color:#0f766e; text-transform:uppercase; letter-spacing:0.08em; align-self:center; margin-right:8px;">📖 Route Key</div>
+    <span style="font-size:11px; color:#0f766e; font-weight:600; align-self:center; margin-right:4px; border-right:1px solid #99f6e4; padding-right:12px;">Status:</span>
+    <span style="font-size:13px;" title="Ready to dispatch">🟢 Ready</span>
+    <span style="font-size:13px;" title="Requires unlock">🔒 Action Req.</span>
+    <span style="font-size:13px;" title="Flagged for review">🔴 Flagged</span>
+    <span style="font-size:13px;" title="Field Nation">🌐 FN</span>
+    <span style="font-size:11px; color:#0f766e; font-weight:600; align-self:center; margin-left:4px; margin-right:4px; border-right:1px solid #99f6e4; padding-right:12px;">Flags:</span>
+    <span style="font-size:13px;" title="Rate above $50/stop">💰 High Rate</span>
+    <span style="font-size:13px;" title="IC 40+ miles away">📡 Distance</span>
+    <span style="font-size:13px;" title="Contains escalated tasks">❗ Escalated</span>
+    <span style="font-size:11px; color:#0f766e; font-weight:600; align-self:center; margin-left:4px; margin-right:4px; border-right:1px solid #99f6e4; padding-right:12px;">Tasks:</span>
+    <span style="font-size:13px;" title="Screen offline">📵 Offline</span>
+    <span style="font-size:13px;" title="Install / Removal">🔧 Ins/Rem</span>
+    <span style="font-size:13px;" title="Digital maintenance">⚙️ Service</span>
+    <span style="font-size:13px;" title="Certified digital IC">🔌 Digital</span>
 </div>
 """, unsafe_allow_html=True)
-
-        # 5. 🚀 TWO-COLUMN DISPATCH (Parity with Pods)
         st.markdown("---")
-        col_left, col_right = st.columns([4.5, 5.5])
+        col_left, col_right = st.columns([5, 5])
         
         with col_left:
             st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_DIGITAL_TEXT}; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
@@ -3290,7 +3545,7 @@ with tabs[6]:
                         if c['state'] != current_state:
                             current_state = c['state']
                             st.markdown(f"<div style='font-size: 12px; font-weight: 800; color: #94a3b8; margin-top: 15px; margin-bottom: 5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 2px; text-transform: uppercase; letter-spacing: 1px;'>📍 {current_state}</div>", unsafe_allow_html=True)
-                    with st.expander(f"{get_digi_badges(c['data'])} {c['city']}, {c['state']} | {c['stops']} Stops"):
+                        with st.expander(f"{get_digi_badges(c['data'])} {c['city']}, {c['state']} | {c['stops']} Stops"):
                             render_dispatch(i+8000, c, "Global_Digital")
                             
             with t_flagged:
@@ -3302,7 +3557,7 @@ with tabs[6]:
                         if c['state'] != current_state:
                             current_state = c['state']
                             st.markdown(f"<div style='font-size: 12px; font-weight: 800; color: #94a3b8; margin-top: 15px; margin-bottom: 5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 2px; text-transform: uppercase; letter-spacing: 1px;'>📍 {current_state}</div>", unsafe_allow_html=True)
-                    with st.expander(f"🔴 {get_digi_badges(c['data'])} {c['city']}, {c['state']} | {c['stops']} Stops"):
+                        with st.expander(f"🔴 {get_digi_badges(c['data'])} {c['city']}, {c['state']} | {c['stops']} Stops"):
                             render_dispatch(i+9000, c, "Global_Digital")
                             
             with t_fn:
@@ -3314,7 +3569,7 @@ with tabs[6]:
                         if c['state'] != current_state:
                             current_state = c['state']
                             st.markdown(f"<div style='font-size: 12px; font-weight: 800; color: #94a3b8; margin-top: 15px; margin-bottom: 5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 2px; text-transform: uppercase; letter-spacing: 1px;'>📍 {current_state}</div>", unsafe_allow_html=True)
-                    with st.expander(f"🌐 FN {get_digi_badges(c['data'])} {c['city']}, {c['state']} | {c['stops']} Stops"):
+                        with st.expander(f"🌐 FN {get_digi_badges(c['data'])} {c['city']}, {c['state']} | {c['stops']} Stops"):
                             render_dispatch(i+9500, c, "Global_Digital")
 
         with col_right:
@@ -3399,9 +3654,11 @@ with tabs[6]:
                         comp, due = c.get('comp', 0), c.get('due', 'N/A')
                         tasks_cnt, stops_cnt = len(c['data']), c['stops']
                         
+                        _dins_cnt = sum(1 for tk in c['data'] if 'ins' in str(tk.get('task_type','')).lower() or 'rem' in str(tk.get('task_type','')).lower())
+                        _dins_pill = f" | 🔧 {_dins_cnt} Ins/Rem" if _dins_cnt > 0 else ""
                         exp_col, btn_col = st.columns([8.5, 1.5], vertical_alignment="center")
                         with exp_col:
-                            with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                            with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_dins_pill} | Due: {due}"):
                                 st.success("Route accepted. Complete the checklist to finalize.")
                                 u_locs = []
                                 for tk in c['data']:
@@ -3424,7 +3681,9 @@ with tabs[6]:
                         
                         exp_col, btn_col = st.columns([8.5, 1.5], vertical_alignment="center")
                         with exp_col:
-                            with st.expander(f"✅ {g.get('wo', g_ic_name)} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                            _gins_cnt = g.get('digi_ins', 0) or 0
+                        _gins_pill = f" | 🔧 {_gins_cnt} Ins/Rem" if _gins_cnt > 0 else ""
+                        with st.expander(f"✅ {g.get('wo', g_ic_name)} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_gins_pill} | Due: {due}"):
                                 st.success("Accepted and synced with OnFleet. Complete the checklist to finalize.")
                                 raw_locs = [s.strip() for s in g.get('locs', '').split('|') if s.strip()]
                                 if len(raw_locs) >= 3: task_locs = raw_locs[1:-1]
@@ -3484,9 +3743,11 @@ with tabs[6]:
                         comp, due = c.get('comp', 0), c.get('due', 'N/A')
                         tasks_cnt, stops_cnt = len(c['data']), c['stops']
                         
+                        _dfins_cnt = sum(1 for tk in c['data'] if 'ins' in str(tk.get('task_type','')).lower() or 'rem' in str(tk.get('task_type','')).lower())
+                        _dfins_pill = f" | 🔧 {_dfins_cnt} Ins/Rem" if _dfins_cnt > 0 else ""
                         exp_col, btn_col = st.columns([8.5, 1.5], vertical_alignment="center")
                         with exp_col:
-                            with st.expander(f"🏁 {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                            with st.expander(f"🏁 {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_dfins_pill} | Due: {due}"):
                                 u_locs = []
                                 for tk in c['data']:
                                     if tk['full'] not in u_locs: u_locs.append(tk['full'])
@@ -3507,7 +3768,9 @@ with tabs[6]:
                         
                         exp_col, btn_col = st.columns([8.5, 1.5], vertical_alignment="center")
                         with exp_col:
-                            with st.expander(f"🏁 {wo_display} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                            _gdfins_cnt = g.get('digi_ins', 0) or 0
+                        _gdfins_pill = f" | 🔧 {_gdfins_cnt} Ins/Rem" if _gdfins_cnt > 0 else ""
+                        with st.expander(f"🏁 {wo_display} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_gdfins_pill} | Due: {due}"):
                                 st.success("Route Finalized and Archived.")
                                 raw_locs = [s.strip() for s in g.get('locs', '').split('|') if s.strip()]
                                 if len(raw_locs) >= 3: task_locs = raw_locs[1:-1]
