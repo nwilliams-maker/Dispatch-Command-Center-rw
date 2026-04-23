@@ -1677,7 +1677,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     sel_key = f"sel_{pod_name}_{cluster_hash}"
     last_sel_key = f"last_sel_{pod_name}_{cluster_hash}"
 
-    st.markdown("<div style='font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:8px;'>Route Stops</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:4px; margin-top:4px;'>Route Stops</div>", unsafe_allow_html=True)
 
     # --- HISTORY LOG ---
     hist = st.session_state.get(f"history_{cluster_hash}", [])
@@ -1765,13 +1765,14 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         venue_prefix = f"<span style='color:#94a3b8; font-weight:600; font-size:12px;'>{metrics['venue_name']} — </span>" if metrics.get('venue_name') else ""
         
         # UI: Stop Info + Break-Off Button Layout
-        s_col, b_col = st.columns([0.9, 0.1], vertical_alignment="center")
+        s_col, b_col = st.columns([0.92, 0.08], vertical_alignment="center")
         with s_col:
             st.markdown(
-                f"{venue_prefix}<b>{display_addr}</b> &nbsp;"
-                f"<span style='color: #633094; background-color: #f3e8ff; padding: 2px 6px; border-radius: 10px; font-weight: 800; font-size: 11px;'>"
-                f"{metrics['t_count']} Tasks</span>&nbsp; "
-                f"<span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", 
+                f"<div style='padding:4px 0; border-bottom:1px solid #f1f5f9;'>"
+                f"{venue_prefix}<span style='font-weight:700; font-size:12px; color:#0f172a;'>{display_addr}</span>{esc_inline} &nbsp;"
+                f"<span style='color:#633094; background:#f3e8ff; padding:1px 5px; border-radius:8px; font-weight:800; font-size:10px;'>{metrics['t_count']} Tasks</span>"
+                f"<span style='font-size:11px; color:#94a3b8;'> — {pill_str}</span>"
+                f"</div>",
                 unsafe_allow_html=True
             )
         with b_col:
@@ -1908,13 +1909,13 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         col_a, col_b, col_c, col_d = st.columns([2, 1.5, 1.5, 1.5])
         with col_a:
             if ic_opts:
-                selected_label = st.selectbox("Select IC", list(ic_opts.keys()), key=sel_key, on_change=update_for_new_contractor)
+                selected_label = st.selectbox("Contractor", list(ic_opts.keys()), key=sel_key, on_change=update_for_new_contractor)
                 ic = ic_opts[selected_label]
             else:
                 ic = {"name": "Manual/FN", "location": f"{cluster['center'][0]},{cluster['center'][1]}", "d": 0}
                 st.info("No ICs within 100mi.")
 
-        st.divider()
+        st.markdown("<div style='margin:10px 0 6px 0; border-top:1px solid #f1f5f9;'></div>", unsafe_allow_html=True)
         ic_location = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
         mi, hrs, t_str = get_gmaps(ic_location, tuple(stop_metrics.keys()))
     
@@ -2084,7 +2085,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     
        # 🌟 UNIQUE KEY & PERFECT INDENTATION
         st.markdown("<div style='font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:4px; margin-top:8px;'>Email Preview</div>", unsafe_allow_html=True)
-        email_body_content = st.text_area("Email Content Preview", value=sig_preview, height=180, key=f"txt_area_{pod_name}_{current_data_fingerprint}_{cluster_hash}", disabled=not is_unlocked)
+        email_body_content = st.text_area("Email Content Preview", value=sig_preview, height=120, key=f"txt_area_{pod_name}_{current_data_fingerprint}_{cluster_hash}", disabled=not is_unlocked)
 
         # --- HIGH-SPEED DISPATCH BUTTON ---
         btn_label = "✉️ RESEND LINK & OPEN GMAIL" if is_already_sent else "🚀 GENERATE LINK & OPEN GMAIL"
@@ -2773,7 +2774,7 @@ def run_pod_tab(pod_name):
 
     st.markdown("---")
 
-    col_left, col_right = st.columns([6.5, 3.5])
+    col_left, col_right = st.columns([5, 5])
 
     with col_left:
         st.markdown(f"<div style='font-size: 1.2rem; font-weight: 800; color: {TB_PURPLE}; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
@@ -3527,7 +3528,7 @@ with tabs[6]:
 </div>
 """, unsafe_allow_html=True)
         st.markdown("---")
-        col_left, col_right = st.columns([6.5, 3.5])
+        col_left, col_right = st.columns([5, 5])
         
         with col_left:
             st.markdown(f"<div style='font-size: 1.2rem; font-weight: 800; color: {TB_DIGITAL_TEXT}; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
