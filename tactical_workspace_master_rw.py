@@ -2885,7 +2885,7 @@ def run_pod_tab(pod_name):
                     
                     exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                     with exp_col:
-                        with st.expander(f"✉️ {wo_display} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | Due: {due}"):
+                        with st.expander(f"✉️ {wo_display} | ${comp} | Due: {due}"):
                             u_locs = []
                             _sent_venues = []
                             for tk in c['data']:
@@ -2930,7 +2930,7 @@ def run_pod_tab(pod_name):
                     
                     exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                     with exp_col:
-                        with st.expander(f"✉️ {wo_display} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | Due: {due}"):
+                        with st.expander(f"✉️ {wo_display} | ${comp} | Due: {due}"):
                             raw_locs = [s.strip() for s in g.get('locs', '').split('|') if s.strip()]
                             if len(raw_locs) >= 3: task_locs = raw_locs[1:-1]
                             else: task_locs = raw_locs
