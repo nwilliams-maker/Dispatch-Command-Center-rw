@@ -1757,8 +1757,9 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 "locs": " | ".join([home] + list(stop_metrics.keys()) + [home])
             }
 
-            save_fn_to_sheet(GAS_WEB_APP_URL, fn_payload)
+            save_fn_to_sheet(GAS_WEB_APP_URL, fn_payload, session_state=st.session_state)
             st.session_state[f"route_state_{cluster_hash}"] = "field_nation"
+            st.session_state[f"reverted_{cluster_hash}"] = True  # 🌟 Block stale sheet match until background write completes
             st.toast("✅ Saved to Field Nation Tab")
             st.rerun()
         
