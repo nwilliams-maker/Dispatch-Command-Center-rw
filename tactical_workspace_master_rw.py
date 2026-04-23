@@ -327,12 +327,15 @@ button[kind="secondary"] {{
    ========================================= */
 div[data-testid="stExpander"] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(2) button {{
     margin-top: 2px !important;
-    transform: scale(0.7) !important;
+    transform: scale(0.9) !important;
     transform-origin: center right !important;
-    padding: 0 !important;
+    padding: 0 4px !important;
     border: none !important;
     box-shadow: none !important;
     background: transparent !important;
+    color: #ef4444 !important;
+    font-weight: 800 !important;
+    font-size: 16px !important;
 }}
 
 /* =========================================
