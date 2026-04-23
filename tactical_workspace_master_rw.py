@@ -1786,14 +1786,22 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if kiosk_stop_count > 0:
             fn_buf, fn_stop_count = generate_fn_upload(stop_metrics, cluster, _due, _pay, cluster_hash)
             if fn_buf:
-                st.download_button(
-                    label=f"📥 Download FN Upload ({fn_stop_count} Kiosk {'Stop' if fn_stop_count == 1 else 'Stops'})",
-                    data=fn_buf,
-                    file_name=f"FN_Upload_{cluster.get('city', 'Route')}_{datetime.now().strftime('%m%d%Y')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key=f"fn_dl_{cluster_hash}",
-                    use_container_width=True
-                )
+                dl_col, link_col = st.columns(2)
+                with dl_col:
+                    st.download_button(
+                        label="📥 Download FN Upload",
+                        data=fn_buf,
+                        file_name=f"FN_Upload_{cluster.get('city', 'Route')}_{datetime.now().strftime('%m%d%Y')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        key=f"fn_dl_{cluster_hash}",
+                        use_container_width=True
+                    )
+                with link_col:
+                    st.link_button(
+                        "🌐 Open FN Mass Upload",
+                        url="https://app.fieldnation.com/workorders/mass-upload",
+                        use_container_width=True
+                    )
         else:
             st.caption("ℹ️ No Kiosk Install stops detected on this route.")
 
