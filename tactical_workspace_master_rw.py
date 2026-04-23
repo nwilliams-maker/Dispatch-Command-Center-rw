@@ -601,41 +601,63 @@ div.mini-btn button {{
 """, unsafe_allow_html=True)
 
 # --- 1. BACKGROUND THREAD WORKER ---
-def background_sheet_move(cluster_hash, payload_json):
-    """Silent worker to update Google Sheets without freezing the UI."""
+def background_sheet_move(cluster_hash, payload_json, task_ids=None):
+    """Silent worker to update Google Sheets AND scrub Onfleet — never blocks the UI."""
     try:
-        # Sends data silently in the background
         requests.post(GAS_WEB_APP_URL, json={
-            "action": "archiveRoute", 
+            "action": "archiveRoute",
             "cluster_hash": cluster_hash,
-            "payload": payload_json if payload_json else {} 
+            "payload": payload_json if payload_json else {}
         }, timeout=15)
     except:
-        pass 
+        pass
+
+    # 🌟 Onfleet scrub now runs here in the background — UI never waits for this
+    if task_ids:
+        try:
+            auth = {"Authorization": f"Basic {base64.b64encode(f'{ONFLEET_KEY}:'.encode()).decode()}"}
+            for tid in task_ids:
+                try:
+                    requests.get(f"https://onfleet.com/api/v2/tasks/{tid}", headers=auth, timeout=5)
+                except:
+                    pass
+        except:
+            pass
         
 # --- 2. INSTANT REVOKE LOGIC ---
 def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=True, cluster_data=None):
-    """Moves route to Dispatch column instantly and schedules a background Onfleet scrub."""
-    
-    # 1. 🚀 FIRE AND FORGET: 
-    # Launch the slow Google Sheets update in a separate lane so the app doesn't freeze
-    threading.Thread(target=background_sheet_move, args=(cluster_hash, cluster_data), daemon=True).start()
-        
-    # 2. 🛡️ THE FIX: Set the reverted flag to True
-    # This forces the UI logic to ignore the Google Sheet record for 15 seconds
+    """Moves route to Dispatch column instantly. Sheet update + Onfleet scrub run in background."""
+
+    # 1. 🚀 FIRE AND FORGET: Sheet update + Onfleet scrub both happen off the main thread
+    task_ids = None
+    if check_onfleet and cluster_data:
+        try:
+            raw = cluster_data.get('taskIds', '') or cluster_data.get('data', [])
+            if isinstance(raw, str):
+                task_ids = [t.strip() for t in raw.split(',') if t.strip()]
+            elif isinstance(raw, list):
+                task_ids = [str(t['id']).strip() for t in raw if t.get('id')]
+        except:
+            task_ids = None
+
+    threading.Thread(
+        target=background_sheet_move,
+        args=(cluster_hash, cluster_data, task_ids),
+        daemon=True
+    ).start()
+
+    # 2. 🛡️ Set reverted flag so UI ignores stale Sheet record immediately
     st.session_state[f"reverted_{cluster_hash}"] = True
-    
-    # 3. 🧠 INSTANT RESET: Clear column-shifting flags
+
+    # 3. 🧠 INSTANT RESET: Clear all state for this route
     st.session_state.pop(f"route_state_{cluster_hash}", None)
     st.session_state.pop(f"sent_ts_{cluster_hash}", None)
     st.session_state.pop(f"contractor_{cluster_hash}", None)
     st.session_state.pop(f"sync_{cluster_hash}", None)
-    
-    # 4. 🛡️ SCHEDULE SCRUB: 5-second deferred check for Onfleet
-    st.session_state[f"scrub_timer_{cluster_hash}"] = time.time() + 5
-    
+    st.session_state.pop(f"scrub_timer_{cluster_hash}", None)
+
     st.toast(f"✅ {action_label}! Route moved back to Dispatch.")
-    # 🌟 THE FIX: st.rerun() has been completely removed!
+    # No st.rerun() — callback handles the rerender
     
 def background_sheet_finalize(cluster_hash):
     """Silent worker to finalize routes in Google Sheets without freezing the UI."""
@@ -1579,25 +1601,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     real_id = st.session_state.get(sync_key)
     link_id = real_id if real_id else "LINK_PENDING"
 
-    # --- 🛡️ DEFERRED ONFLEET SCRUB ENGINE ---
-    scrub_key = f"scrub_timer_{cluster_hash}"
-    if scrub_key in st.session_state and time.time() >= st.session_state[scrub_key]:
-        with st.spinner("🔍 Validating task availability with Onfleet..."):
-            active_tasks = []
-            for t in cluster['data']:
-                try:
-                    # Check if task is still unassigned (state 0)
-                    res = requests.get(f"https://onfleet.com/api/v2/tasks/{t['id']}", headers=headers).json()
-                    if res.get('state') == 0: active_tasks.append(t)
-                except: active_tasks.append(t) # Keep if API fails to be safe
-            
-            # Update the cluster with valid data only
-            cluster['data'] = active_tasks
-            cluster['stops'] = len(set(x['full'] for x in active_tasks))
-            # Cleanup timer so it only runs once
-            st.session_state.pop(scrub_key, None)
-            st.toast("🛡️ Route scrubbed: Completed tasks removed.")
-            st.rerun()
+    # Scrub now runs silently in background_sheet_move — nothing blocks here
 
     # --- 1. STATE KEYS & INITIALIZATION (🌟 UNIQUE BY POD) ---
     pay_key = f"pay_val_{pod_name}_{cluster_hash}"
