@@ -989,6 +989,10 @@ def process_digital_pool(master_bar=None):
             if f_name in ['campaignname', 'campaign name'] or f_key in ['campaignname', 'campaign_name']:
                 client_company = f_val  # 🌟 Campaign Name maps to Customer Name in FN upload
 
+        # 🌟 FALLBACK: Grab Campaign Name directly from index 6 if key match missed
+        if not client_company and len(custom_fields) > 6:
+            client_company = str(custom_fields[6].get('value', '')).strip()
+
         # 2. CHECK REGULAR (STATIC) EXEMPTIONS FIRST
         # Expanded to include "escalation" to prevent crossing over
         search_string = f"{native_details} {custom_task_type}".lower()
@@ -1129,11 +1133,9 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             m = elapsed // 60; s = elapsed % 60
             _ov.markdown(f"""
                 <style>
-                    @keyframes pulse-bg {{0%,100%{{opacity:1}}50%{{opacity:0.6}}}}
                     @keyframes spin {{0%{{transform:rotate(0deg)}}100%{{transform:rotate(360deg)}}}}
                     .dcc-card{{background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;
-                        padding:36px 32px;text-align:center;margin:20px 0;
-                        animation:pulse-bg 2s ease-in-out infinite;}}
+                        padding:36px 32px;text-align:center;margin:20px 0;}}
                     .dcc-spin{{width:44px;height:44px;border:4px solid #e2e8f0;
                         border-top:4px solid #633094;border-radius:50%;
                         animation:spin 0.8s linear infinite;margin:0 auto 16px auto;}}
@@ -2183,6 +2185,10 @@ def smart_sync_pod(pod_name):
             if f_name in ['campaignname', 'campaign name'] or f_key in ['campaignname', 'campaign_name']:
                 client_company = f_val  # 🌟 Campaign Name maps to Customer Name in FN upload
 
+        # 🌟 FALLBACK: Grab Campaign Name directly from index 6 if key match missed
+        if not client_company and len(custom_fields) > 6:
+            client_company = str(custom_fields[6].get('value', '')).strip()
+
         search_string = f"{native_details} {custom_task_type}".lower()
         REGULAR_EXEMPTIONS = ["photo", "magnet", "continuity", "new ad", "pull down", "kiosk", "escalation"]
         is_exempt = any(ex in search_string for ex in REGULAR_EXEMPTIONS)
@@ -2315,11 +2321,9 @@ def run_pod_tab(pod_name):
             s = elapsed % 60
             overlay.markdown(f"""
                 <style>
-                    @keyframes pulse-bg {{0%,100%{{opacity:1}}50%{{opacity:0.6}}}}
                     @keyframes spin {{0%{{transform:rotate(0deg)}}100%{{transform:rotate(360deg)}}}}
                     .dcc-card{{background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;
-                        padding:36px 32px;text-align:center;margin:20px 0;
-                        animation:pulse-bg 2s ease-in-out infinite;}}
+                        padding:36px 32px;text-align:center;margin:20px 0;}}
                     .dcc-spin{{width:44px;height:44px;border:4px solid #e2e8f0;
                         border-top:4px solid #633094;border-radius:50%;
                         animation:spin 0.8s linear infinite;margin:0 auto 16px auto;}}
