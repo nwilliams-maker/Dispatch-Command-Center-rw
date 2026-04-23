@@ -2160,7 +2160,7 @@ def run_pod_tab(pod_name):
         # 🌟 Handle Local Session State (Instant UI Moves)
         elif route_state == "email_sent" and not is_reverted:
             sent.append(c) #
-        elif route_state == "field_nation" and not is_reverted: 
+        elif route_state == "field_nation": 
             field_nation.append(c) #
         else:
             # Fallback to calculated status
@@ -2690,7 +2690,7 @@ with tabs[0]:
                     # 🌟 Handle Local Session State
                     elif route_state == "email_sent" and not is_reverted:
                         sent.append(c)
-                    elif route_state == "field_nation" and not is_reverted: 
+                    elif route_state == "field_nation": 
                         field_nation.append(c)
                     elif route_state == "link_generated" and not is_reverted:
                         orig = st.session_state.get(f"orig_status_{cluster_hash}")
