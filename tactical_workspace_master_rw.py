@@ -2885,13 +2885,37 @@ def run_pod_tab(pod_name):
                     
                     exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                     with exp_col:
-                        with st.expander(f"✉️ {wo_display} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
-                            st.info("Route sent. Awaiting contractor response.")
+                        with st.expander(f"✉️ {wo_display} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | Due: {due}"):
                             u_locs = []
+                            _sent_venues = []
                             for tk in c['data']:
-                                if tk['full'] not in u_locs: u_locs.append(tk['full'])
-                            loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
-                            st.markdown(f"<div style='font-size:11px; color:#64748b; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:10px; border:1px solid #e2e8f0;'><b>Location Record:</b><ul style='margin-top:4px; margin-bottom:0; padding-left:20px;'>{loc_html}</ul></div>", unsafe_allow_html=True)
+                                if tk['full'] not in u_locs:
+                                    u_locs.append(tk['full'])
+                                    _v = tk.get('venue_name', '')
+                                    _sent_venues.append(f"{_v} — {tk['full']}" if _v else tk['full'])
+                            _loc_items = "".join([f"<li>{l}</li>" for l in _sent_venues])
+                            _venues_html = f"""    <div style="border-top:1px solid #e2e8f0; padding:10px 12px;">
+        <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Venue Locations</div>
+        <ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{_loc_items}</ul>
+    </div>"""
+                            st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;">
+    <div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;">
+        <span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span>
+    </div>
+    <div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;">
+        <div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Contractor</div>
+        <div style="font-size:14px; font-weight:800; color:#0f172a;">{ic_name}</div></div>
+        <div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Stops / Tasks</div>
+        <div style="font-size:14px; font-weight:800; color:#0f172a;">{stops_cnt} <span style="color:#94a3b8; font-size:11px; font-weight:500;">Stops / {tasks_cnt} Tasks</span></div></div>
+    </div>
+    <div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;">
+        <div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Due Date</div>
+        <div style="font-size:13px; font-weight:700; color:#0f172a;">{due}</div></div>
+        <div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div>
+        <div style="font-size:18px; font-weight:900; color:#16a34a;">${comp}</div></div>
+    </div>
+    {_venues_html}
+</div>""", unsafe_allow_html=True)
                     with btn_col:
                         with st.popover("↩️ Re-Route", use_container_width=True):
                             st.markdown(f"<p style='font-size:13px; text-align:center;'>Re-route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
@@ -2906,17 +2930,34 @@ def run_pod_tab(pod_name):
                     
                     exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                     with exp_col:
-                        with st.expander(f"✉️ {wo_display} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
-                            st.info("Route sent. Awaiting contractor response.")
+                        with st.expander(f"✉️ {wo_display} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | Due: {due}"):
                             raw_locs = [s.strip() for s in g.get('locs', '').split('|') if s.strip()]
                             if len(raw_locs) >= 3: task_locs = raw_locs[1:-1]
                             else: task_locs = raw_locs
-                            u_locs = []
-                            for l in task_locs:
-                                if l not in u_locs: u_locs.append(l)
-                            if u_locs:
-                                loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
-                                st.markdown(f"<div style='font-size:11px; color:#64748b; background:#f8fafc; padding:8px; border-radius:6px; margin-bottom:10px; border:1px solid #e2e8f0;'><b>Location Record:</b><ul style='margin-top:4px; margin-bottom:0; padding-left:20px;'>{loc_html}</ul></div>", unsafe_allow_html=True)
+                            u_locs = list(dict.fromkeys(task_locs))
+                            _gloc_items = "".join([f"<li>{l}</li>" for l in u_locs])
+                            _gvenues_html = f"""    <div style="border-top:1px solid #e2e8f0; padding:10px 12px;">
+        <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Venue Locations</div>
+        <ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{_gloc_items}</ul>
+    </div>""" if u_locs else ""
+                            st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;">
+    <div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;">
+        <span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span>
+    </div>
+    <div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;">
+        <div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Contractor</div>
+        <div style="font-size:14px; font-weight:800; color:#0f172a;">{g_ic_name}</div></div>
+        <div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Stops / Tasks</div>
+        <div style="font-size:14px; font-weight:800; color:#0f172a;">{stops_cnt} <span style="color:#94a3b8; font-size:11px; font-weight:500;">Stops / {tasks_cnt} Tasks</span></div></div>
+    </div>
+    <div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;">
+        <div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Due Date</div>
+        <div style="font-size:13px; font-weight:700; color:#0f172a;">{due}</div></div>
+        <div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div>
+        <div style="font-size:18px; font-weight:900; color:#16a34a;">${comp}</div></div>
+    </div>
+    {_gvenues_html}
+</div>""", unsafe_allow_html=True)
                     with btn_col:
                         with st.popover("↩️ Re-Route", use_container_width=True):
                             st.markdown(f"<p style='font-size:13px; text-align:center;'>Re-route from <b>{g_ic_name}</b>?</p>", unsafe_allow_html=True)
