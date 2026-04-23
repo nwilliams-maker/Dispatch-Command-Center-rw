@@ -1583,11 +1583,6 @@ def unify_and_sort_by_date(live_routes, ghost_routes, live_hashes):
 
 # --- DISPATCH RENDERING ---
 def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
-    # 🌟 Fire pending Gmail URL if stored from previous run
-    if st.session_state.get('_pending_gmail_url'):
-        _gmail_url = st.session_state.pop('_pending_gmail_url')
-        st.components.v1.html(f"<script>window.open('{_gmail_url}', '_blank');</script>", height=0)
-        st.success("✅ Link Live! Gmail opened.")
     # Capture current state identifiers
     task_ids = [str(t['id']).strip() for t in cluster['data']]
     cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
@@ -2059,7 +2054,12 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 subject_line = requests.utils.quote(f"Route Request | {wo_val}")
                 body_content = requests.utils.quote(final_sig)
                 gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={ic.get('email', '')}&su={subject_line}&body={body_content}"
-                st.session_state['_pending_gmail_url'] = gmail_url
+                # Fire Gmail popup immediately then give browser 1s to execute before rerun
+                st.components.v1.html(f"<script>window.open('{gmail_url}', '_blank');</script>", height=0)
+                _link_ph = st.empty()
+                _link_ph.success("✅ Link Live! Gmail opening...")
+                time.sleep(1)
+                _link_ph.empty()
                 st.rerun()
     
     # --- 🌐 FIELD NATION PERSISTENCE (CHECKBOX) ---
