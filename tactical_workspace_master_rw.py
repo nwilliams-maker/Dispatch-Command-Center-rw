@@ -2015,6 +2015,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 return
 
             # 🚀 STEP 2: PROCEED WITH DISPATCH
+            _dispatch_result = {}
             with st.spinner("Generating link..."):
                 home = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
                 payload = {
@@ -2022,8 +2023,8 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                     "icn": ic.get('name', 'Unknown'), 
                     "ice": ic.get('email', ''), 
                     "wo": wo_val, 
-                    "city": cluster.get('city', 'Unknown'),   # 🌟 ADDED
-                    "state": cluster.get('state', 'Unknown'), # 🌟 ADDED
+                    "city": cluster.get('city', 'Unknown'),
+                    "state": cluster.get('state', 'Unknown'),
                     "due": str(due), "comp": final_pay, "lCnt": cluster['stops'], "mi": mi, "time": t_str,
                     "phone": str(ic.get('phone', '')),
                     "locs": " | ".join([home] + list(stop_metrics.keys()) + [home]),
@@ -2034,30 +2035,32 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                     "dCnt": sum(1 for t in cluster['data'] if t.get('is_digital')),
                     "jobOnly": " | ".join([f"{addr} {pills}" for addr, pills in loc_pills.items()])
                 }
-
                 try:
-                    res = requests.post(GAS_WEB_APP_URL, json={"action": "saveRoute", "payload": payload}, timeout=10).json()
+                    _dispatch_result = requests.post(GAS_WEB_APP_URL, json={"action": "saveRoute", "payload": payload}, timeout=25).json()
+                except requests.exceptions.Timeout:
+                    _dispatch_result = {"_timeout": True}
                 except Exception as e:
-                    st.error(f"Connection Error: {e}")
-                    st.stop()
-            
-                if res.get("success"):
-                    # 3. 🧠 UPDATE STATE INSTANTLY
-                    final_route_id = res.get("routeId")
-                    st.session_state[sync_key] = final_route_id
-                    st.session_state[f"sent_ts_{cluster_hash}"] = datetime.now().strftime('%m/%d %I:%M %p')
-                    st.session_state[f"contractor_{cluster_hash}"] = ic.get('name', 'Unknown')
-                    st.session_state[f"wo_{cluster_hash}"] = wo_val  # 🌟 NEW: Save WO to memory!
-                    st.session_state[f"route_state_{cluster_hash}"] = "email_sent"
-                    st.session_state[f"reverted_{cluster_hash}"] = False
-                
-                    # 4. ✉️ STORE GMAIL URL — inject AFTER rerun so it survives
-                    final_sig = email_body_content.replace("LINK_PENDING", final_route_id)
-                    subject_line = requests.utils.quote(f"Route Request | {wo_val}")
-                    body_content = requests.utils.quote(final_sig)
-                    gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={ic.get('email', '')}&su={subject_line}&body={body_content}"
-                    st.session_state['_pending_gmail_url'] = gmail_url
-                    st.rerun()
+                    _dispatch_result = {"_error": str(e)}
+
+            # Spinner now closed — handle result
+            if _dispatch_result.get("_timeout"):
+                st.warning("⏱️ Google Sheets is taking too long. The route may still have saved — click **Generate Link** again to retry.")
+            elif _dispatch_result.get("_error"):
+                st.error(f"Connection Error: {_dispatch_result['_error']} — Please try again.")
+            elif _dispatch_result.get("success"):
+                final_route_id = _dispatch_result.get("routeId")
+                st.session_state[sync_key] = final_route_id
+                st.session_state[f"sent_ts_{cluster_hash}"] = datetime.now().strftime('%m/%d %I:%M %p')
+                st.session_state[f"contractor_{cluster_hash}"] = ic.get('name', 'Unknown')
+                st.session_state[f"wo_{cluster_hash}"] = wo_val
+                st.session_state[f"route_state_{cluster_hash}"] = "email_sent"
+                st.session_state[f"reverted_{cluster_hash}"] = False
+                final_sig = email_body_content.replace("LINK_PENDING", final_route_id)
+                subject_line = requests.utils.quote(f"Route Request | {wo_val}")
+                body_content = requests.utils.quote(final_sig)
+                gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={ic.get('email', '')}&su={subject_line}&body={body_content}"
+                st.session_state['_pending_gmail_url'] = gmail_url
+                st.rerun()
     
     # --- 🌐 FIELD NATION PERSISTENCE (CHECKBOX) ---
     
@@ -2129,7 +2132,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if st.button("📢 Mark as Posted (Move to Sent)", key=f"posted_{pod_name}_{cluster_hash}", type="primary", use_container_width=True):
             with st.spinner("Moving route to Sent database..."):
                 try:
-                    res = requests.post(GAS_WEB_APP_URL, json={"action": "postFieldNationRoute", "cluster_hash": cluster_hash}, timeout=10).json()
+                    res = requests.post(GAS_WEB_APP_URL, json={"action": "postFieldNationRoute", "cluster_hash": cluster_hash}, timeout=25).json()
                     if res.get("success"):
                         st.session_state[f"route_state_{cluster_hash}"] = "email_sent"
                         st.session_state[f"contractor_{cluster_hash}"] = "Field Nation"
