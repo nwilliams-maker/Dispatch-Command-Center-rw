@@ -901,38 +901,7 @@ def load_ic_database(sheet_url):
 
 def process_digital_pool(master_bar=None):
     prog_bar = master_bar if master_bar else st.progress(0)
-
-    def _tick_overlay(msg):
-        """Tick the loading card timer if one is active."""
-        _ov = st.session_state.get('_loading_overlay')
-        _st = st.session_state.get('_loading_start')
-        _pn = st.session_state.get('_loading_pod')
-        if _ov and _st and _pn:
-            import time as _t
-            elapsed = int(_t.time() - _st)
-            m = elapsed // 60; s = elapsed % 60
-            _ov.markdown(f"""
-                <style>
-                    @keyframes spin {{0%{{transform:rotate(0deg)}}100%{{transform:rotate(360deg)}}}}
-                    .dcc-card{{background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;
-                        padding:36px 32px;text-align:center;margin:20px 0;}}
-                    .dcc-spin{{width:44px;height:44px;border:4px solid #e2e8f0;
-                        border-top:4px solid #0f766e;border-radius:50%;
-                        animation:spin 0.8s linear infinite;margin:0 auto 16px auto;}}
-                    .dcc-pill{{display:inline-block;font-size:13px;font-weight:700;
-                        color:#0f766e;background:#ccfbf1;border-radius:20px;
-                        padding:4px 14px;margin-top:12px;}}
-                </style>
-                <div class='dcc-card'>
-                    <div class='dcc-spin'></div>
-                    <p style='font-size:16px;font-weight:800;color:#0f172a;margin:0 0 4px 0;'>Initializing Digital Pool</p>
-                    <p style='font-size:13px;color:#64748b;margin:0 0 8px 0;'>{msg}</p>
-                    <div class='dcc-pill'>⏱ {m}:{s:02d}</div>
-                </div>
-            """, unsafe_allow_html=True)
-
     prog_bar.progress(0.1, text="📥 Fetching National Tasks from Onfleet...")
-    _tick_overlay("Fetching National Tasks from Onfleet...")
     
     # 1. Fetch Onfleet (ONCE)
     APPROVED_TEAMS = ["a - escalation", "b - boosted campaigns", "b - local campaigns", "c - priority nationals", "cvs kiosk removal", "cvs kiosk removals", "d - digital routes", "n - national campaigns"]
@@ -954,7 +923,6 @@ def process_digital_pool(master_bar=None):
         url = f"https://onfleet.com/api/v2/tasks/all?state=0&from={time_window}&lastId={res_json['lastId']}" if res_json.get('lastId') else None
         
     prog_bar.progress(0.4, text="🔍 Isolating Digital Service Calls...")
-    _tick_overlay("Isolating Digital Service Calls...")
     
     # 🌟 STRICT DIGITAL FILTER
     # --- 🌟 STRICT DIGITAL FILTER ---
@@ -1057,7 +1025,6 @@ def process_digital_pool(master_bar=None):
         })
 
     prog_bar.progress(0.6, text=f"🗺️ Routing {len(pool)} Digital Tasks...")
-    _tick_overlay(f"Routing {len(pool)} Digital Tasks...")
     
     # 3. Route ONLY the Digital Tasks
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
@@ -1110,6 +1077,15 @@ def process_digital_pool(master_bar=None):
         status = "Ready" if anc['db_status'] not in ['sent', 'accepted', 'finalized'] else anc['db_status'].capitalize()
         if status == "Ready" and (not has_ic or ic_dist > 60): status = "Flagged"
 
+        # 🌟 DIGITAL RATE FLAG: >$50/stop triggers Flagged
+        if status == "Ready":
+            ic_loc_d = f"{anc['lat']},{anc['lon']}"
+            _, d_hrs, _ = get_gmaps(ic_loc_d, tuple(list(unique_stops)[:25]))
+            d_pay = round(d_hrs * 25.0, 2)
+            d_rate = round(d_pay / len(unique_stops), 2) if unique_stops else 0
+            if d_rate > 50.0:
+                status = "Flagged"
+
         clusters.append({
             "data": group, "center": [anc['lat'], anc['lon']], "stops": len(unique_stops), 
             "city": anc['city'], "state": anc['state'], "status": status, "has_ic": has_ic,
@@ -1149,9 +1125,11 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             m = elapsed // 60; s = elapsed % 60
             _ov.markdown(f"""
                 <style>
+                    @keyframes pulse-bg {{0%,100%{{opacity:1}}50%{{opacity:0.6}}}}
                     @keyframes spin {{0%{{transform:rotate(0deg)}}100%{{transform:rotate(360deg)}}}}
                     .dcc-card{{background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;
-                        padding:36px 32px;text-align:center;margin:20px 0;}}
+                        padding:36px 32px;text-align:center;margin:20px 0;
+                        animation:pulse-bg 2s ease-in-out infinite;}}
                     .dcc-spin{{width:44px;height:44px;border:4px solid #e2e8f0;
                         border-top:4px solid #633094;border-radius:50%;
                         animation:spin 0.8s linear infinite;margin:0 auto 16px auto;}}
@@ -1663,7 +1641,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         with b_col:
             if not is_sent and not is_declined:
                 # 🌟 THE BREAK-OFF TOOL (UNIQUE KEY)
-                if st.button("✂️", key=f"split_{pod_name}_{cluster_hash}_{hashlib.md5(addr.encode()).hexdigest()[:6]}", help=f"Remove this stop from the route"):
+                if st.button("-", key=f"split_{pod_name}_{cluster_hash}_{hashlib.md5(addr.encode()).hexdigest()[:6]}", help="Remove this stop from the route"):
                     # 1. Identify tasks to move
                     tasks_to_move = [t for t in cluster['data'] if t['full'] == addr]
                     
@@ -1782,255 +1760,27 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     route_state = st.session_state.get(f"route_state_{cluster_hash}")
     is_fn = (route_state == "field_nation") # 🌟 MOVED UP to control the Contractor field
     
-    # Default ic for FN routes — overridden below if not is_fn
-    ic = {"name": "Field Nation", "location": f"{cluster['center'][0]},{cluster['center'][1]}", "d": 0}
-    mi, hrs, t_str = 0, 0, "N/A"  # defaults for FN routes
-    is_unlocked = True
-
-    if not is_fn:
-        col_a, col_b, col_c, col_d = st.columns([2, 1.5, 1.5, 1.5])
-        with col_a:
-            if ic_opts:
-                selected_label = st.selectbox("Select IC", list(ic_opts.keys()), key=sel_key, on_change=update_for_new_contractor)
-                ic = ic_opts[selected_label]
-            else:
-                ic = {"name": "Manual/FN", "location": f"{cluster['center'][0]},{cluster['center'][1]}", "d": 0}
-                st.info("No ICs within 100mi.")
-
-        st.divider()
-        ic_location = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
-        mi, hrs, t_str = get_gmaps(ic_location, tuple(stop_metrics.keys()))
-    
-        curr_rate = st.session_state[rate_key]
-        ic_dist = ic.get('d', 0)
-        needs_unlock = (curr_rate >= 25.0) or (ic_dist > 60) or (cluster['status'] == 'Flagged')
-        is_unlocked = True 
-    
-        if needs_unlock:
-            reasons = []
-            if curr_rate >= 25.0: reasons.append(f"High Rate (${curr_rate})")
-            if ic['d'] > 60: reasons.append(f"Distance ({round(ic['d'],1)}mi)")
-            if cluster['status'] == 'Flagged': reasons.append("Flagged Route")
-            st.markdown(f"""<div style="background-color:#fef2f2; border:1px solid #ef4444; padding:10px; border-radius:8px; margin-bottom:15px;"><span style="color:#b91c1c; font-weight:800;">🔒 ACTION REQUIRED:</span> <span style="color:#7f1d1d;">{" & ".join(reasons)}</span></div>""", unsafe_allow_html=True)
-            # 🌟 UNIQUE KEY
-            is_unlocked = st.checkbox("Authorize Premium Rate / Distance", key=f"lock_{pod_name}_{cluster_hash}")
-
-        with col_b:
-            st.number_input("Total Comp ($)", min_value=0.0, step=5.0, format="%.2f", key=pay_key, on_change=sync_on_total, disabled=not is_unlocked)
-        with col_c:
-            st.number_input("Rate/Stop ($)", min_value=0.0, step=1.0, format="%.2f", key=rate_key, on_change=sync_on_rate, disabled=not is_unlocked)
-        with col_d:
-            # 🌟 UNIQUE KEY
-            st.date_input("Deadline", datetime.now().date()+timedelta(14), key=f"dd_{pod_name}_{cluster_hash}", disabled=not is_unlocked)
-
-        # --- 6. UPDATED FINANCIALS & PREVIEW ---
-        final_pay = st.session_state.get(pay_key, 0.0)
-        final_rate = st.session_state.get(rate_key, 0.0)
-
-        m1, m2 = st.columns(2)
-        with m1: 
-            # 🌟 THE FIX: Updated 3-Tier Color Logic
-            if final_rate >= 24.00:
-                status_color = "#ef4444" # Red ($24.00+)
-            elif final_rate >= 21.00:
-                status_color = "#f97316" # Orange ($21.00 - $23.99)
-            else:
-                status_color = TB_GREEN  # Green ($20.99 and below)
-            
-            st.markdown(f"<div style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:15px; margin-bottom:10px;'><p style='font-size:11px; font-weight:800; text-transform:uppercase;'>Financials</p><p style='margin:0; font-size:24px; font-weight:800; color:{status_color};'>Total: ${final_pay:,.2f}</p><p style='margin:0; font-size:13px;'>Breakdown: ${final_rate}/stop</p></div>", unsafe_allow_html=True)
-        with m2: 
-            st.markdown(f"<div style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:15px; margin-bottom:10px;'><p style='font-size:11px; font-weight:800; text-transform:uppercase;'>Logistics</p><p style='margin:0; font-size:24px; font-weight:800;'>{t_str}</p><p style='margin:0; font-size:13px;'>Round Trip: {mi} mi</p></div>", unsafe_allow_html=True)
-        stops_text = ""
-        for i, (addr, metrics) in enumerate(list(stop_metrics.items())[:2], start=1):
-            esc_star = "⭐ " if metrics['esc'] else ""
-            stops_text += f"📍 Stop {i}: {esc_star}{addr}\n"
-        
-        if len(stop_metrics) > 2:
-            stops_text += f"   ... and {len(stop_metrics) - 2} more stops.\n"
-
-        loc_pills = {}
-        for t in cluster['data']:
-            addr = t.get('full', 'Unknown')
-            if addr not in loc_pills: loc_pills[addr] = ""
-            if t.get('escalated') and "⭐" not in loc_pills[addr]: loc_pills[addr] += "⭐"
-        
-            # 🌟 THE FIX: Split Digital Email Output
-            if t.get('is_digital'):
-                tt_lower = str(t.get('task_type','')).lower()
-                if "offline" in tt_lower and "📵" not in loc_pills[addr]: loc_pills[addr] += "🔌"
-                elif "ins/re" in tt_lower and "🔧" not in loc_pills[addr]: loc_pills[addr] += "🔧"
-                elif ("offline" not in tt_lower and "ins/re" not in tt_lower) and "⚙️" not in loc_pills[addr]: 
-                    loc_pills[addr] += "⚙️"
-            else:
-                if "install" in str(t.get('task_type','')).lower() and "🛠️" not in loc_pills[addr]: loc_pills[addr] += "🛠️"
-                if str(t.get('task_type','')).lower() in ["kiosk removal", "remove kiosk"] and "🗑️" not in loc_pills[addr]: 
-                    loc_pills[addr] += "🗑️"
-
-        due = st.session_state.get(f"dd_{pod_name}_{cluster_hash}", datetime.now().date()+timedelta(14))
-        is_already_sent = is_sent or is_declined or st.session_state.get(f"route_state_{cluster_hash}") == "email_sent"
-    
-        prev_ic_name = cluster.get('contractor_name', 'Unknown')
-        ic_name = ic.get('name', 'Unknown Contractor') 
-    
-        if ic_name == prev_ic_name and cluster.get('wo', 'none') != 'none':
-            wo_val = cluster['wo']
-        else:
-            wo_val = f"{ic.get('name', 'Unknown')}-{datetime.now().strftime('%m%d%Y')}"
-        # 🌟 NEW: Calculate route-level task breakdowns for the email preview
-        route_task_counts = {}
-        total_installs = 0
-    
-        for t in cluster['data']:
-            raw_tt = str(t.get('task_type', '')).strip()
-            clean_tt_lower = raw_tt.lower().replace("escalation", "").replace("  ", " ").strip(" ,-|:")
-        
-            # Default to New Ad if empty
-            if not clean_tt_lower:
-                clean_tt_lower = "new ad"
-                display_tt = "New Ad"
-            else:
-                display_tt = clean_tt_lower.title()
-
-            is_digi = t.get('is_digital')
-            category = None
-        
-            # 🚦 Match exactly to the UI buckets
-            if is_digi:
-                if "offline" in clean_tt_lower: category = "📵 Offline"
-                elif "ins/re" in clean_tt_lower: category = "🔧 Ins/Rem"
-                else: category = "⚙️ Service"
-            else:
-                if "install" in clean_tt_lower: 
-                    category = "🛠️ Kiosk Install"
-                    total_installs += 1
-                elif any(x in clean_tt_lower for x in ["kiosk removal", "remove kiosk"]): category = "🗑️ Kiosk Removal"
-                elif any(x in clean_tt_lower for x in ["continuity", "photo retake", "swap"]): category = "🔄 Continuity"
-                elif any(x in clean_tt_lower for x in ["default", "pull down"]): category = "⚪ Default"
-                elif any(x in clean_tt_lower for x in ["new ad", "art change", "top"]): category = "🆕 New Ad"
-                else: category = f"📋 {display_tt}" # Pass custom types straight through
-            
-            if category not in route_task_counts:
-                route_task_counts[category] = 0
-            route_task_counts[category] += 1
-
-        # Format the breakdown list cleanly for the email
-        task_breakdown_str = "\n".join([f"  {cat}: {count}" for cat, count in route_task_counts.items()]) + "\n"
-    
-        install_warning = f"\n⚠️ NOTE: This route contains Kiosk Installs. Please ensure you have adequate storage and vehicle space.\n" if total_installs > 0 else ""
-    
-        sig_preview = (
-            f"Hello {ic.get('name', 'Contractor')},\n\n"
-            f"We have a new route available for you to review.\n\n"
-            f" Work Order: {wo_val}\n"
-            f"📅 Due Date: {due.strftime('%A, %b %d, %Y')}\n"
-            f" Total Stops: {cluster['stops']}\n"
-            f" Estimated Compensation: ${final_pay:.2f}\n\n"
-            f" Task Breakdown:\n"
-            f"{task_breakdown_str}"
-            f"{install_warning}\n"
-            f"To view the complete route details—including total stops, estimated mileage, and time—please click the secure link below to access your Route Summary.\n\n"
-            f"⚠️ ACTION REQUIRED:\n"
-            f"You must confirm by selecting 'Accept' or 'Decline' directly through the portal link.\n\n"
-            f"Route Summary Link:\n"
-            f"{PORTAL_BASE_URL}?route={link_id}&v2=true"
-        )
-    
-        # 🌟 UNIQUE KEY
-        last_data_key = f"last_data_{pod_name}_{cluster_hash}"
-        version_key = f"tx_ver_{pod_name}_{cluster_hash}"
-        current_data_fingerprint = f"{ic.get('name', 'Unknown')}_{final_pay}_{due}_{wo_val}"
-    
-        if version_key not in st.session_state:
-            st.session_state[version_key] = 1
-
-        if st.session_state.get(last_data_key) != current_data_fingerprint:
-            st.session_state[version_key] += 1
-            st.session_state[last_data_key] = current_data_fingerprint
-            st.session_state[f"tx_{pod_name}_{cluster_hash}_{st.session_state[version_key]}"] = sig_preview
-    
-        active_tx_key = f"tx_{pod_name}_{cluster_hash}_{st.session_state[version_key]}"
-
-        if active_tx_key not in st.session_state:
-            st.session_state[active_tx_key] = sig_preview
-        elif real_id and "LINK_PENDING" in st.session_state[active_tx_key]:
-            st.session_state[active_tx_key] = st.session_state[active_tx_key].replace("LINK_PENDING", real_id)
-    
-       # 🌟 UNIQUE KEY & PERFECT INDENTATION
-        email_body_content = st.text_area("Email Content Preview", value=sig_preview, height=180, key=f"txt_area_{pod_name}_{current_data_fingerprint}_{cluster_hash}", disabled=not is_unlocked)
-
-        # --- HIGH-SPEED DISPATCH BUTTON ---
-        btn_label = "✉️ RESEND LINK & OPEN GMAIL" if is_already_sent else "🚀 GENERATE LINK & OPEN GMAIL"
+    col_a, col_b, col_c, col_d = st.columns([2, 1.5, 1.5, 1.5])
+    with col_a:
+        # 🌟 THE FIX: If assigned to FN, lock the field. Otherwise, show the dropdown!
         if is_fn:
-            st.caption("📋 Email dispatch disabled — route is assigned to Field Nation.")
+            ic = {"name": "Field Nation", "location": f"{cluster['center'][0]},{cluster['center'][1]}", "d": 0}
+            st.markdown("<div style='background:#FEF9C3; border:1px solid #EAB308; border-radius:8px; padding:10px; text-align:center; height:42px; display:flex; align-items:center; justify-content:center;'><span style='color:#854D0E; font-weight:800; font-size:14px;'>🌐 Field Nation</span></div>", unsafe_allow_html=True)
+        elif ic_opts:
+            selected_label = st.selectbox("Select IC", list(ic_opts.keys()), key=sel_key, on_change=update_for_new_contractor)
+            ic = ic_opts[selected_label]
+        else:
+            ic = {"name": "Manual/FN", "location": f"{cluster['center'][0]},{cluster['center'][1]}", "d": 0}
+            st.info("No ICs within 100mi.")
 
-        if st.button(btn_label, type="primary", key=f"gbtn_{pod_name}_{cluster_hash}", disabled=not is_unlocked or is_fn, use_container_width=True):
-            # 🛡️ STEP 1: FAST COLLISION CHECK (Memory-based)
-            local_sent_db = st.session_state.get('sent_db', {})
-            collision = next((tid for tid in task_ids if tid in local_sent_db), None)
-        
-            # 🌟 THE FIX: Only block collisions if we are trying to send a brand new route!
-            if collision and not is_already_sent:
-                st.error(f"🚫 COLLISION: Dispatched by someone else ({local_sent_db[collision]['name']}).")
-                st.rerun() 
-                return
-
-            # 🚀 STEP 2: PROCEED WITH DISPATCH
-            with st.spinner("Generating link..."):
-                home = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
-                payload = {
-                    "cluster_hash": cluster_hash,
-                    "icn": ic.get('name', 'Unknown'), 
-                    "ice": ic.get('email', ''), 
-                    "wo": wo_val, 
-                    "city": cluster.get('city', 'Unknown'),   # 🌟 ADDED
-                    "state": cluster.get('state', 'Unknown'), # 🌟 ADDED
-                    "due": str(due), "comp": final_pay, "lCnt": cluster['stops'], "mi": mi, "time": t_str,
-                    "phone": str(ic.get('phone', '')),
-                    "locs": " | ".join([home] + list(stop_metrics.keys()) + [home]),
-                    "taskIds": ",".join(task_ids),
-                    "tCnt": len(task_ids),
-                    "kCnt": cluster.get('inst_count', 0),
-                    "jobOnly": " | ".join([f"{addr} {pills}" for addr, pills in loc_pills.items()])
-                }
-
-                try:
-                    res = requests.post(GAS_WEB_APP_URL, json={"action": "saveRoute", "payload": payload}, timeout=10).json()
-                except Exception as e:
-                    st.error(f"Connection Error: {e}")
-                    st.stop()
-            
-                if res.get("success"):
-                    # 3. 🧠 UPDATE STATE INSTANTLY
-                    final_route_id = res.get("routeId")
-                    st.session_state[sync_key] = final_route_id
-                    st.session_state[f"sent_ts_{cluster_hash}"] = datetime.now().strftime('%m/%d %I:%M %p')
-                    st.session_state[f"contractor_{cluster_hash}"] = ic.get('name', 'Unknown')
-                    st.session_state[f"wo_{cluster_hash}"] = wo_val  # 🌟 NEW: Save WO to memory!
-                    st.session_state[f"route_state_{cluster_hash}"] = "email_sent"
-                    st.session_state[f"reverted_{cluster_hash}"] = False
-                
-                    # 4. ✉️ TRIGGER GMAIL WINDOW
-                    final_sig = email_body_content.replace("LINK_PENDING", final_route_id)
-                    subject_line = requests.utils.quote(f"Route Request | {wo_val}")
-                    body_content = requests.utils.quote(final_sig)
-                    gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={ic.get('email', '')}&su={subject_line}&body={body_content}"
-                    st.components.v1.html(f"<script>window.open('{gmail_url}', '_blank');</script>", height=0)
-                
-                    # 5. ⏳ VISUAL COUNTDOWN & MOVE (Restored)
-                    timer_placeholder = st.empty()
-                    for seconds in range(2, 0, -1):
-                        timer_placeholder.success(f"✅ Link Live! Moving to 'Sent' in {seconds}s...")
-                        time.sleep(1)
-                    timer_placeholder.empty()
-                    st.rerun()
-                    
-
+    st.divider()
+    
     # --- 🌐 FIELD NATION PERSISTENCE (CHECKBOX) ---
-
+    
     if route_state != "email_sent":
         # 🌟 UNIQUE KEY
         fn_checked = st.checkbox("🌐 Assign to Field Nation", value=is_fn, key=f"fn_check_{pod_name}_{cluster_hash}")
-    
+        
         if fn_checked and not is_fn:
             # 🌟 INSTANT UI UPDATE — Sheet write fires in background
             home = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
@@ -2052,7 +1802,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             st.session_state[f"reverted_{cluster_hash}"] = True  # 🌟 Block stale sheet match until background write completes
             st.toast("✅ Saved to Field Nation Tab")
             st.rerun()
-    
+        
         elif not fn_checked and is_fn:
             # 🌟 ADDED Safety check for Field Nation revocation
             with st.popover("🚨 Confirm Field Nation Revocation", use_container_width=True):
@@ -2108,6 +1858,231 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 except Exception as e:
                     st.error(f"Connection Failed: {e}")
 
+    ic_location = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
+    mi, hrs, t_str = get_gmaps(ic_location, tuple(stop_metrics.keys()))
+    
+    curr_rate = st.session_state[rate_key]
+    ic_dist = ic.get('d', 0)
+    needs_unlock = (curr_rate >= 25.0) or (ic_dist > 60) or (cluster['status'] == 'Flagged')
+    is_unlocked = True 
+    
+    if needs_unlock:
+        reasons = []
+        if curr_rate >= 25.0: reasons.append(f"High Rate (${curr_rate})")
+        if ic['d'] > 60: reasons.append(f"Distance ({round(ic['d'],1)}mi)")
+        if cluster['status'] == 'Flagged': reasons.append("Flagged Route")
+        st.markdown(f"""<div style="background-color:#fef2f2; border:1px solid #ef4444; padding:10px; border-radius:8px; margin-bottom:15px;"><span style="color:#b91c1c; font-weight:800;">🔒 ACTION REQUIRED:</span> <span style="color:#7f1d1d;">{" & ".join(reasons)}</span></div>""", unsafe_allow_html=True)
+        # 🌟 UNIQUE KEY
+        is_unlocked = st.checkbox("Authorize Premium Rate / Distance", key=f"lock_{pod_name}_{cluster_hash}")
+
+    with col_b:
+        st.number_input("Total Comp ($)", min_value=0.0, step=5.0, format="%.2f", key=pay_key, on_change=sync_on_total, disabled=not is_unlocked)
+    with col_c:
+        st.number_input("Rate/Stop ($)", min_value=0.0, step=1.0, format="%.2f", key=rate_key, on_change=sync_on_rate, disabled=not is_unlocked)
+    with col_d:
+        # 🌟 UNIQUE KEY
+        st.date_input("Deadline", datetime.now().date()+timedelta(14), key=f"dd_{pod_name}_{cluster_hash}", disabled=not is_unlocked)
+
+    # --- 6. UPDATED FINANCIALS & PREVIEW ---
+    final_pay = st.session_state.get(pay_key, 0.0)
+    final_rate = st.session_state.get(rate_key, 0.0)
+
+    m1, m2 = st.columns(2)
+    with m1: 
+        # 🌟 THE FIX: Updated 3-Tier Color Logic
+        if final_rate >= 24.00:
+            status_color = "#ef4444" # Red ($24.00+)
+        elif final_rate >= 21.00:
+            status_color = "#f97316" # Orange ($21.00 - $23.99)
+        else:
+            status_color = TB_GREEN  # Green ($20.99 and below)
+            
+        st.markdown(f"<div style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:15px; margin-bottom:10px;'><p style='font-size:11px; font-weight:800; text-transform:uppercase;'>Financials</p><p style='margin:0; font-size:24px; font-weight:800; color:{status_color};'>Total: ${final_pay:,.2f}</p><p style='margin:0; font-size:13px;'>Breakdown: ${final_rate}/stop</p></div>", unsafe_allow_html=True)
+    with m2: 
+        st.markdown(f"<div style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:15px; margin-bottom:10px;'><p style='font-size:11px; font-weight:800; text-transform:uppercase;'>Logistics</p><p style='margin:0; font-size:24px; font-weight:800;'>{t_str}</p><p style='margin:0; font-size:13px;'>Round Trip: {mi} mi</p></div>", unsafe_allow_html=True)
+    stops_text = ""
+    for i, (addr, metrics) in enumerate(list(stop_metrics.items())[:2], start=1):
+        esc_star = "⭐ " if metrics['esc'] else ""
+        stops_text += f"📍 Stop {i}: {esc_star}{addr}\n"
+        
+    if len(stop_metrics) > 2:
+        stops_text += f"   ... and {len(stop_metrics) - 2} more stops.\n"
+
+    loc_pills = {}
+    for t in cluster['data']:
+        addr = t.get('full', 'Unknown')
+        if addr not in loc_pills: loc_pills[addr] = ""
+        if t.get('escalated') and "⭐" not in loc_pills[addr]: loc_pills[addr] += "⭐"
+        
+        # 🌟 THE FIX: Split Digital Email Output
+        if t.get('is_digital'):
+            tt_lower = str(t.get('task_type','')).lower()
+            if "offline" in tt_lower and "📵" not in loc_pills[addr]: loc_pills[addr] += "🔌"
+            elif "ins/re" in tt_lower and "🔧" not in loc_pills[addr]: loc_pills[addr] += "🔧"
+            elif ("offline" not in tt_lower and "ins/re" not in tt_lower) and "⚙️" not in loc_pills[addr]: 
+                loc_pills[addr] += "⚙️"
+        else:
+            if "install" in str(t.get('task_type','')).lower() and "🛠️" not in loc_pills[addr]: loc_pills[addr] += "🛠️"
+            if str(t.get('task_type','')).lower() in ["kiosk removal", "remove kiosk"] and "🗑️" not in loc_pills[addr]: 
+                loc_pills[addr] += "🗑️"
+
+    due = st.session_state.get(f"dd_{pod_name}_{cluster_hash}", datetime.now().date()+timedelta(14))
+    is_already_sent = is_sent or is_declined or st.session_state.get(f"route_state_{cluster_hash}") == "email_sent"
+    
+    prev_ic_name = cluster.get('contractor_name', 'Unknown')
+    ic_name = ic.get('name', 'Unknown Contractor') 
+    
+    if ic_name == prev_ic_name and cluster.get('wo', 'none') != 'none':
+        wo_val = cluster['wo']
+    else:
+        wo_val = f"{ic.get('name', 'Unknown')}-{datetime.now().strftime('%m%d%Y')}"
+    # 🌟 NEW: Calculate route-level task breakdowns for the email preview
+    route_task_counts = {}
+    total_installs = 0
+    
+    for t in cluster['data']:
+        raw_tt = str(t.get('task_type', '')).strip()
+        clean_tt_lower = raw_tt.lower().replace("escalation", "").replace("  ", " ").strip(" ,-|:")
+        
+        # Default to New Ad if empty
+        if not clean_tt_lower:
+            clean_tt_lower = "new ad"
+            display_tt = "New Ad"
+        else:
+            display_tt = clean_tt_lower.title()
+
+        is_digi = t.get('is_digital')
+        category = None
+        
+        # 🚦 Match exactly to the UI buckets
+        if is_digi:
+            if "offline" in clean_tt_lower: category = "📵 Offline"
+            elif "ins/re" in clean_tt_lower: category = "🔧 Ins/Rem"
+            else: category = "⚙️ Service"
+        else:
+            if "install" in clean_tt_lower: 
+                category = "🛠️ Kiosk Install"
+                total_installs += 1
+            elif any(x in clean_tt_lower for x in ["kiosk removal", "remove kiosk"]): category = "🗑️ Kiosk Removal"
+            elif any(x in clean_tt_lower for x in ["continuity", "photo retake", "swap"]): category = "🔄 Continuity"
+            elif any(x in clean_tt_lower for x in ["default", "pull down"]): category = "⚪ Default"
+            elif any(x in clean_tt_lower for x in ["new ad", "art change", "top"]): category = "🆕 New Ad"
+            else: category = f"📋 {display_tt}" # Pass custom types straight through
+            
+        if category not in route_task_counts:
+            route_task_counts[category] = 0
+        route_task_counts[category] += 1
+
+    # Format the breakdown list cleanly for the email
+    task_breakdown_str = "\n".join([f"  {cat}: {count}" for cat, count in route_task_counts.items()]) + "\n"
+    
+    install_warning = f"\n⚠️ NOTE: This route contains Kiosk Installs. Please ensure you have adequate storage and vehicle space.\n" if total_installs > 0 else ""
+    
+    sig_preview = (
+        f"Hello {ic.get('name', 'Contractor')},\n\n"
+        f"We have a new route available for you to review.\n\n"
+        f" Work Order: {wo_val}\n"
+        f"📅 Due Date: {due.strftime('%A, %b %d, %Y')}\n"
+        f" Total Stops: {cluster['stops']}\n"
+        f" Estimated Compensation: ${final_pay:.2f}\n\n"
+        f" Task Breakdown:\n"
+        f"{task_breakdown_str}"
+        f"{install_warning}\n"
+        f"To view the complete route details—including total stops, estimated mileage, and time—please click the secure link below to access your Route Summary.\n\n"
+        f"⚠️ ACTION REQUIRED:\n"
+        f"You must confirm by selecting 'Accept' or 'Decline' directly through the portal link.\n\n"
+        f"Route Summary Link:\n"
+        f"{PORTAL_BASE_URL}?route={link_id}&v2=true"
+    )
+    
+    # 🌟 UNIQUE KEY
+    last_data_key = f"last_data_{pod_name}_{cluster_hash}"
+    version_key = f"tx_ver_{pod_name}_{cluster_hash}"
+    current_data_fingerprint = f"{ic.get('name', 'Unknown')}_{final_pay}_{due}_{wo_val}"
+    
+    if version_key not in st.session_state:
+        st.session_state[version_key] = 1
+
+    if st.session_state.get(last_data_key) != current_data_fingerprint:
+        st.session_state[version_key] += 1
+        st.session_state[last_data_key] = current_data_fingerprint
+        st.session_state[f"tx_{pod_name}_{cluster_hash}_{st.session_state[version_key]}"] = sig_preview
+    
+    active_tx_key = f"tx_{pod_name}_{cluster_hash}_{st.session_state[version_key]}"
+
+    if active_tx_key not in st.session_state:
+        st.session_state[active_tx_key] = sig_preview
+    elif real_id and "LINK_PENDING" in st.session_state[active_tx_key]:
+        st.session_state[active_tx_key] = st.session_state[active_tx_key].replace("LINK_PENDING", real_id)
+    
+   # 🌟 UNIQUE KEY & PERFECT INDENTATION
+    email_body_content = st.text_area("Email Content Preview", value=sig_preview, height=180, key=f"txt_area_{pod_name}_{current_data_fingerprint}_{cluster_hash}", disabled=not is_unlocked)
+
+    # --- HIGH-SPEED DISPATCH BUTTON ---
+    btn_label = "✉️ RESEND LINK & OPEN GMAIL" if is_already_sent else "🚀 GENERATE LINK & OPEN GMAIL"
+    if is_fn:
+        st.caption("📋 Email dispatch disabled — route is assigned to Field Nation.")
+
+    if st.button(btn_label, type="primary", key=f"gbtn_{pod_name}_{cluster_hash}", disabled=not is_unlocked or is_fn, use_container_width=True):
+        # 🛡️ STEP 1: FAST COLLISION CHECK (Memory-based)
+        local_sent_db = st.session_state.get('sent_db', {})
+        collision = next((tid for tid in task_ids if tid in local_sent_db), None)
+        
+        # 🌟 THE FIX: Only block collisions if we are trying to send a brand new route!
+        if collision and not is_already_sent:
+            st.error(f"🚫 COLLISION: Dispatched by someone else ({local_sent_db[collision]['name']}).")
+            st.rerun() 
+            return
+
+        # 🚀 STEP 2: PROCEED WITH DISPATCH
+        with st.spinner("Generating link..."):
+            home = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
+            payload = {
+                "cluster_hash": cluster_hash,
+                "icn": ic.get('name', 'Unknown'), 
+                "ice": ic.get('email', ''), 
+                "wo": wo_val, 
+                "city": cluster.get('city', 'Unknown'),   # 🌟 ADDED
+                "state": cluster.get('state', 'Unknown'), # 🌟 ADDED
+                "due": str(due), "comp": final_pay, "lCnt": cluster['stops'], "mi": mi, "time": t_str,
+                "phone": str(ic.get('phone', '')),
+                "locs": " | ".join([home] + list(stop_metrics.keys()) + [home]),
+                "taskIds": ",".join(task_ids),
+                "tCnt": len(task_ids),
+                "jobOnly": " | ".join([f"{addr} {pills}" for addr, pills in loc_pills.items()])
+            }
+
+            try:
+                res = requests.post(GAS_WEB_APP_URL, json={"action": "saveRoute", "payload": payload}, timeout=10).json()
+            except Exception as e:
+                st.error(f"Connection Error: {e}")
+                st.stop()
+            
+            if res.get("success"):
+                # 3. 🧠 UPDATE STATE INSTANTLY
+                final_route_id = res.get("routeId")
+                st.session_state[sync_key] = final_route_id
+                st.session_state[f"sent_ts_{cluster_hash}"] = datetime.now().strftime('%m/%d %I:%M %p')
+                st.session_state[f"contractor_{cluster_hash}"] = ic.get('name', 'Unknown')
+                st.session_state[f"wo_{cluster_hash}"] = wo_val  # 🌟 NEW: Save WO to memory!
+                st.session_state[f"route_state_{cluster_hash}"] = "email_sent"
+                st.session_state[f"reverted_{cluster_hash}"] = False
+                
+                # 4. ✉️ TRIGGER GMAIL WINDOW
+                final_sig = email_body_content.replace("LINK_PENDING", final_route_id)
+                subject_line = requests.utils.quote(f"Route Request | {wo_val}")
+                body_content = requests.utils.quote(final_sig)
+                gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={ic.get('email', '')}&su={subject_line}&body={body_content}"
+                st.components.v1.html(f"<script>window.open('{gmail_url}', '_blank');</script>", height=0)
+                
+                # 5. ⏳ VISUAL COUNTDOWN & MOVE (Restored)
+                timer_placeholder = st.empty()
+                for seconds in range(2, 0, -1):
+                    timer_placeholder.success(f"✅ Link Live! Moving to 'Sent' in {seconds}s...")
+                    time.sleep(1)
+                timer_placeholder.empty()
+                st.rerun()
+                    
 def smart_sync_pod(pod_name):
     """
     Fetches only NEW tasks from Onfleet not already tracked in session state.
@@ -2332,9 +2307,11 @@ def run_pod_tab(pod_name):
             s = elapsed % 60
             overlay.markdown(f"""
                 <style>
+                    @keyframes pulse-bg {{0%,100%{{opacity:1}}50%{{opacity:0.6}}}}
                     @keyframes spin {{0%{{transform:rotate(0deg)}}100%{{transform:rotate(360deg)}}}}
                     .dcc-card{{background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;
-                        padding:36px 32px;text-align:center;margin:20px 0;}}
+                        padding:36px 32px;text-align:center;margin:20px 0;
+                        animation:pulse-bg 2s ease-in-out infinite;}}
                     .dcc-spin{{width:44px;height:44px;border:4px solid #e2e8f0;
                         border-top:4px solid #633094;border-radius:50%;
                         animation:spin 0.8s linear infinite;margin:0 auto 16px auto;}}
@@ -2665,11 +2642,6 @@ def run_pod_tab(pod_name):
                     remov_pill = f"  [ 🗑️ {c.get('remov_count', 0)} Removal ]" if c.get('remov_count', 0) > 0 else ""
                     
                     with st.expander(f"🌐 FN:{digi_pill} {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{remov_pill}{esc_pill}"):
-                        # 🌟 Guarantee route_state is set before render so FN card shows
-                        _fn_task_ids = [str(t['id']).strip() for t in c['data']]
-                        _fn_hash = hashlib.md5("".join(sorted(_fn_task_ids)).encode()).hexdigest()
-                        if not st.session_state.get(f"route_state_{_fn_hash}"):
-                            st.session_state[f"route_state_{_fn_hash}"] = "field_nation"
                         render_dispatch(i+5000, c, pod_name)
                     
         with t_digital:
@@ -3018,52 +2990,15 @@ with tabs[0]:
 """, unsafe_allow_html=True)
             
     if st.session_state.get("trigger_pull"):
-        import time as _time
-        _g_start = _time.time()
-
-        def _render_global_card(overlay, msg, start):
-            elapsed = int(_time.time() - start)
-            m = elapsed // 60; s = elapsed % 60
-            overlay.markdown(f"""
-                <style>
-                    @keyframes spin {{0%{{transform:rotate(0deg)}}100%{{transform:rotate(360deg)}}}}
-                    .dcc-card{{background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;
-                        padding:36px 32px;text-align:center;margin:20px 0;}}
-                    .dcc-spin{{width:44px;height:44px;border:4px solid #e2e8f0;
-                        border-top:4px solid #633094;border-radius:50%;
-                        animation:spin 0.8s linear infinite;margin:0 auto 16px auto;}}
-                    .dcc-pill{{display:inline-block;font-size:13px;font-weight:700;
-                        color:#633094;background:#f3e8ff;border-radius:20px;
-                        padding:4px 14px;margin-top:12px;}}
-                </style>
-                <div class='dcc-card'>
-                    <div class='dcc-spin'></div>
-                    <p style='font-size:16px;font-weight:800;color:#0f172a;margin:0 0 4px 0;'>Initializing All Pods</p>
-                    <p style='font-size:13px;color:#64748b;margin:0 0 8px 0;'>{msg}</p>
-                    <div class='dcc-pill'>⏱ {m}:{s:02d}</div>
-                </div>
-            """, unsafe_allow_html=True)
-
-        _g_overlay = loading_placeholder.empty()
-        st.session_state['_loading_overlay'] = _g_overlay
-        st.session_state['_loading_start'] = _g_start
-        st.session_state['_loading_pod'] = 'Global'
-
-        _render_global_card(_g_overlay, "Loading route database...", _g_start)
-        _time.sleep(0.05)
-        p_bar = st.progress(0, text="📋 Loading route database from Google Sheets...")
+        p_bar = loading_placeholder.progress(0, text="🔌 Connecting to Onfleet...")
+        import time as _time; _time.sleep(0.05)
+        p_bar.progress(0.01, text="📋 Loading route database from Google Sheets...")
         st.session_state.sent_db, st.session_state.ghost_db = fetch_sent_records_from_sheet()
-        _render_global_card(_g_overlay, f"Fetching tasks across {len(pod_keys)} pods...", _g_start)
         p_bar.progress(0.03, text=f"⏳ Fetching tasks across {len(pod_keys)} pods...")
         for idx, p in enumerate(pod_keys):
             st.session_state.current_loading_pod = p
             process_pod(p, master_bar=p_bar, pod_idx=idx, total_pods=len(pod_keys))
         st.session_state.current_loading_pod = None
-        _g_overlay.empty()
-        p_bar.empty()
-        st.session_state.pop('_loading_overlay', None)
-        st.session_state.pop('_loading_start', None)
-        st.session_state.pop('_loading_pod', None)
         st.session_state.trigger_pull = False
         st.rerun()
 
@@ -3173,52 +3108,13 @@ with tabs[6]:
     with dh_col3:
         st.markdown("<div class='tab-action-btn'>", unsafe_allow_html=True)
         btn_label = "🚀 Sync Routes" if global_digital else "🚀 Initialize Data"
-        digital_init_clicked = st.button(btn_label, key="digital_init_btn", use_container_width=True)
+        if st.button(btn_label, key="digital_init_btn", use_container_width=True):
+            d_bar = st.progress(0, text="🔌 Connecting to Onfleet...")
+            import time as _time; _time.sleep(0.05)
+            d_bar.progress(0.03, text="⏳ Fetching Digital tasks from Onfleet...")
+            process_digital_pool(master_bar=d_bar)
+            st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
-
-    # 🌟 FULL-WIDTH LOADING UI — outside columns
-    if digital_init_clicked:
-        import time as _time
-        _d_start = _time.time()
-        _d_overlay = st.empty()
-        _d_bar = st.progress(0, text="🔌 Connecting to Onfleet...")
-
-        def _render_digital_card(overlay, start):
-            elapsed = int(_time.time() - start)
-            m = elapsed // 60; s = elapsed % 60
-            overlay.markdown(f"""
-                <style>
-                    @keyframes spin {{0%{{transform:rotate(0deg)}}100%{{transform:rotate(360deg)}}}}
-                    .dcc-card{{background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;
-                        padding:36px 32px;text-align:center;margin:20px 0;}}
-                    .dcc-spin{{width:44px;height:44px;border:4px solid #e2e8f0;
-                        border-top:4px solid #0f766e;border-radius:50%;
-                        animation:spin 0.8s linear infinite;margin:0 auto 16px auto;}}
-                    .dcc-pill{{display:inline-block;font-size:13px;font-weight:700;
-                        color:#0f766e;background:#ccfbf1;border-radius:20px;
-                        padding:4px 14px;margin-top:12px;}}
-                </style>
-                <div class='dcc-card'>
-                    <div class='dcc-spin'></div>
-                    <p style='font-size:16px;font-weight:800;color:#0f172a;margin:0 0 4px 0;'>Initializing Digital Pool</p>
-                    <p style='font-size:13px;color:#64748b;margin:0 0 8px 0;'>Fetching Digital tasks from Onfleet...</p>
-                    <div class='dcc-pill'>⏱ {m}:{s:02d}</div>
-                </div>
-            """, unsafe_allow_html=True)
-
-        st.session_state['_loading_overlay'] = _d_overlay
-        st.session_state['_loading_start'] = _d_start
-        st.session_state['_loading_pod'] = 'Digital'
-        _render_digital_card(_d_overlay, _d_start)
-        _time.sleep(0.05)
-        _d_bar.progress(0.03, text="⏳ Fetching Digital tasks from Onfleet...")
-        process_digital_pool(master_bar=_d_bar)
-        _d_overlay.empty()
-        _d_bar.empty()
-        st.session_state.pop('_loading_overlay', None)
-        st.session_state.pop('_loading_start', None)
-        st.session_state.pop('_loading_pod', None)
-        st.rerun()
 
     # 3. 🃏 SUPERCARDS
     dc1, dc2, dc3 = st.columns([1, 1, 1])
