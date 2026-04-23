@@ -2251,18 +2251,32 @@ def run_pod_tab(pod_name):
         st.markdown("<div class='tab-action-btn'>", unsafe_allow_html=True)
         if not is_initialized:
             # STATE 1: Not loaded yet
-            if st.button(f"🚀 Initialize Data", key=f"init_{pod_name}", use_container_width=True):
-                _bar = st.progress(0, text=f"🔌 Connecting to Onfleet...")
-                import time as _time; _time.sleep(0.05)
-                _bar.progress(0.03, text=f"⏳ Fetching {pod_name} tasks from Onfleet...")
-                process_pod(pod_name, master_bar=_bar)
-                st.rerun()
+            init_clicked = st.button(f"🚀 Initialize Data", key=f"init_{pod_name}", use_container_width=True)
         else:
             # STATE 2: Loaded — smart sync for new tasks only
+            init_clicked = False
             if st.button("🔄 Check New Tasks", key=f"reopt_{pod_name}", use_container_width=True):
                 smart_sync_pod(pod_name)
                 st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
+
+    # 🌟 FULL-WIDTH LOADING UI — outside columns so bar spans the page
+    if not is_initialized and init_clicked:
+        loading_overlay = st.empty()
+        loading_overlay.markdown(f"""
+            <div style='background:#f1f5f9; border:1px solid #e2e8f0; border-radius:16px; padding:32px; text-align:center; margin:20px 0;'>
+                <div style='font-size:2rem; margin-bottom:12px;'>⏳</div>
+                <p style='font-size:16px; font-weight:800; color:#0f172a; margin:0 0 4px 0;'>Initializing {pod_name} Pod</p>
+                <p style='font-size:13px; color:#64748b; margin:0;'>Fetching tasks from Onfleet and building routes...</p>
+            </div>
+        """, unsafe_allow_html=True)
+        _bar = st.progress(0, text=f"🔌 Connecting to Onfleet...")
+        import time as _time; _time.sleep(0.05)
+        _bar.progress(0.03, text=f"⏳ Fetching {pod_name} tasks from Onfleet...")
+        process_pod(pod_name, master_bar=_bar)
+        loading_overlay.empty()
+        _bar.empty()
+        st.rerun()
 
     # 🌟 THE FIX: Remove the early return and safely default to an empty list
     # Load cluster data safely so the Supercards can render 0's
