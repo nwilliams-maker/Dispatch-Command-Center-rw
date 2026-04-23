@@ -617,6 +617,12 @@ div[data-testid="stHorizontalBlock"] {{ align-items: flex-start !important; }}
 
 /* TIGHTEN GAPS BETWEEN CARDS */
 div[data-testid="stVerticalBlock"] {{ gap: 1rem !important; }}
+
+/* Tighten stop list rows inside expanders */
+div[data-testid="stExpander"] div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"] {{
+    margin-top: -10px !important;
+    margin-bottom: 0px !important;
+}}
 div[data-testid="stExpander"] {{ margin-top: 0px !important; margin-bottom: 2px !important; }}
 
 /* MINI REVOKE BUTTON (Single Line, Right Aligned) */
