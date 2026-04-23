@@ -1075,16 +1075,18 @@ def process_digital_pool(master_bar=None):
                 ic_dist = best_ic['d']
 
         status = "Ready" if anc['db_status'] not in ['sent', 'accepted', 'finalized'] else anc['db_status'].capitalize()
-        if status == "Ready" and (not has_ic or ic_dist > 60): status = "Flagged"
 
-        # 🌟 DIGITAL RATE FLAG: >$50/stop triggers Flagged
+        # 🌟 DIGITAL FLAGGING: No IC, IC >40mi, or rate >$50/stop → Flagged
         if status == "Ready":
-            ic_loc_d = f"{anc['lat']},{anc['lon']}"
-            _, d_hrs, _ = get_gmaps(ic_loc_d, tuple(list(unique_stops)[:25]))
-            d_pay = round(d_hrs * 25.0, 2)
-            d_rate = round(d_pay / len(unique_stops), 2) if unique_stops else 0
-            if d_rate > 50.0:
+            if not has_ic or ic_dist > 40:
                 status = "Flagged"
+            else:
+                ic_loc_d = f"{anc['lat']},{anc['lon']}"
+                _, d_hrs, _ = get_gmaps(ic_loc_d, tuple(list(unique_stops)[:25]))
+                d_pay = round(d_hrs * 25.0, 2)
+                d_rate = round(d_pay / len(unique_stops), 2) if unique_stops else 0
+                if d_rate > 50.0:
+                    status = "Flagged"
 
         clusters.append({
             "data": group, "center": [anc['lat'], anc['lon']], "stops": len(unique_stops), 
