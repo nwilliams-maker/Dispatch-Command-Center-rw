@@ -2160,13 +2160,19 @@ def run_pod_tab(pod_name):
         if not is_initialized:
             # STATE 1: Not loaded yet
             if st.button(f"🚀 Initialize Data", key=f"init_{pod_name}", use_container_width=True):
-                process_pod(pod_name)
+                _bar = st.progress(0, text=f"🔌 Connecting to Onfleet...")
+                import time as _time; _time.sleep(0.05)
+                _bar.progress(0.03, text=f"⏳ Fetching {pod_name} tasks from Onfleet...")
+                process_pod(pod_name, master_bar=_bar)
                 st.rerun()
         else:
             # STATE 2: Loaded (Replaces the old Re-Optimize button)
             if st.button("🚀 Sync Routes", key=f"reopt_{pod_name}", use_container_width=True):
                 st.session_state.pop(f"clusters_{pod_name}", None)
-                process_pod(pod_name) 
+                _bar = st.progress(0, text=f"🔌 Connecting to Onfleet...")
+                import time as _time; _time.sleep(0.05)
+                _bar.progress(0.03, text=f"🔄 Syncing {pod_name} routes...")
+                process_pod(pod_name, master_bar=_bar)
                 st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -2818,10 +2824,13 @@ with tabs[0]:
 """, unsafe_allow_html=True)
             
     if st.session_state.get("trigger_pull"):
+        p_bar = loading_placeholder.progress(0, text="🔌 Connecting to Onfleet...")
+        import time as _time; _time.sleep(0.05)
+        p_bar.progress(0.01, text="📋 Loading route database from Google Sheets...")
         st.session_state.sent_db, st.session_state.ghost_db = fetch_sent_records_from_sheet()
-        p_bar = loading_placeholder.progress(0, text="🎬 Initializing Operational Data...")
+        p_bar.progress(0.03, text=f"⏳ Fetching tasks across {len(pod_keys)} pods...")
         for idx, p in enumerate(pod_keys):
-            st.session_state.current_loading_pod = p 
+            st.session_state.current_loading_pod = p
             process_pod(p, master_bar=p_bar, pod_idx=idx, total_pods=len(pod_keys))
         st.session_state.current_loading_pod = None
         st.session_state.trigger_pull = False
@@ -2934,7 +2943,9 @@ with tabs[6]:
         st.markdown("<div class='tab-action-btn'>", unsafe_allow_html=True)
         btn_label = "🚀 Sync Routes" if global_digital else "🚀 Initialize Data"
         if st.button(btn_label, key="digital_init_btn", use_container_width=True):
-            d_bar = st.progress(0, text="🎬 Initializing...")
+            d_bar = st.progress(0, text="🔌 Connecting to Onfleet...")
+            import time as _time; _time.sleep(0.05)
+            d_bar.progress(0.03, text="⏳ Fetching Digital tasks from Onfleet...")
             process_digital_pool(master_bar=d_bar)
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
