@@ -1116,11 +1116,9 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             m = elapsed // 60; s = elapsed % 60
             _ov.markdown(f"""
                 <style>
-                    @keyframes pulse-bg {{0%,100%{{opacity:1}}50%{{opacity:0.6}}}}
                     @keyframes spin {{0%{{transform:rotate(0deg)}}100%{{transform:rotate(360deg)}}}}
                     .dcc-card{{background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;
-                        padding:36px 32px;text-align:center;margin:20px 0;
-                        animation:pulse-bg 2s ease-in-out infinite;}}
+                        padding:36px 32px;text-align:center;margin:20px 0;}}
                     .dcc-spin{{width:44px;height:44px;border:4px solid #e2e8f0;
                         border-top:4px solid #633094;border-radius:50%;
                         animation:spin 0.8s linear infinite;margin:0 auto 16px auto;}}
@@ -2296,11 +2294,9 @@ def run_pod_tab(pod_name):
             s = elapsed % 60
             overlay.markdown(f"""
                 <style>
-                    @keyframes pulse-bg {{0%,100%{{opacity:1}}50%{{opacity:0.6}}}}
                     @keyframes spin {{0%{{transform:rotate(0deg)}}100%{{transform:rotate(360deg)}}}}
                     .dcc-card{{background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;
-                        padding:36px 32px;text-align:center;margin:20px 0;
-                        animation:pulse-bg 2s ease-in-out infinite;}}
+                        padding:36px 32px;text-align:center;margin:20px 0;}}
                     .dcc-spin{{width:44px;height:44px;border:4px solid #e2e8f0;
                         border-top:4px solid #633094;border-radius:50%;
                         animation:spin 0.8s linear infinite;margin:0 auto 16px auto;}}
@@ -2979,15 +2975,52 @@ with tabs[0]:
 """, unsafe_allow_html=True)
             
     if st.session_state.get("trigger_pull"):
-        p_bar = loading_placeholder.progress(0, text="🔌 Connecting to Onfleet...")
-        import time as _time; _time.sleep(0.05)
-        p_bar.progress(0.01, text="📋 Loading route database from Google Sheets...")
+        import time as _time
+        _g_start = _time.time()
+
+        def _render_global_card(overlay, msg, start):
+            elapsed = int(_time.time() - start)
+            m = elapsed // 60; s = elapsed % 60
+            overlay.markdown(f"""
+                <style>
+                    @keyframes spin {{0%{{transform:rotate(0deg)}}100%{{transform:rotate(360deg)}}}}
+                    .dcc-card{{background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;
+                        padding:36px 32px;text-align:center;margin:20px 0;}}
+                    .dcc-spin{{width:44px;height:44px;border:4px solid #e2e8f0;
+                        border-top:4px solid #633094;border-radius:50%;
+                        animation:spin 0.8s linear infinite;margin:0 auto 16px auto;}}
+                    .dcc-pill{{display:inline-block;font-size:13px;font-weight:700;
+                        color:#633094;background:#f3e8ff;border-radius:20px;
+                        padding:4px 14px;margin-top:12px;}}
+                </style>
+                <div class='dcc-card'>
+                    <div class='dcc-spin'></div>
+                    <p style='font-size:16px;font-weight:800;color:#0f172a;margin:0 0 4px 0;'>Initializing All Pods</p>
+                    <p style='font-size:13px;color:#64748b;margin:0 0 8px 0;'>{msg}</p>
+                    <div class='dcc-pill'>⏱ {m}:{s:02d}</div>
+                </div>
+            """, unsafe_allow_html=True)
+
+        _g_overlay = loading_placeholder.empty()
+        st.session_state['_loading_overlay'] = _g_overlay
+        st.session_state['_loading_start'] = _g_start
+        st.session_state['_loading_pod'] = 'Global'
+
+        _render_global_card(_g_overlay, "Loading route database...", _g_start)
+        _time.sleep(0.05)
+        p_bar = st.progress(0, text="📋 Loading route database from Google Sheets...")
         st.session_state.sent_db, st.session_state.ghost_db = fetch_sent_records_from_sheet()
+        _render_global_card(_g_overlay, f"Fetching tasks across {len(pod_keys)} pods...", _g_start)
         p_bar.progress(0.03, text=f"⏳ Fetching tasks across {len(pod_keys)} pods...")
         for idx, p in enumerate(pod_keys):
             st.session_state.current_loading_pod = p
             process_pod(p, master_bar=p_bar, pod_idx=idx, total_pods=len(pod_keys))
         st.session_state.current_loading_pod = None
+        _g_overlay.empty()
+        p_bar.empty()
+        st.session_state.pop('_loading_overlay', None)
+        st.session_state.pop('_loading_start', None)
+        st.session_state.pop('_loading_pod', None)
         st.session_state.trigger_pull = False
         st.rerun()
 
@@ -3098,10 +3131,46 @@ with tabs[6]:
         st.markdown("<div class='tab-action-btn'>", unsafe_allow_html=True)
         btn_label = "🚀 Sync Routes" if global_digital else "🚀 Initialize Data"
         if st.button(btn_label, key="digital_init_btn", use_container_width=True):
+            import time as _time
+            _d_start = _time.time()
+            _d_overlay = st.empty()
+
+            def _render_digital_card(overlay, start):
+                elapsed = int(_time.time() - start)
+                m = elapsed // 60; s = elapsed % 60
+                overlay.markdown(f"""
+                    <style>
+                        @keyframes spin {{0%{{transform:rotate(0deg)}}100%{{transform:rotate(360deg)}}}}
+                        .dcc-card{{background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;
+                            padding:36px 32px;text-align:center;margin:20px 0;}}
+                        .dcc-spin{{width:44px;height:44px;border:4px solid #e2e8f0;
+                            border-top:4px solid #0f766e;border-radius:50%;
+                            animation:spin 0.8s linear infinite;margin:0 auto 16px auto;}}
+                        .dcc-pill{{display:inline-block;font-size:13px;font-weight:700;
+                            color:#0f766e;background:#ccfbf1;border-radius:20px;
+                            padding:4px 14px;margin-top:12px;}}
+                    </style>
+                    <div class='dcc-card'>
+                        <div class='dcc-spin'></div>
+                        <p style='font-size:16px;font-weight:800;color:#0f172a;margin:0 0 4px 0;'>Initializing Digital Pool</p>
+                        <p style='font-size:13px;color:#64748b;margin:0 0 8px 0;'>Fetching Digital tasks from Onfleet...</p>
+                        <div class='dcc-pill'>⏱ {m}:{s:02d}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+
+            st.session_state['_loading_overlay'] = _d_overlay
+            st.session_state['_loading_start'] = _d_start
+            st.session_state['_loading_pod'] = 'Digital'
+            _render_digital_card(_d_overlay, _d_start)
+            _time.sleep(0.05)
             d_bar = st.progress(0, text="🔌 Connecting to Onfleet...")
-            import time as _time; _time.sleep(0.05)
             d_bar.progress(0.03, text="⏳ Fetching Digital tasks from Onfleet...")
             process_digital_pool(master_bar=d_bar)
+            _d_overlay.empty()
+            d_bar.empty()
+            st.session_state.pop('_loading_overlay', None)
+            st.session_state.pop('_loading_start', None)
+            st.session_state.pop('_loading_pod', None)
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
