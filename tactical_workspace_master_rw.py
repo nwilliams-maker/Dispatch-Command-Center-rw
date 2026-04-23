@@ -1782,6 +1782,9 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     route_state = st.session_state.get(f"route_state_{cluster_hash}")
     is_fn = (route_state == "field_nation") # 🌟 MOVED UP to control the Contractor field
     
+    # Default ic for FN routes — overridden below if not is_fn
+    ic = {"name": "Field Nation", "location": f"{cluster['center'][0]},{cluster['center'][1]}", "d": 0}
+
     if not is_fn:
         col_a, col_b, col_c, col_d = st.columns([2, 1.5, 1.5, 1.5])
         with col_a:
