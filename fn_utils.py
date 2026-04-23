@@ -84,21 +84,20 @@ def generate_fn_upload(stop_metrics: dict, cluster: dict, due, final_pay: float,
       (BytesIO buffer, int stop_count)  or  (None, 0) if no kiosk stops found.
     """
 
-    # Build address → [tasks] grouped by unique locationinVenue
-    stop_kiosk_tasks: dict = {}
+    # Build address → [tasks] grouped by unique locationinVenue — all stops
+    stop_task_map: dict = {}
     for t in cluster.get('data', []):
-        tt = str(t.get('task_type', '')).lower()
-        if 'install' not in tt and 'kiosk' not in tt:
-            continue
         addr = t.get('full', '')
-        if addr not in stop_kiosk_tasks:
-            stop_kiosk_tasks[addr] = []
+        if not addr:
+            continue
+        if addr not in stop_task_map:
+            stop_task_map[addr] = []
         loc = t.get('location_in_venue', '').strip()
-        existing = [x.get('location_in_venue', '') for x in stop_kiosk_tasks[addr]]
+        existing = [x.get('location_in_venue', '') for x in stop_task_map[addr]]
         if loc not in existing:
-            stop_kiosk_tasks[addr].append(t)
+            stop_task_map[addr].append(t)
 
-    kiosk_stops = [(addr, tasks) for addr, tasks in stop_kiosk_tasks.items() if tasks]
+    kiosk_stops = [(addr, tasks) for addr, tasks in stop_task_map.items() if tasks]
     if not kiosk_stops:
         return None, 0
 
