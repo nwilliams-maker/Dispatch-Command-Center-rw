@@ -1801,8 +1801,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             st.link_button(
                 "🌐 Open Field Nation",
                 url="https://app.fieldnation.com/projects",
-                use_container_width=True,
-                type="primary"
+                use_container_width=True
             )
 
         # 🌟 UNIQUE KEY
