@@ -1787,7 +1787,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         with link_col:
             st.link_button(
                 "🌐 Open Field Nation",
-                url="https://app.fieldnation.com/workorders/mass-upload",
+                url="https://app.fieldnation.com/projects",
                 use_container_width=True
             )
         with dl_col:
@@ -1797,8 +1797,8 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                     st.download_button(
                         label="📥 Download FN Upload",
                         data=fn_buf,
-                        file_name=f"FN_Upload_{cluster.get('city', 'Route')}_{datetime.now().strftime('%m%d%Y')}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        file_name=f"FN_Upload_{cluster.get('city', 'Route')}_{datetime.now().strftime('%m%d%Y')}.csv",
+                        mime="text/csv",
                         key=f"fn_dl_{cluster_hash}",
                         use_container_width=True
                     )
@@ -1984,8 +1984,10 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
 
     # --- HIGH-SPEED DISPATCH BUTTON ---
     btn_label = "✉️ RESEND LINK & OPEN GMAIL" if is_already_sent else "🚀 GENERATE LINK & OPEN GMAIL"
+    if is_fn:
+        st.caption("📋 Email dispatch disabled — route is assigned to Field Nation.")
 
-    if st.button(btn_label, type="primary", key=f"gbtn_{pod_name}_{cluster_hash}", disabled=not is_unlocked, use_container_width=True):
+    if st.button(btn_label, type="primary", key=f"gbtn_{pod_name}_{cluster_hash}", disabled=not is_unlocked or is_fn, use_container_width=True):
         # 🛡️ STEP 1: FAST COLLISION CHECK (Memory-based)
         local_sent_db = st.session_state.get('sent_db', {})
         collision = next((tid for tid in task_ids if tid in local_sent_db), None)
