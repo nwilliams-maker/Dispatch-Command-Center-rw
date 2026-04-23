@@ -1522,12 +1522,13 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         addr = t['full']
         if addr not in stop_metrics:
             stop_metrics[addr] = {
-                't_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0, 
-                'inst': 0, 'remov': 0, 'digi_off': 0, 'digi_ins': 0, 'digi_srv': 0, 
-                'custom': {}, 'esc': False # 🌟 REPLACED 'oth' WITH 'custom' DICT
+                't_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0,
+                'inst': 0, 'remov': 0, 'digi_off': 0, 'digi_ins': 0, 'digi_srv': 0,
+                'custom': {}, 'esc': False, 'is_new': False
             }
         stop_metrics[addr]['t_count'] += 1
         if t.get('escalated'): stop_metrics[addr]['esc'] = True
+        if t.get('is_new'): stop_metrics[addr]['is_new'] = True
             
         raw_tt = str(t.get('task_type', '')).strip()
         parts = [p.strip().lower() for p in raw_tt.split(',') if p.strip()]
@@ -1587,6 +1588,8 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         
         pill_str = " | ".join(pill_parts)
         display_addr = f"⭐ {addr}" if metrics['esc'] else addr
+        if metrics.get('is_new'):
+            display_addr = f"+ {display_addr}"
         
         # UI: Stop Info + Break-Off Button Layout
         s_col, b_col = st.columns([0.9, 0.1], vertical_alignment="center")
@@ -2043,6 +2046,189 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 timer_placeholder.empty()
                 st.rerun()
                     
+def smart_sync_pod(pod_name):
+    """
+    Fetches only NEW tasks from Onfleet not already tracked in session state.
+    - New tasks within radius of existing cluster → appended, inherit IC + pricing
+    - New tasks with no nearby cluster → new standalone cluster for dispatcher
+    - New task addresses flagged with is_new=True for UI badge
+    """
+    config = POD_CONFIGS[pod_name]
+    existing_clusters = st.session_state.get(f"clusters_{pod_name}", [])
+
+    # Build set of all task IDs already tracked
+    known_ids = set()
+    for c in existing_clusters:
+        for t in c.get('data', []):
+            known_ids.add(str(t['id']).strip())
+
+    _bar = st.progress(0, text="🔍 Checking Onfleet for new tasks...")
+
+    # Fetch teams
+    APPROVED_TEAMS = [
+        "a - escalation", "b - boosted campaigns", "b - local campaigns",
+        "c - priority nationals", "cvs kiosk removal", "digital routes", "n - national campaigns"
+    ]
+    teams_res = requests.get("https://onfleet.com/api/v2/teams", headers=headers).json()
+    target_team_ids = [t['id'] for t in teams_res if any(appr in str(t.get('name', '')).lower() for appr in APPROVED_TEAMS)]
+    esc_team_ids = [t['id'] for t in teams_res if 'escalation' in str(t.get('name', '')).lower()]
+
+    # Fetch all current unassigned tasks
+    time_window = int(time.time()*1000) - (45*24*3600*1000)
+    url = f"https://onfleet.com/api/v2/tasks/all?state=0&from={time_window}"
+    all_tasks_raw = []
+    while url:
+        response = requests.get(url, headers=headers)
+        if response.status_code == 429:
+            time.sleep(2); continue
+        if response.status_code != 200: break
+        res_json = response.json()
+        all_tasks_raw.extend(res_json.get('tasks', []))
+        url = f"https://onfleet.com/api/v2/tasks/all?state=0&from={time_window}&lastId={res_json['lastId']}" if res_json.get('lastId') else None
+
+    _bar.progress(0.4, text="🔎 Identifying new tasks...")
+
+    # Filter to only NEW tasks for this pod
+    fresh_sent_db, _ = fetch_sent_records_from_sheet()
+    new_pool = []
+    unique_tasks = {t['id']: t for t in all_tasks_raw}
+
+    for t in unique_tasks.values():
+        if str(t['id']).strip() in known_ids:
+            continue
+
+        container = t.get('container', {})
+        c_type = str(container.get('type', '')).upper()
+        if c_type == 'TEAM' and container.get('team') not in target_team_ids:
+            continue
+
+        addr = t.get('destination', {}).get('address', {})
+        stt = normalize_state(addr.get('state', ''))
+        if stt not in config['states']:
+            continue
+
+        is_esc = (c_type == 'TEAM' and container.get('team') in esc_team_ids)
+
+        # Run classification engine
+        native_details = str(t.get('taskDetails', '')).strip()
+        custom_fields = t.get('customFields') or []
+        custom_task_type = ""
+        custom_boosted = ""
+        tt_val = native_details
+        venue_name = ""; venue_id = ""; client_company = ""; location_in_venue = ""
+
+        for f in custom_fields:
+            f_name = str(f.get('name', '')).strip().lower()
+            f_key  = str(f.get('key', '')).strip().lower()
+            f_val  = str(f.get('value', '')).strip()
+            f_val_lower = f_val.lower()
+            if f_name in ['task type', 'tasktype'] or f_key in ['tasktype', 'task_type']:
+                custom_task_type = f_val_lower; tt_val = f_val
+            if f_name in ['boosted standard', 'boostedstandard'] or f_key in ['boostedstandard', 'boosted_standard']:
+                custom_boosted = f_val_lower
+            if 'escalation' in f_name or 'escalation' in f_key:
+                if f_val_lower in ['1', '1.0', 'true', 'yes'] or 'escalation' in f_val_lower:
+                    is_esc = True
+            if f_name in ['venuename', 'venue name'] or f_key in ['venuename', 'venue_name']:
+                venue_name = f_val
+            if f_name in ['venueid', 'venue id'] or f_key in ['venueid', 'venue_id']:
+                venue_id = f_val
+            if f_name in ['clientcompany', 'client company'] or f_key in ['clientcompany', 'client_company']:
+                client_company = f_val
+            if f_name in ['locationinvenue', 'location in venue'] or f_key in ['locationinvenue', 'location_in_venue']:
+                location_in_venue = f_val
+
+        search_string = f"{native_details} {custom_task_type}".lower()
+        REGULAR_EXEMPTIONS = ["photo", "magnet", "continuity", "new ad", "pull down", "kiosk", "escalation"]
+        is_exempt = any(ex in search_string for ex in REGULAR_EXEMPTIONS)
+        DIGITAL_WHITELIST = ["service", "ins/rem", "offline"]
+        is_digital_task = False
+        if not is_exempt:
+            if any(trigger in custom_task_type for trigger in DIGITAL_WHITELIST):
+                is_digital_task = True
+            elif "digital" in custom_boosted:
+                is_digital_task = True
+
+        t_status = fresh_sent_db.get(t['id'], {}).get('status', 'ready').lower() if t['id'] in fresh_sent_db else 'ready'
+        t_wo = fresh_sent_db.get(t['id'], {}).get('wo', 'none') if t['id'] in fresh_sent_db else 'none'
+
+        new_pool.append({
+            "id": t['id'],
+            "city": addr.get('city', 'Unknown'),
+            "state": stt,
+            "full": f"{addr.get('number','')} {addr.get('street','')}, {addr.get('city','')}, {stt}",
+            "zip": addr.get('postalCode', ''),
+            "lat": t['destination']['location'][1],
+            "lon": t['destination']['location'][0],
+            "escalated": is_esc,
+            "task_type": tt_val,
+            "is_digital": is_digital_task,
+            "db_status": t_status,
+            "wo": t_wo,
+            "venue_name": venue_name,
+            "venue_id": venue_id,
+            "client_company": client_company,
+            "location_in_venue": location_in_venue,
+            "is_new": True,  # 🌟 Flag for UI badge
+        })
+
+    if not new_pool:
+        _bar.empty()
+        st.toast("✅ No new tasks found.")
+        return
+
+    _bar.progress(0.7, text=f"📦 Merging {len(new_pool)} new tasks...")
+
+    CLUSTER_RADIUS = 25  # miles
+
+    unmatched = []
+    for new_task in new_pool:
+        merged = False
+        for cluster in existing_clusters:
+            dist = haversine(cluster['center'][0], cluster['center'][1], new_task['lat'], new_task['lon'])
+            if dist <= CLUSTER_RADIUS:
+                # Inherit cluster — append task
+                cluster['data'].append(new_task)
+                cluster['stops'] = len(set(x['full'] for x in cluster['data']))
+                cluster['inst_count'] = sum(1 for x in cluster['data'] if "install" in str(x.get('task_type', '')).lower())
+                cluster['remov_count'] = sum(1 for x in cluster['data'] if str(x.get('task_type', '')).lower() in ["kiosk removal", "remove kiosk"])
+                cluster['esc_count'] = sum(1 for x in cluster['data'] if x.get('escalated'))
+                merged = True
+                break
+        if not merged:
+            unmatched.append(new_task)
+
+    # Create new standalone clusters for unmatched tasks
+    while unmatched:
+        anc = unmatched.pop(0)
+        group = [anc]
+        remaining = []
+        for t in unmatched:
+            if haversine(anc['lat'], anc['lon'], t['lat'], t['lon']) <= CLUSTER_RADIUS:
+                group.append(t)
+            else:
+                remaining.append(t)
+        unmatched = remaining
+
+        existing_clusters.append({
+            "data": group,
+            "center": [anc['lat'], anc['lon']],
+            "stops": len(set(x['full'] for x in group)),
+            "city": anc['city'], "state": anc['state'],
+            "status": "Ready",
+            "has_ic": False,
+            "esc_count": sum(1 for x in group if x.get('escalated')),
+            "is_digital": anc.get('is_digital', False),
+            "inst_count": sum(1 for x in group if "install" in str(x.get('task_type', '')).lower()),
+            "remov_count": sum(1 for x in group if str(x.get('task_type', '')).lower() in ["kiosk removal", "remove kiosk"]),
+            "wo": anc['wo']
+        })
+
+    st.session_state[f"clusters_{pod_name}"] = existing_clusters
+    _bar.empty()
+    st.toast(f"✅ {len(new_pool)} new task(s) merged into {pod_name} routes.")
+
+
 def run_pod_tab(pod_name):
     # Grab the contractor database from session state
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
@@ -2071,13 +2257,9 @@ def run_pod_tab(pod_name):
                 process_pod(pod_name, master_bar=_bar)
                 st.rerun()
         else:
-            # STATE 2: Loaded (Replaces the old Re-Optimize button)
-            if st.button("🚀 Sync Routes", key=f"reopt_{pod_name}", use_container_width=True):
-                st.session_state.pop(f"clusters_{pod_name}", None)
-                _bar = st.progress(0, text=f"🔌 Connecting to Onfleet...")
-                import time as _time; _time.sleep(0.05)
-                _bar.progress(0.03, text=f"🔄 Syncing {pod_name} routes...")
-                process_pod(pod_name, master_bar=_bar)
+            # STATE 2: Loaded — smart sync for new tasks only
+            if st.button("🔄 Check New Tasks", key=f"reopt_{pod_name}", use_container_width=True):
+                smart_sync_pod(pod_name)
                 st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
