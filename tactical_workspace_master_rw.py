@@ -1116,11 +1116,15 @@ def process_digital_pool(master_bar=None):
                 if d_rate > 50.0:
                     status = "Flagged"
 
+        _d_boosted_vals = [str(x.get('boosted_standard', '')).lower() for x in group if x.get('boosted_standard')]
+        _d_important_tags = ['local plus', 'boosted', 'digital with bottom']
+        _d_boosted_tag = next((b for b in _d_important_tags if any(b in v for v in _d_boosted_vals)), '')
         clusters.append({
             "data": group, "center": [anc['lat'], anc['lon']], "stops": len(unique_stops), 
             "city": anc['city'], "state": anc['state'], "status": status, "has_ic": has_ic,
             "esc_count": sum(1 for x in group if x.get('escalated')),
             "is_digital": True,
+            "boosted_tag": _d_boosted_tag,
             "inst_count": sum(1 for x in group if "install" in str(x.get('task_type', '')).lower()),
             "remov_count": sum(1 for x in group if "remove" in str(x.get('task_type', '')).lower()),
             "wo": anc['wo']
@@ -2308,6 +2312,9 @@ def smart_sync_pod(pod_name):
                 remaining.append(t)
         unmatched = remaining
 
+        _ss_boosted_vals = [str(x.get('boosted_standard', '')).lower() for x in group if x.get('boosted_standard')]
+        _ss_important_tags = ['local plus', 'boosted', 'digital with bottom']
+        _ss_boosted_tag = next((b for b in _ss_important_tags if any(b in v for v in _ss_boosted_vals)), '')
         existing_clusters.append({
             "data": group,
             "center": [anc['lat'], anc['lon']],
@@ -2317,6 +2324,8 @@ def smart_sync_pod(pod_name):
             "has_ic": False,
             "esc_count": sum(1 for x in group if x.get('escalated')),
             "is_digital": anc.get('is_digital', False),
+            "is_removal": anc.get('is_removal', False),
+            "boosted_tag": _ss_boosted_tag,
             "inst_count": sum(1 for x in group if "install" in str(x.get('task_type', '')).lower()),
             "remov_count": sum(1 for x in group if str(x.get('task_type', '')).lower() in ["kiosk removal", "remove kiosk"]),
             "wo": anc['wo']
@@ -3505,9 +3514,11 @@ with tabs[6]:
                         comp, due = c.get('comp', 0), c.get('due', 'N/A')
                         tasks_cnt, stops_cnt = len(c['data']), c['stops']
                         
+                        _dins_cnt = sum(1 for tk in c['data'] if 'ins' in str(tk.get('task_type','')).lower() or 'rem' in str(tk.get('task_type','')).lower())
+                        _dins_pill = f" | 🔧 {_dins_cnt} Ins/Rem" if _dins_cnt > 0 else ""
                         exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                         with exp_col:
-                            with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                            with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_dins_pill} | Due: {due}"):
                                 st.success("Route accepted. Complete the checklist to finalize.")
                                 u_locs = []
                                 for tk in c['data']:
@@ -3530,7 +3541,9 @@ with tabs[6]:
                         
                         exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                         with exp_col:
-                            with st.expander(f"✅ {g.get('wo', g_ic_name)} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                            _gins_cnt = g.get('digi_ins', 0) or 0
+                        _gins_pill = f" | 🔧 {_gins_cnt} Ins/Rem" if _gins_cnt > 0 else ""
+                        with st.expander(f"✅ {g.get('wo', g_ic_name)} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_gins_pill} | Due: {due}"):
                                 st.success("Accepted and synced with OnFleet. Complete the checklist to finalize.")
                                 raw_locs = [s.strip() for s in g.get('locs', '').split('|') if s.strip()]
                                 if len(raw_locs) >= 3: task_locs = raw_locs[1:-1]
@@ -3590,9 +3603,11 @@ with tabs[6]:
                         comp, due = c.get('comp', 0), c.get('due', 'N/A')
                         tasks_cnt, stops_cnt = len(c['data']), c['stops']
                         
+                        _dfins_cnt = sum(1 for tk in c['data'] if 'ins' in str(tk.get('task_type','')).lower() or 'rem' in str(tk.get('task_type','')).lower())
+                        _dfins_pill = f" | 🔧 {_dfins_cnt} Ins/Rem" if _dfins_cnt > 0 else ""
                         exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                         with exp_col:
-                            with st.expander(f"🏁 {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                            with st.expander(f"🏁 {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_dfins_pill} | Due: {due}"):
                                 u_locs = []
                                 for tk in c['data']:
                                     if tk['full'] not in u_locs: u_locs.append(tk['full'])
@@ -3613,7 +3628,9 @@ with tabs[6]:
                         
                         exp_col, btn_col = st.columns([8.2, 1.8], vertical_alignment="center")
                         with exp_col:
-                            with st.expander(f"🏁 {wo_display} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
+                            _gdfins_cnt = g.get('digi_ins', 0) or 0
+                        _gdfins_pill = f" | 🔧 {_gdfins_cnt} Ins/Rem" if _gdfins_cnt > 0 else ""
+                        with st.expander(f"🏁 {wo_display} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_gdfins_pill} | Due: {due}"):
                                 st.success("Route Finalized and Archived.")
                                 raw_locs = [s.strip() for s in g.get('locs', '').split('|') if s.strip()]
                                 if len(raw_locs) >= 3: task_locs = raw_locs[1:-1]
