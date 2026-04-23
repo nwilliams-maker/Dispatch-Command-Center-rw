@@ -2264,10 +2264,49 @@ def run_pod_tab(pod_name):
     if not is_initialized and init_clicked:
         loading_overlay = st.empty()
         loading_overlay.markdown(f"""
-            <div style='background:#f1f5f9; border:1px solid #e2e8f0; border-radius:16px; padding:32px; text-align:center; margin:20px 0;'>
-                <div style='font-size:2rem; margin-bottom:12px;'>⏳</div>
+            <style>
+                @keyframes pulse-bg {{
+                    0%, 100% {{ opacity: 1; }}
+                    50% {{ opacity: 0.5; }}
+                }}
+                @keyframes spin {{
+                    0% {{ transform: rotate(0deg); }}
+                    100% {{ transform: rotate(360deg); }}
+                }}
+                .dcc-loading-card {{
+                    background: #f1f5f9;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 16px;
+                    padding: 32px;
+                    text-align: center;
+                    margin: 20px 0;
+                    animation: pulse-bg 2s ease-in-out infinite;
+                }}
+                .dcc-spinner {{
+                    width: 40px;
+                    height: 40px;
+                    border: 4px solid #e2e8f0;
+                    border-top: 4px solid #633094;
+                    border-radius: 50%;
+                    animation: spin 0.8s linear infinite;
+                    margin: 0 auto 16px auto;
+                }}
+                .dcc-loading-dots::after {{
+                    content: '';
+                    animation: dots 1.5s steps(4, end) infinite;
+                }}
+                @keyframes dots {{
+                    0%   {{ content: ''; }}
+                    25%  {{ content: '.'; }}
+                    50%  {{ content: '..'; }}
+                    75%  {{ content: '...'; }}
+                    100% {{ content: ''; }}
+                }}
+            </style>
+            <div class='dcc-loading-card'>
+                <div class='dcc-spinner'></div>
                 <p style='font-size:16px; font-weight:800; color:#0f172a; margin:0 0 4px 0;'>Initializing {pod_name} Pod</p>
-                <p style='font-size:13px; color:#64748b; margin:0;'>Fetching tasks from Onfleet and building routes...</p>
+                <p style='font-size:13px; color:#64748b; margin:0;'>Fetching tasks from Onfleet and building routes<span class='dcc-loading-dots'></span></p>
             </div>
         """, unsafe_allow_html=True)
         _bar = st.progress(0, text=f"🔌 Connecting to Onfleet...")
