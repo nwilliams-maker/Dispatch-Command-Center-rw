@@ -1723,7 +1723,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     route_state = st.session_state.get(f"route_state_{cluster_hash}")
     is_fn = (route_state == "field_nation") # 🌟 MOVED UP to control the Contractor field
     
-    col_a, col_b, col_c, col_d = st.columns([1.5, 1, 1, 1])
+    col_a, col_b, col_c, col_d = st.columns([2, 1.5, 1.5, 1.5])
     with col_a:
         # 🌟 THE FIX: If assigned to FN, lock the field. Otherwise, show the dropdown!
         if is_fn:
@@ -1839,9 +1839,9 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         is_unlocked = st.checkbox("Authorize Premium Rate / Distance", key=f"lock_{pod_name}_{cluster_hash}")
 
     with col_b:
-        st.number_input("Total Comp ($)", min_value=0.0, step=5.0, key=pay_key, on_change=sync_on_total, disabled=not is_unlocked)
+        st.number_input("Total Comp ($)", min_value=0.0, step=5.0, format="%.2f", key=pay_key, on_change=sync_on_total, disabled=not is_unlocked)
     with col_c:
-        st.number_input("Rate/Stop ($)", min_value=0.0, step=1.0, key=rate_key, on_change=sync_on_rate, disabled=not is_unlocked)
+        st.number_input("Rate/Stop ($)", min_value=0.0, step=1.0, format="%.2f", key=rate_key, on_change=sync_on_rate, disabled=not is_unlocked)
     with col_d:
         # 🌟 UNIQUE KEY
         st.date_input("Deadline", datetime.now().date()+timedelta(14), key=f"dd_{pod_name}_{cluster_hash}", disabled=not is_unlocked)
