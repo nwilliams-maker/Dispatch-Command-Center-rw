@@ -1591,11 +1591,13 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             stop_metrics[addr] = {
                 't_count': 0, 'n_ad': 0, 'c_ad': 0, 'd_ad': 0,
                 'inst': 0, 'remov': 0, 'digi_off': 0, 'digi_ins': 0, 'digi_srv': 0,
-                'custom': {}, 'esc': False, 'is_new': False
+                'custom': {}, 'esc': False, 'is_new': False, 'venue_name': ''
             }
         stop_metrics[addr]['t_count'] += 1
         if t.get('escalated'): stop_metrics[addr]['esc'] = True
         if t.get('is_new'): stop_metrics[addr]['is_new'] = True
+        if not stop_metrics[addr]['venue_name'] and t.get('venue_name'):
+            stop_metrics[addr]['venue_name'] = t.get('venue_name', '')
             
         raw_tt = str(t.get('task_type', '')).strip()
         parts = [p.strip().lower() for p in raw_tt.split(',') if p.strip()]
@@ -1657,12 +1659,13 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         display_addr = f"⭐ {addr}" if metrics['esc'] else addr
         if metrics.get('is_new'):
             display_addr = f"+ {display_addr}"
+        venue_prefix = f"<span style='color:#94a3b8; font-weight:600; font-size:12px;'>{metrics['venue_name']} — </span>" if metrics.get('venue_name') else ""
         
         # UI: Stop Info + Break-Off Button Layout
         s_col, b_col = st.columns([0.9, 0.1], vertical_alignment="center")
         with s_col:
             st.markdown(
-                f"<b>{display_addr}</b> &nbsp;"
+                f"{venue_prefix}<b>{display_addr}</b> &nbsp;"
                 f"<span style='color: #633094; background-color: #f3e8ff; padding: 2px 6px; border-radius: 10px; font-weight: 800; font-size: 11px;'>"
                 f"{metrics['t_count']} Tasks</span>&nbsp; "
                 f"<span style='font-size: 13px; color: #475569;'>— {pill_str}</span>", 
