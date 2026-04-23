@@ -1778,16 +1778,22 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     if route_state == "field_nation":
         st.info("💡 Route is currently tracked in the Field Nation tab.")
 
-        # 🌟 FIELD NATION MASS UPLOAD DOWNLOAD
+        # 🌟 FIELD NATION BUTTONS
         _due = st.session_state.get(f"dd_{pod_name}_{cluster_hash}", datetime.now().date() + timedelta(14))
         _pay = st.session_state.get(pay_key, 0.0)
-        # Use inst_count from cluster as primary check (set at build time), fall back to stop_metrics scan
         kiosk_stop_count = cluster.get('inst_count', 0) or sum(1 for m in stop_metrics.values() if m['inst'] > 0)
-        if kiosk_stop_count > 0:
-            fn_buf, fn_stop_count = generate_fn_upload(stop_metrics, cluster, _due, _pay, cluster_hash)
-            if fn_buf:
-                dl_col, link_col = st.columns(2)
-                with dl_col:
+
+        dl_col, link_col = st.columns(2)
+        with link_col:
+            st.link_button(
+                "🌐 Open Field Nation",
+                url="https://app.fieldnation.com/workorders/mass-upload",
+                use_container_width=True
+            )
+        with dl_col:
+            if kiosk_stop_count > 0:
+                fn_buf, fn_stop_count = generate_fn_upload(stop_metrics, cluster, _due, _pay, cluster_hash)
+                if fn_buf:
                     st.download_button(
                         label="📥 Download FN Upload",
                         data=fn_buf,
@@ -1796,14 +1802,8 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                         key=f"fn_dl_{cluster_hash}",
                         use_container_width=True
                     )
-                with link_col:
-                    st.link_button(
-                        "🌐 Open FN Mass Upload",
-                        url="https://app.fieldnation.com/workorders/mass-upload",
-                        use_container_width=True
-                    )
-        else:
-            st.caption("ℹ️ No Kiosk Install stops detected on this route.")
+            else:
+                st.caption("ℹ️ No Kiosk Install stops on this route.")
 
         # 🌟 UNIQUE KEY
         if st.button("📢 Mark as Posted (Move to Sent)", key=f"posted_{pod_name}_{cluster_hash}", type="primary", use_container_width=True):
