@@ -680,7 +680,111 @@ def render_finalization_checklist(cluster_hash, pod_name, prefix="chk"):
 def instant_revoke_handler(cluster_hash, ic_name, payload_json, pod_name):
     # We now enable Onfleet scrubbing (State 0 check) immediately
     move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=True, cluster_data=payload_json)
-    
+
+# --- FIELD NATION MASS UPLOAD GENERATOR ---
+def generate_fn_upload(stop_metrics, cluster, due, final_pay, cluster_hash):
+    """Generates a Field Nation mass upload Excel file for kiosk install stops only."""
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+
+    # Build a lookup: address -> first kiosk task (for venue metadata)
+    kiosk_task_lookup = {}
+    for t in cluster.get('data', []):
+        if 'install' in str(t.get('task_type', '')).lower():
+            addr = t.get('full', '')
+            if addr not in kiosk_task_lookup:
+                kiosk_task_lookup[addr] = t
+
+    kiosk_stops = [(addr, m) for addr, m in stop_metrics.items() if m['inst'] > 0]
+    if not kiosk_stops:
+        return None, 0
+
+    # Format due date
+    try:
+        if hasattr(due, 'strftime'):
+            start_date = due.strftime("%-m/%-d/%Y")
+            end_date   = due.strftime("%-m/%-d/%Y")
+        else:
+            from datetime import datetime as _dt
+            due_dt     = _dt.strptime(str(due), "%Y-%m-%d")
+            start_date = due_dt.strftime("%-m/%-d/%Y")
+            end_date   = due_dt.strftime("%-m/%-d/%Y")
+    except Exception:
+        start_date = str(due)
+        end_date   = str(due)
+
+    pay_per_stop = round(final_pay / len(kiosk_stops), 2) if kiosk_stops else 25.0
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Sheet1"
+
+    headers = [
+        "Location Name", "Address #1", "City", "State", "Postal Code", "Country",
+        "Schedule Type", "Scheduled Start Date", "Scheduled Start Time",
+        "Scheduled End Date", "Scheduled End Time", "Pay Type", "Pay Rate",
+        "Approximate Hours to Complete", "Est. WO-Value", "Work Order Manager",
+        "", "1. Customer Name", "1. Venue ID", "1. Location in Venue"
+    ]
+
+    header_fill = PatternFill("solid", start_color="FEF9C3")
+    header_font = Font(bold=True, name="Arial")
+
+    for col, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+
+    for row_idx, (addr, metrics) in enumerate(kiosk_stops, 2):
+        task     = kiosk_task_lookup.get(addr, {})
+        parts    = [p.strip() for p in addr.split(",")]
+        street   = parts[0] if len(parts) > 0 else addr
+        city     = parts[1] if len(parts) > 1 else cluster.get('city', '')
+        state    = parts[2] if len(parts) > 2 else cluster.get('state', '')
+        zip_code = task.get('zip', parts[3] if len(parts) > 3 else '')
+
+        venue_name      = task.get('venue_name', 'Terraboost Media')
+        venue_id        = task.get('venue_id', '')
+        client_company  = task.get('client_company', 'Terraboost Media')
+        loc_in_venue    = task.get('location_in_venue', 'Kiosk Install')
+
+        row = [
+            venue_name,                                         # Location Name
+            street,                                             # Address #1
+            city,                                               # City
+            state,                                              # State
+            zip_code,                                           # Postal Code
+            "US",                                               # Country
+            "Complete work anytime over a date range",          # Schedule Type
+            start_date,                                         # Scheduled Start Date
+            "8:00 AM",                                          # Scheduled Start Time
+            end_date,                                           # Scheduled End Date
+            "5:00 PM",                                          # Scheduled End Time
+            "Fixed",                                            # Pay Type
+            pay_per_stop,                                       # Pay Rate
+            1.0,                                                # Approximate Hours
+            pay_per_stop,                                       # Est. WO-Value
+            "",                                                 # Work Order Manager
+            "",                                                 # blank column
+            client_company,                                     # 1. Customer Name
+            venue_id,                                           # 1. Venue ID
+            loc_in_venue,                                       # 1. Location in Venue
+        ]
+        for col, val in enumerate(row, 1):
+            cell = ws.cell(row=row_idx, column=col, value=val)
+            cell.font = Font(name="Arial")
+
+    for col in ws.columns:
+        max_len = max((len(str(c.value)) for c in col if c.value), default=10)
+        ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 40)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf, len(kiosk_stops)
+
 # --- UTILITIES ---
 def haversine(lat1, lon1, lat2, lon2):
     R = 3958.8
@@ -923,6 +1027,10 @@ def process_digital_pool(master_bar=None):
         # 1. EXTRACT OFFICIAL CUSTOM FIELDS
         custom_task_type = ""
         custom_boosted = ""
+        venue_name = ""
+        venue_id = ""
+        client_company = ""
+        location_in_venue = ""
         
         # Default UI display to native details unless a custom field overwrites it
         tt_val = native_details 
@@ -946,6 +1054,16 @@ def process_digital_pool(master_bar=None):
             if 'escalation' in f_name or 'escalation' in f_key:
                 if f_val_lower in ['1', '1.0', 'true', 'yes'] or 'escalation' in f_val_lower:
                     is_esc = True
+
+            # 🌟 Capture Field Nation metadata fields
+            if f_name in ['venuename', 'venue name'] or f_key in ['venuename', 'venue_name']:
+                venue_name = f_val
+            if f_name in ['venueid', 'venue id'] or f_key in ['venueid', 'venue_id']:
+                venue_id = f_val
+            if f_name in ['clientcompany', 'client company'] or f_key in ['clientcompany', 'client_company']:
+                client_company = f_val
+            if f_name in ['locationinvenue', 'location in venue'] or f_key in ['locationinvenue', 'location_in_venue']:
+                location_in_venue = f_val
 
         # 2. CHECK REGULAR (STATIC) EXEMPTIONS FIRST
         # Expanded to include "escalation" to prevent crossing over
@@ -975,8 +1093,13 @@ def process_digital_pool(master_bar=None):
         pool.append({
             "id": t['id'], "city": addr.get('city', 'Unknown'), "state": stt,
             "full": f"{addr.get('number','')} {addr.get('street','')}, {addr.get('city','')}, {stt}",
+            "zip": addr.get('postalCode', ''),
             "lat": t['destination']['location'][1], "lon": t['destination']['location'][0],
-            "escalated": is_esc, "task_type": tt_val, "is_digital": True, "db_status": t_status, "wo": t_wo
+            "escalated": is_esc, "task_type": tt_val, "is_digital": True, "db_status": t_status, "wo": t_wo,
+            "venue_name": venue_name,
+            "venue_id": venue_id,
+            "client_company": client_company,
+            "location_in_venue": location_in_venue,
         })
 
     prog_bar.progress(0.6, text=f"🗺️ Routing {len(pool)} Digital Tasks...")
@@ -1136,10 +1259,10 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             custom_task_type = ""
             custom_boosted = ""
             tt_val = native_details # Fallback UI display
-            venue_name = ""      # ← add
-            venue_id = ""        # ← add
-            client_company = ""  # ← add
-            location_in_venue = "" # ← add
+            venue_name = ""
+            venue_id = ""
+            client_company = ""
+            location_in_venue = ""
             
             for f in custom_fields:
                 f_name = str(f.get('name', '')).strip().lower()
@@ -1160,6 +1283,8 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 if 'escalation' in f_name or 'escalation' in f_key:
                     if f_val_lower in ['1', '1.0', 'true', 'yes'] or 'escalation' in f_val_lower:
                         is_esc = True
+
+                # 🌟 Capture Field Nation metadata fields
                 if f_name in ['venuename', 'venue name'] or f_key in ['venuename', 'venue_name']:
                     venue_name = f_val
                 if f_name in ['venueid', 'venue id'] or f_key in ['venueid', 'venue_id']:
@@ -1168,6 +1293,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                     client_company = f_val
                 if f_name in ['locationinvenue', 'location in venue'] or f_key in ['locationinvenue', 'location_in_venue']:
                     location_in_venue = f_val
+
             # 2. CHECK REGULAR (STATIC) EXEMPTIONS FIRST
             # Combines native and custom type to ensure "Magnet" or "Photo" are never missed
             search_string = f"{native_details} {custom_task_type}".lower()
@@ -1208,10 +1334,10 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                     "is_digital": is_digital_task, # 🔌 Drives the plug icon
                     "db_status": t_status, 
                     "wo": t_wo,
-                    "venue_name": venue_name,           # ← add
-                    "venue_id": venue_id,               # ← add
-                    "client_company": client_company,   # ← add
-                    "location_in_venue": location_in_venue, # ← add
+                    "venue_name": venue_name,
+                    "venue_id": venue_id,
+                    "client_company": client_company,
+                    "location_in_venue": location_in_venue,
                 })
                 
         clusters = []
@@ -1751,6 +1877,23 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
 
     if route_state == "field_nation":
         st.info("💡 Route is currently tracked in the Field Nation tab.")
+
+        # 🌟 FIELD NATION MASS UPLOAD DOWNLOAD
+        _due = st.session_state.get(f"dd_{pod_name}_{cluster_hash}", datetime.now().date() + timedelta(14))
+        _pay = st.session_state.get(pay_key, 0.0)
+        kiosk_stop_count = sum(1 for m in stop_metrics.values() if m['inst'] > 0)
+        if kiosk_stop_count > 0:
+            fn_buf, fn_stop_count = generate_fn_upload(stop_metrics, cluster, _due, _pay, cluster_hash)
+            if fn_buf:
+                st.download_button(
+                    label=f"📥 Download FN Upload ({fn_stop_count} Kiosk {'Stop' if fn_stop_count == 1 else 'Stops'})",
+                    data=fn_buf,
+                    file_name=f"FN_Upload_{cluster.get('city', 'Route')}_{datetime.now().strftime('%m%d%Y')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key=f"fn_dl_{cluster_hash}",
+                    use_container_width=True
+                )
+
         # 🌟 UNIQUE KEY
         if st.button("📢 Mark as Posted (Move to Sent)", key=f"posted_{pod_name}_{cluster_hash}", type="primary", use_container_width=True):
             with st.spinner("Moving route to Sent database..."):
@@ -1957,7 +2100,6 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 "locs": " | ".join([home] + list(stop_metrics.keys()) + [home]),
                 "taskIds": ",".join(task_ids),
                 "tCnt": len(task_ids),
-                "kCnt": cluster.get('inst_count', 0),
                 "jobOnly": " | ".join([f"{addr} {pills}" for addr, pills in loc_pills.items()])
             }
 
