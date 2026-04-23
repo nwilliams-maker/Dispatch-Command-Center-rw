@@ -2660,7 +2660,7 @@ def run_pod_tab(pod_name):
                 <span title="Continuity: Replacing an existing ad with updated creative.">🔄 Continuity</span>
                 <span title="Default: Pull-down or placeholder installation.">⚪ Default</span>
                 <span title="Kiosk Install: Physical kiosk installation at this stop.">🛠️ Kiosk Install</span>
-                <span title="Kiosk Removal: Physical kiosk removal — CVS routes only.">🗑️ Kiosk Removal</span>
+                <span title="Kiosk Removal: Physical kiosk removal.">🗑️ Kiosk Removal</span>
                 <span title="Custom task type defined in Onfleet outside of standard categories.">📋 Custom</span>
             </div>
         </div>
