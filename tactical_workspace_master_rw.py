@@ -2762,7 +2762,7 @@ def run_pod_tab(pod_name):
 
     st.markdown("---")
 
-    col_left, col_right = st.columns([6.5, 3.5])
+    col_left, col_right = st.columns([5, 5])
 
     with col_left:
         st.markdown(f"<div style='font-size: 1.2rem; font-weight: 800; color: {TB_PURPLE}; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
