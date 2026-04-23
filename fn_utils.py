@@ -168,7 +168,7 @@ def generate_fn_upload(stop_metrics: dict, cluster: dict, due, final_pay: float,
         for slot_idx, task in enumerate(tasks[:5], 1):
             task_type    = str(task.get('task_type', 'Kiosk Install')).strip()
             loc_in_venue = str(task.get('location_in_venue', '')).strip()
-            client       = str(task.get('client_company', 'Terraboost Media')).strip()
+            client       = str(task.get('client_company', '') or '').strip() or 'Terraboost Media'
             venue_id     = str(task.get('venue_id', '')).strip()
             combined_loc = f"{task_type} — {loc_in_venue}" if loc_in_venue else task_type
 
