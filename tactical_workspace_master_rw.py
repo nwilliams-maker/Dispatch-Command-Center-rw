@@ -2943,6 +2943,7 @@ with tabs[0]:
     if not has_global_data:
         st.info("No operational data initialized. Click '🚀 Initialize All Pods' at the top right to fetch tasks across all pods.")
     loading_placeholder = st.empty()
+    bar_placeholder = st.empty()
 
     cols = st.columns(len(POD_CONFIGS))
     pod_keys = list(POD_CONFIGS.keys())
@@ -3072,7 +3073,7 @@ with tabs[0]:
 
         _render_global_card(_g_overlay, "Loading route database...", _g_start)
         _time.sleep(0.05)
-        p_bar = st.progress(0, text="📋 Loading route database from Google Sheets...")
+        p_bar = bar_placeholder.progress(0, text="📋 Loading route database from Google Sheets...")
         st.session_state.sent_db, st.session_state.ghost_db = fetch_sent_records_from_sheet()
         _render_global_card(_g_overlay, f"Fetching tasks across {len(pod_keys)} pods...", _g_start)
         p_bar.progress(0.03, text=f"⏳ Fetching tasks across {len(pod_keys)} pods...")
@@ -3081,7 +3082,7 @@ with tabs[0]:
             process_pod(p, master_bar=p_bar, pod_idx=idx, total_pods=len(pod_keys))
         st.session_state.current_loading_pod = None
         _g_overlay.empty()
-        p_bar.empty()
+        bar_placeholder.empty()
         st.session_state.pop('_loading_overlay', None)
         st.session_state.pop('_loading_start', None)
         st.session_state.pop('_loading_pod', None)
