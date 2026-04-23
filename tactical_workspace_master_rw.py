@@ -2610,27 +2610,49 @@ def run_pod_tab(pod_name):
     for c in review: folium.CircleMarker(c['center'], radius=8, color="#ef4444", fill=True, opacity=0.8).add_to(m)
     st_folium(m, height=400, use_container_width=True, key=f"map_{pod_name}")
     
-    st.markdown("""
-<div style="display: flex; justify-content: center; flex-wrap: wrap; gap: 20px; background: #ffffff; padding: 12px; border-radius: 12px; border: 1px solid #cbd5e1; margin-top: -10px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-    <div style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; align-self: center; margin-right: 10px;">Route Key:</div>
-    <div style="font-size: 13px; cursor: help;" title="Route is within distance limits (<60mi) and standard rate (<$25/stop).">🟢 Ready</div>
-    <div style="font-size: 13px; cursor: help;" title="Route is frozen and requires manual authorization before sending.">🔒 Action Required</div>
-    <div style="font-size: 13px; cursor: help;" title="The calculated price per stop is $25.00 or higher.">💰 High Rate</div>
-    <div style="font-size: 13px; cursor: help;" title="The closest contractor is more than 60 miles away.">📡 Long Distance</div>
-    <div style="font-size: 13px; cursor: help;" title="Priority: Contains escalated tasks.">⭐ Escalated</div>
-    <div style="font-size: 13px; cursor: help;" title="Digital Offline: Screen reported offline.">📵 Offline</div>
-    <div style="font-size: 13px; cursor: help;" title="Digital Ins/Rem: Installation or removal of digital screen.">🔧 Ins/Rem</div>
-    <div style="font-size: 13px; cursor: help;" title="Digital Service: Standard digital maintenance.">⚙️ Service</div>
-    <div style="font-size: 13px; cursor: help;" title="Route was flagged for review (e.g., low density).">🔴 Flagged</div>
-</div>
-""", unsafe_allow_html=True)
-
     st.markdown("---")
 
     col_left, col_right = st.columns([4.5, 5.5])
 
     with col_left:
         st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_PURPLE}; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
+        st.markdown("""
+<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px 16px; margin-bottom:12px;">
+    <div style="font-size:10px; font-weight:900; color:#64748b; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:10px;">📖 Route Key</div>
+    <div style="display:flex; flex-wrap:wrap; gap:6px 14px; font-size:12px; color:#334155;">
+        <div style="font-weight:700; color:#64748b; font-size:10px; text-transform:uppercase; letter-spacing:0.06em; width:100%; margin-top:2px;">Route Status</div>
+        <span title="Ready to dispatch">🟢 Ready</span>
+        <span title="Requires authorization unlock">🔒 Action Required</span>
+        <span title="Flagged for review">🔴 Flagged</span>
+        <span title="Assigned to Field Nation">🌐 Field Nation</span>
+
+        <div style="font-weight:700; color:#64748b; font-size:10px; text-transform:uppercase; letter-spacing:0.06em; width:100%; margin-top:6px;">Route Flags</div>
+        <span title="Rate at or above $25/stop">💰 High Rate</span>
+        <span title="Closest IC is 60+ miles away">📡 Long Distance</span>
+        <span title="Contains escalated tasks">❗ Escalated</span>
+        <span title="CVS Kiosk Removal route">🗑️ CVS Removal</span>
+
+        <div style="font-weight:700; color:#64748b; font-size:10px; text-transform:uppercase; letter-spacing:0.06em; width:100%; margin-top:6px;">Campaign Type</div>
+        <span title="Local Plus campaign">⭐ Local Plus</span>
+        <span title="Boosted campaign">🔥 Boosted</span>
+        <span title="Digital with Bottom campaign">📺 Dig+Bottom</span>
+
+        <div style="font-weight:700; color:#64748b; font-size:10px; text-transform:uppercase; letter-spacing:0.06em; width:100%; margin-top:6px;">Task Types</div>
+        <span title="New Ad placement">🆕 New Ad</span>
+        <span title="Continuity / swap">🔄 Continuity</span>
+        <span title="Default / pull down">⚪ Default</span>
+        <span title="Kiosk Install">🛠️ Kiosk Install</span>
+        <span title="Kiosk Removal">🗑️ Kiosk Removal</span>
+        <span title="Custom task type">📋 Custom</span>
+
+        <div style="font-weight:700; color:#64748b; font-size:10px; text-transform:uppercase; letter-spacing:0.06em; width:100%; margin-top:6px;">Digital Tasks</div>
+        <span title="Digital Offline: screen reported offline">📵 Offline</span>
+        <span title="Digital Install / Removal">🔧 Ins/Rem</span>
+        <span title="Digital Service / maintenance">⚙️ Service</span>
+        <span title="Digital route or certified IC">🔌 Digital</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
         t_ready, t_flagged, t_fn, t_digital = st.tabs(["📥 Ready", "⚠️ Flagged", "🌐 Field Nation", "🔌 Digital"])
 
         with t_ready:
@@ -3288,23 +3310,35 @@ with tabs[6]:
         for c in global_digital: folium.CircleMarker(c['center'], radius=8, color="#0f766e", fill=True, opacity=0.8).add_to(m_digi)
         st_folium(m_digi, height=400, use_container_width=True, key="digital_pool_map")
         
-        st.markdown("""
-<div style="display: flex; justify-content: center; flex-wrap: wrap; gap: 20px; background: #ffffff; padding: 12px; border-radius: 12px; border: 1px solid #cbd5e1; margin-top: -10px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-    <div style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; align-self: center; margin-right: 10px;">Route Key:</div>
-    <div style="font-size: 13px; cursor: help;" title="Route is within distance limits (<60mi) and standard rate (<$25/stop).">🟢 Ready</div>
-    <div style="font-size: 13px; cursor: help;" title="Digital Offline: Screen reported offline.">📵 Offline</div>
-    <div style="font-size: 13px; cursor: help;" title="Digital Ins/Rem: Installation or removal of digital screen.">🔧 Ins/Rem</div>
-    <div style="font-size: 13px; cursor: help;" title="Digital Service: Standard digital maintenance.">⚙️ Service</div>
-    <div style="font-size: 13px; cursor: help;" title="Route was flagged for review (e.g., low density).">🔴 Flagged</div>
-</div>
-""", unsafe_allow_html=True)
-
         # 5. 🚀 TWO-COLUMN DISPATCH (Parity with Pods)
         st.markdown("---")
         col_left, col_right = st.columns([4.5, 5.5])
         
         with col_left:
             st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_DIGITAL_TEXT}; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
+            st.markdown("""
+<div style="background:#f0fdfa; border:1px solid #99f6e4; border-radius:12px; padding:12px 16px; margin-bottom:12px;">
+    <div style="font-size:10px; font-weight:900; color:#0f766e; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:10px;">📖 Route Key</div>
+    <div style="display:flex; flex-wrap:wrap; gap:6px 14px; font-size:12px; color:#134e4a;">
+        <div style="font-weight:700; color:#0f766e; font-size:10px; text-transform:uppercase; letter-spacing:0.06em; width:100%; margin-top:2px;">Route Status</div>
+        <span title="Ready to dispatch">🟢 Ready</span>
+        <span title="Requires authorization unlock">🔒 Action Required</span>
+        <span title="Flagged for review">🔴 Flagged</span>
+        <span title="Assigned to Field Nation">🌐 Field Nation</span>
+
+        <div style="font-weight:700; color:#0f766e; font-size:10px; text-transform:uppercase; letter-spacing:0.06em; width:100%; margin-top:6px;">Route Flags</div>
+        <span title="Rate above $50/stop">💰 High Rate</span>
+        <span title="Closest IC is 40+ miles away">📡 Long Distance</span>
+        <span title="Contains escalated tasks">❗ Escalated</span>
+
+        <div style="font-weight:700; color:#0f766e; font-size:10px; text-transform:uppercase; letter-spacing:0.06em; width:100%; margin-top:6px;">Digital Task Types</div>
+        <span title="Screen reported offline">📵 Offline</span>
+        <span title="Install or removal of digital screen">🔧 Ins/Rem</span>
+        <span title="Standard digital maintenance">⚙️ Service</span>
+        <span title="Digital route or certified IC">🔌 Digital</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
             t_ready, t_flagged, t_fn = st.tabs(["📥 Ready", "⚠️ Flagged", "🌐 Field Nation"])
             
             with t_ready:
