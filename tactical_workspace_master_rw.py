@@ -1889,11 +1889,11 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             _, h, _ = get_gmaps(f"{cluster['center'][0]},{cluster['center'][1]}", tuple(stop_metrics.keys()))
             initial_pay = float(round(h * 25.0, 2)) # 🌟 STRICTLY HOURLY
 
-        # 🌟 Floor: if Maps returned 0 (fail/no IC), seed from PAY_PER_STOP
+        # 🌟 Floor: if Maps returned 0 (fail/no IC), seed from $20/stop default
         if initial_pay == 0:
-            initial_pay = round(PAY_PER_STOP * cluster.get('stops', 1), 2)
+            initial_pay = round(20.0 * cluster.get('stops', 1), 2)
         st.session_state[pay_key] = initial_pay
-        st.session_state[rate_key] = round(initial_pay / cluster['stops'], 2) if cluster['stops'] > 0 else PAY_PER_STOP
+        st.session_state[rate_key] = round(initial_pay / cluster['stops'], 2) if cluster['stops'] > 0 else 20.0
     
     # --- 4. UI RENDERING & BUTTON LOGIC ---
     route_state = st.session_state.get(f"route_state_{cluster_hash}")
