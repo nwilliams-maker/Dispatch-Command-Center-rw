@@ -2406,7 +2406,11 @@ def run_pod_tab(pod_name):
             finalized.append(c)
         elif sheet_match and not is_reverted:
             raw_status = str(sheet_match.get('status', '')).lower()
-            if raw_status == 'field_nation': field_nation.append(c) #
+            if raw_status == 'field_nation':
+                # 🌟 Restore session state so checkbox stays checked after reload
+                if not st.session_state.get(f"route_state_{cluster_hash}"):
+                    st.session_state[f"route_state_{cluster_hash}"] = "field_nation"
+                field_nation.append(c)
             elif raw_status == 'declined': declined.append(c) #
             elif raw_status == 'accepted': accepted.append(c) #
             elif raw_status == 'finalized': finalized.append(c) #
@@ -2922,6 +2926,8 @@ with tabs[0]:
                     if sheet_match and not is_reverted:
                         raw_status = str(sheet_match.get('status', '')).lower()
                         if raw_status == 'field_nation':
+                            if not st.session_state.get(f"route_state_{cluster_hash}"):
+                                st.session_state[f"route_state_{cluster_hash}"] = "field_nation"
                             field_nation.append(c)
                         elif raw_status == 'declined':
                             declined.append(c)
