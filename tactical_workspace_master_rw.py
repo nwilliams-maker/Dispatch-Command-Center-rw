@@ -711,6 +711,55 @@ def background_sheet_finalize(cluster_hash):
     except:
         pass
 
+@st.fragment(run_every=30)
+def auto_sync_checker():
+    """Polls GAS every 30s. If any sent route has been accepted/declined, triggers a full app rerun."""
+    sent_db = st.session_state.get('sent_db', {})
+    if not sent_db:
+        return  # Nothing pending, skip
+
+    # Collect route IDs for routes currently in 'sent' state
+    pending_route_ids = set()
+    for tid, info in sent_db.items():
+        if info.get('status', '').lower() == 'sent':
+            wo = info.get('wo', '')
+            if wo:
+                pending_route_ids.add(wo.strip().upper())
+
+    if not pending_route_ids:
+        return
+
+    try:
+        # Lightweight check — fetch just Accepted and Declined sheets via CSV
+        base_url = f"{IC_SHEET_URL.split('/edit')[0]}/export?format=csv&gid="
+        changed = False
+        for gid, status_label in [(ACCEPTED_ROUTES_GID, 'accepted'), (DECLINED_ROUTES_GID, 'declined')]:
+            try:
+                df = pd.read_csv(base_url + str(gid))
+                df.columns = [str(c).strip().lower() for c in df.columns]
+                if 'json payload' not in df.columns:
+                    continue
+                for _, row in df.iterrows():
+                    try:
+                        p = json.loads(row['json payload'])
+                        tids = str(p.get('taskIds', '')).split(',')
+                        for tid in tids:
+                            tid = tid.strip()
+                            if tid in sent_db and sent_db[tid].get('status', '').lower() == 'sent':
+                                sent_db[tid]['status'] = status_label
+                                changed = True
+                    except:
+                        pass
+            except:
+                pass
+
+        if changed:
+            st.session_state.sent_db = sent_db
+            st.rerun(scope="app")
+
+    except:
+        pass  # Never crash the UI on a background poll
+
 @st.fragment
 def render_finalization_checklist(cluster_hash, pod_name, prefix="chk"):
     """Isolates checkbox reruns so the whole page doesn't reload, making checks instant."""
@@ -1840,8 +1889,11 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             _, h, _ = get_gmaps(f"{cluster['center'][0]},{cluster['center'][1]}", tuple(stop_metrics.keys()))
             initial_pay = float(round(h * 25.0, 2)) # 🌟 STRICTLY HOURLY
 
+        # 🌟 Floor: if Maps returned 0 (fail/no IC), seed from PAY_PER_STOP
+        if initial_pay == 0:
+            initial_pay = round(PAY_PER_STOP * cluster.get('stops', 1), 2)
         st.session_state[pay_key] = initial_pay
-        st.session_state[rate_key] = round(initial_pay / cluster['stops'], 2) if cluster['stops'] > 0 else 18.0
+        st.session_state[rate_key] = round(initial_pay / cluster['stops'], 2) if cluster['stops'] > 0 else PAY_PER_STOP
     
     # --- 4. UI RENDERING & BUTTON LOGIC ---
     route_state = st.session_state.get(f"route_state_{cluster_hash}")
@@ -2370,6 +2422,7 @@ def smart_sync_pod(pod_name):
 
 
 def run_pod_tab(pod_name):
+    auto_sync_checker()  # 🔄 Auto-detect accepted/declined routes every 30s
     # Grab the contractor database from session state
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
     
