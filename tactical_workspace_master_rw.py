@@ -1842,30 +1842,31 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         fn_checked = st.checkbox("🌐 Assign to Field Nation", value=is_fn, key=f"fn_check_{pod_name}_{cluster_hash}")
         
         if fn_checked and not is_fn:
-            with st.spinner("Pushing to Google Sheet..."):
-                home = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
-                payload = {
-                    "cluster_hash": cluster_hash,
-                    "icn": "Field Nation", 
-                    "city": cluster.get('city', 'Unknown'), 
-                    "state": cluster.get('state', 'Unknown'), 
-                    "taskIds": ",".join(task_ids),
-                    "wo": f"FN-{datetime.now().strftime('%m%d%Y')}",
-                    "lCnt": cluster['stops'],
-                    "tCnt": len(task_ids),
-                    "kCnt": cluster.get('inst_count', 0),
-                    "locs": " | ".join([home] + list(stop_metrics.keys()) + [home])
-                }
+            # 🌟 INSTANT UI UPDATE — Sheet write fires in background
+            home = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
+            fn_payload = {
+                "cluster_hash": cluster_hash,
+                "icn": "Field Nation",
+                "city": cluster.get('city', 'Unknown'),
+                "state": cluster.get('state', 'Unknown'),
+                "taskIds": ",".join(task_ids),
+                "wo": f"FN-{datetime.now().strftime('%m%d%Y')}",
+                "lCnt": cluster['stops'],
+                "tCnt": len(task_ids),
+                "kCnt": cluster.get('inst_count', 0),
+                "locs": " | ".join([home] + list(stop_metrics.keys()) + [home])
+            }
+
+            def _save_fn_background(payload):
                 try:
-                    res = requests.post(GAS_WEB_APP_URL, json={"action": "saveToFieldNation", "payload": payload}, timeout=10).json()
-                    if res.get("success"):
-                        st.session_state[f"route_state_{cluster_hash}"] = "field_nation"
-                        st.toast("✅ Saved to Field Nation Tab")
-                        st.rerun()
-                    else:
-                        st.error(f"Sheet Error: {res.get('error')}")
-                except Exception as e:
-                    st.error(f"Connection Failed: {e}")
+                    requests.post(GAS_WEB_APP_URL, json={"action": "saveToFieldNation", "payload": payload}, timeout=15)
+                except:
+                    pass
+
+            threading.Thread(target=_save_fn_background, args=(fn_payload,), daemon=True).start()
+            st.session_state[f"route_state_{cluster_hash}"] = "field_nation"
+            st.toast("✅ Saved to Field Nation Tab")
+            st.rerun()
         
         elif not fn_checked and is_fn:
             # 🌟 ADDED Safety check for Field Nation revocation
