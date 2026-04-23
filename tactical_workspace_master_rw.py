@@ -1677,7 +1677,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     sel_key = f"sel_{pod_name}_{cluster_hash}"
     last_sel_key = f"last_sel_{pod_name}_{cluster_hash}"
 
-    st.write("### Route Stops")
+    st.markdown("<div style='font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:8px;'>Route Stops</div>", unsafe_allow_html=True)
 
     # --- HISTORY LOG ---
     hist = st.session_state.get(f"history_{cluster_hash}", [])
@@ -1944,19 +1944,29 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         final_pay = st.session_state.get(pay_key, 0.0)
         final_rate = st.session_state.get(rate_key, 0.0)
 
-        m1, m2 = st.columns(2)
-        with m1: 
-            # 🌟 THE FIX: Updated 3-Tier Color Logic
-            if final_rate >= 24.00:
-                status_color = "#ef4444" # Red ($24.00+)
-            elif final_rate >= 21.00:
-                status_color = "#f97316" # Orange ($21.00 - $23.99)
-            else:
-                status_color = TB_GREEN  # Green ($20.99 and below)
-            
-            st.markdown(f"<div style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:15px; margin-bottom:10px;'><p style='font-size:11px; font-weight:800; text-transform:uppercase;'>Financials</p><p style='margin:0; font-size:24px; font-weight:800; color:{status_color};'>Total: ${final_pay:,.2f}</p><p style='margin:0; font-size:13px;'>Breakdown: ${final_rate}/stop</p></div>", unsafe_allow_html=True)
-        with m2: 
-            st.markdown(f"<div style='background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:15px; margin-bottom:10px;'><p style='font-size:11px; font-weight:800; text-transform:uppercase;'>Logistics</p><p style='margin:0; font-size:24px; font-weight:800;'>{t_str}</p><p style='margin:0; font-size:13px;'>Round Trip: {mi} mi</p></div>", unsafe_allow_html=True)
+        if final_rate >= 24.00:
+            status_color = "#ef4444"
+        elif final_rate >= 21.00:
+            status_color = "#f97316"
+        else:
+            status_color = TB_GREEN
+
+        st.markdown(f"""
+<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;">
+    <div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;">
+        <div>
+            <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div>
+            <div style="font-size:22px; font-weight:900; color:{status_color};">${final_pay:,.2f}</div>
+            <div style="font-size:11px; color:#94a3b8; margin-top:1px;">${final_rate}/stop</div>
+        </div>
+        <div style="text-align:right;">
+            <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Drive Time</div>
+            <div style="font-size:22px; font-weight:900; color:#0f172a;">{t_str}</div>
+            <div style="font-size:11px; color:#94a3b8; margin-top:1px;">Round Trip: {mi} mi</div>
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
         stops_text = ""
         for i, (addr, metrics) in enumerate(list(stop_metrics.items())[:2], start=1):
             esc_star = "" if metrics['esc'] else ""
@@ -2073,6 +2083,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             st.session_state[active_tx_key] = st.session_state[active_tx_key].replace("LINK_PENDING", real_id)
     
        # 🌟 UNIQUE KEY & PERFECT INDENTATION
+        st.markdown("<div style='font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:4px; margin-top:8px;'>Email Preview</div>", unsafe_allow_html=True)
         email_body_content = st.text_area("Email Content Preview", value=sig_preview, height=180, key=f"txt_area_{pod_name}_{current_data_fingerprint}_{cluster_hash}", disabled=not is_unlocked)
 
         # --- HIGH-SPEED DISPATCH BUTTON ---
@@ -2762,7 +2773,7 @@ def run_pod_tab(pod_name):
 
     st.markdown("---")
 
-    col_left, col_right = st.columns([5, 5])
+    col_left, col_right = st.columns([6.5, 3.5])
 
     with col_left:
         st.markdown(f"<div style='font-size: 1.2rem; font-weight: 800; color: {TB_PURPLE}; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
