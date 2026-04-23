@@ -901,7 +901,38 @@ def load_ic_database(sheet_url):
 
 def process_digital_pool(master_bar=None):
     prog_bar = master_bar if master_bar else st.progress(0)
+
+    def _tick_overlay(msg):
+        """Tick the loading card timer if one is active."""
+        _ov = st.session_state.get('_loading_overlay')
+        _st = st.session_state.get('_loading_start')
+        _pn = st.session_state.get('_loading_pod')
+        if _ov and _st and _pn:
+            import time as _t
+            elapsed = int(_t.time() - _st)
+            m = elapsed // 60; s = elapsed % 60
+            _ov.markdown(f"""
+                <style>
+                    @keyframes spin {{0%{{transform:rotate(0deg)}}100%{{transform:rotate(360deg)}}}}
+                    .dcc-card{{background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;
+                        padding:36px 32px;text-align:center;margin:20px 0;}}
+                    .dcc-spin{{width:44px;height:44px;border:4px solid #e2e8f0;
+                        border-top:4px solid #0f766e;border-radius:50%;
+                        animation:spin 0.8s linear infinite;margin:0 auto 16px auto;}}
+                    .dcc-pill{{display:inline-block;font-size:13px;font-weight:700;
+                        color:#0f766e;background:#ccfbf1;border-radius:20px;
+                        padding:4px 14px;margin-top:12px;}}
+                </style>
+                <div class='dcc-card'>
+                    <div class='dcc-spin'></div>
+                    <p style='font-size:16px;font-weight:800;color:#0f172a;margin:0 0 4px 0;'>Initializing Digital Pool</p>
+                    <p style='font-size:13px;color:#64748b;margin:0 0 8px 0;'>{msg}</p>
+                    <div class='dcc-pill'>⏱ {m}:{s:02d}</div>
+                </div>
+            """, unsafe_allow_html=True)
+
     prog_bar.progress(0.1, text="📥 Fetching National Tasks from Onfleet...")
+    _tick_overlay("Fetching National Tasks from Onfleet...")
     
     # 1. Fetch Onfleet (ONCE)
     APPROVED_TEAMS = ["a - escalation", "b - boosted campaigns", "b - local campaigns", "c - priority nationals", "cvs kiosk removal", "cvs kiosk removals", "d - digital routes", "n - national campaigns"]
@@ -923,6 +954,7 @@ def process_digital_pool(master_bar=None):
         url = f"https://onfleet.com/api/v2/tasks/all?state=0&from={time_window}&lastId={res_json['lastId']}" if res_json.get('lastId') else None
         
     prog_bar.progress(0.4, text="🔍 Isolating Digital Service Calls...")
+    _tick_overlay("Isolating Digital Service Calls...")
     
     # 🌟 STRICT DIGITAL FILTER
     # --- 🌟 STRICT DIGITAL FILTER ---
@@ -1025,6 +1057,7 @@ def process_digital_pool(master_bar=None):
         })
 
     prog_bar.progress(0.6, text=f"🗺️ Routing {len(pool)} Digital Tasks...")
+    _tick_overlay(f"Routing {len(pool)} Digital Tasks...")
     
     # 3. Route ONLY the Digital Tasks
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
@@ -3135,49 +3168,52 @@ with tabs[6]:
     with dh_col3:
         st.markdown("<div class='tab-action-btn'>", unsafe_allow_html=True)
         btn_label = "🚀 Sync Routes" if global_digital else "🚀 Initialize Data"
-        if st.button(btn_label, key="digital_init_btn", use_container_width=True):
-            import time as _time
-            _d_start = _time.time()
-            _d_overlay = st.empty()
-
-            def _render_digital_card(overlay, start):
-                elapsed = int(_time.time() - start)
-                m = elapsed // 60; s = elapsed % 60
-                overlay.markdown(f"""
-                    <style>
-                        @keyframes spin {{0%{{transform:rotate(0deg)}}100%{{transform:rotate(360deg)}}}}
-                        .dcc-card{{background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;
-                            padding:36px 32px;text-align:center;margin:20px 0;}}
-                        .dcc-spin{{width:44px;height:44px;border:4px solid #e2e8f0;
-                            border-top:4px solid #0f766e;border-radius:50%;
-                            animation:spin 0.8s linear infinite;margin:0 auto 16px auto;}}
-                        .dcc-pill{{display:inline-block;font-size:13px;font-weight:700;
-                            color:#0f766e;background:#ccfbf1;border-radius:20px;
-                            padding:4px 14px;margin-top:12px;}}
-                    </style>
-                    <div class='dcc-card'>
-                        <div class='dcc-spin'></div>
-                        <p style='font-size:16px;font-weight:800;color:#0f172a;margin:0 0 4px 0;'>Initializing Digital Pool</p>
-                        <p style='font-size:13px;color:#64748b;margin:0 0 8px 0;'>Fetching Digital tasks from Onfleet...</p>
-                        <div class='dcc-pill'>⏱ {m}:{s:02d}</div>
-                    </div>
-                """, unsafe_allow_html=True)
-
-            st.session_state['_loading_overlay'] = _d_overlay
-            st.session_state['_loading_start'] = _d_start
-            st.session_state['_loading_pod'] = 'Digital'
-            _render_digital_card(_d_overlay, _d_start)
-            _time.sleep(0.05)
-            d_bar = st.progress(0, text="🔌 Connecting to Onfleet...")
-            d_bar.progress(0.03, text="⏳ Fetching Digital tasks from Onfleet...")
-            process_digital_pool(master_bar=d_bar)
-            _d_overlay.empty()
-            d_bar.empty()
-            st.session_state.pop('_loading_overlay', None)
-            st.session_state.pop('_loading_start', None)
-            st.session_state.pop('_loading_pod', None)
-            st.rerun()
+        digital_init_clicked = st.button(btn_label, key="digital_init_btn", use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
+
+    # 🌟 FULL-WIDTH LOADING UI — outside columns
+    if digital_init_clicked:
+        import time as _time
+        _d_start = _time.time()
+        _d_overlay = st.empty()
+        _d_bar = st.progress(0, text="🔌 Connecting to Onfleet...")
+
+        def _render_digital_card(overlay, start):
+            elapsed = int(_time.time() - start)
+            m = elapsed // 60; s = elapsed % 60
+            overlay.markdown(f"""
+                <style>
+                    @keyframes spin {{0%{{transform:rotate(0deg)}}100%{{transform:rotate(360deg)}}}}
+                    .dcc-card{{background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;
+                        padding:36px 32px;text-align:center;margin:20px 0;}}
+                    .dcc-spin{{width:44px;height:44px;border:4px solid #e2e8f0;
+                        border-top:4px solid #0f766e;border-radius:50%;
+                        animation:spin 0.8s linear infinite;margin:0 auto 16px auto;}}
+                    .dcc-pill{{display:inline-block;font-size:13px;font-weight:700;
+                        color:#0f766e;background:#ccfbf1;border-radius:20px;
+                        padding:4px 14px;margin-top:12px;}}
+                </style>
+                <div class='dcc-card'>
+                    <div class='dcc-spin'></div>
+                    <p style='font-size:16px;font-weight:800;color:#0f172a;margin:0 0 4px 0;'>Initializing Digital Pool</p>
+                    <p style='font-size:13px;color:#64748b;margin:0 0 8px 0;'>Fetching Digital tasks from Onfleet...</p>
+                    <div class='dcc-pill'>⏱ {m}:{s:02d}</div>
+                </div>
+            """, unsafe_allow_html=True)
+
+        st.session_state['_loading_overlay'] = _d_overlay
+        st.session_state['_loading_start'] = _d_start
+        st.session_state['_loading_pod'] = 'Digital'
+        _render_digital_card(_d_overlay, _d_start)
+        _time.sleep(0.05)
+        _d_bar.progress(0.03, text="⏳ Fetching Digital tasks from Onfleet...")
+        process_digital_pool(master_bar=_d_bar)
+        _d_overlay.empty()
+        _d_bar.empty()
+        st.session_state.pop('_loading_overlay', None)
+        st.session_state.pop('_loading_start', None)
+        st.session_state.pop('_loading_pod', None)
+        st.rerun()
 
     # 3. 🃏 SUPERCARDS
     dc1, dc2, dc3 = st.columns([1, 1, 1])
