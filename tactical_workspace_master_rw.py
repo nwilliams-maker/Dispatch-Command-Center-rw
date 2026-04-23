@@ -2611,33 +2611,45 @@ def run_pod_tab(pod_name):
     st_folium(m, height=400, use_container_width=True, key=f"map_{pod_name}")
     
     st.markdown("""
-<div style="display:flex; justify-content:center; flex-wrap:wrap; gap:8px 20px; background:#ffffff; padding:12px 20px; border-radius:12px; border:1px solid #cbd5e1; margin-bottom:20px; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
-    <div style="font-size:11px; font-weight:900; color:#64748b; text-transform:uppercase; letter-spacing:0.08em; align-self:center; margin-right:8px;">📖 Route Key</div>
-    <span style="font-size:11px; color:#475569; font-weight:600; align-self:center; margin-right:4px; border-right:1px solid #e2e8f0; padding-right:12px;">Status:</span>
-    <span style="font-size:13px;" title="Ready to dispatch">🟢 Ready</span>
-    <span style="font-size:13px;" title="Requires unlock">🔒 Action Req.</span>
-    <span style="font-size:13px;" title="Flagged for review">🔴 Flagged</span>
-    <span style="font-size:13px;" title="Field Nation">🌐 FN</span>
-    <span style="font-size:11px; color:#475569; font-weight:600; align-self:center; margin-left:4px; margin-right:4px; border-right:1px solid #e2e8f0; padding-right:12px;">Flags:</span>
-    <span style="font-size:13px;" title="High rate per stop">💰 High Rate</span>
-    <span style="font-size:13px;" title="IC 60+ miles away">📡 Distance</span>
-    <span style="font-size:13px;" title="Contains escalated tasks">❗ Escalated</span>
-    <span style="font-size:13px;" title="CVS Kiosk Removal route">🗑️ CVS Removal</span>
-    <span style="font-size:11px; color:#475569; font-weight:600; align-self:center; margin-left:4px; margin-right:4px; border-right:1px solid #e2e8f0; padding-right:12px;">Campaign:</span>
-    <span style="font-size:13px;" title="Local Plus">⭐ Local Plus</span>
-    <span style="font-size:13px;" title="Boosted">🔥 Boosted</span>
-    <span style="font-size:13px;" title="Digital with Bottom">📺 Dig+Bottom</span>
-    <span style="font-size:11px; color:#475569; font-weight:600; align-self:center; margin-left:4px; margin-right:4px; border-right:1px solid #e2e8f0; padding-right:12px;">Tasks:</span>
-    <span style="font-size:13px;" title="New Ad">🆕 New Ad</span>
-    <span style="font-size:13px;" title="Continuity">🔄 Continuity</span>
-    <span style="font-size:13px;" title="Default / pull down">⚪ Default</span>
-    <span style="font-size:13px;" title="Kiosk Install">🛠️ Install</span>
-    <span style="font-size:13px;" title="Kiosk Removal">🗑️ Removal</span>
-    <span style="font-size:13px;" title="Custom task">📋 Custom</span>
-    <span style="font-size:13px;" title="Digital Offline">📵 Offline</span>
-    <span style="font-size:13px;" title="Digital Ins/Rem">🔧 Ins/Rem</span>
-    <span style="font-size:13px;" title="Digital Service">⚙️ Service</span>
-    <span style="font-size:13px;" title="Digital / certified">🔌 Digital</span>
+<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:14px 20px; margin-bottom:20px; box-shadow:0 2px 4px rgba(0,0,0,0.04);">
+    <div style="font-size:10px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:12px;">📖 Route Key</div>
+    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px;">
+        <div>
+            <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px;">Status</div>
+            <div style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:#334155;">
+                <span>🟢 Ready</span>
+                <span>🔒 Action Required</span>
+                <span>🔴 Flagged</span>
+                <span>🌐 Field Nation</span>
+            </div>
+        </div>
+        <div>
+            <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px;">Flags</div>
+            <div style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:#334155;">
+                <span>💰 High Rate</span>
+                <span>📡 Long Distance</span>
+                <span>❗ Escalated</span>
+                <span>🗑️ CVS Removal</span>
+            </div>
+        </div>
+        <div>
+            <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px;">Campaign Type</div>
+            <div style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:#334155;">
+                <span>⭐ Local Plus</span>
+                <span>🔥 Boosted</span>
+                <span>📺 Dig+Bottom</span>
+            </div>
+        </div>
+        <div>
+            <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px;">Task Types</div>
+            <div style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:#334155;">
+                <span>🆕 New Ad &nbsp; 🔄 Continuity &nbsp; ⚪ Default</span>
+                <span>🛠️ Kiosk Install &nbsp; 🗑️ Kiosk Removal</span>
+                <span>📵 Offline &nbsp; 🔧 Ins/Rem &nbsp; ⚙️ Service</span>
+                <span>📋 Custom &nbsp; 🔌 Digital</span>
+            </div>
+        </div>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
