@@ -130,7 +130,9 @@
                             <div class="flex justify-between pb-3 mb-3 border-b border-slate-100"><span>Due Date:</span> <span class="font-bold text-slate-900">${d.due || 'N/A'}</span></div>
                             <div class="flex justify-between pb-3 mb-3 border-b border-slate-100"><span>Unique Locations:</span> <span class="font-bold text-slate-900">${d.lCnt}</span></div>
                             <div class="flex justify-between pb-3 mb-3 border-b border-slate-100"><span>Total Tasks:</span> <span class="font-bold text-slate-900">${d.tCnt}</span></div>
-                            <div class="flex justify-between text-emerald-600 font-bold pb-3 mb-3 border-b border-slate-100"><span>Kiosk Installs:</span> <span>${d.kCnt || 0}</span></div>
+                            ${(d.kCnt && d.kCnt > 0) ? `<div class="flex justify-between text-emerald-600 font-bold pb-3 mb-3 border-b border-slate-100"><span>🛠️ Kiosk Installs:</span> <span>${d.kCnt}</span></div>` : ''}
+                            ${(d.rCnt && d.rCnt > 0) ? `<div class="flex justify-between text-orange-600 font-bold pb-3 mb-3 border-b border-slate-100"><span>🗑️ Kiosk Removals:</span> <span>${d.rCnt}</span></div>` : ''}
+                            ${(d.dCnt && d.dCnt > 0) ? `<div class="flex justify-between text-teal-600 font-bold pb-3 mb-3 border-b border-slate-100"><span>🔌 Digital Tasks:</span> <span>${d.dCnt}</span></div>` : ''}
                             <div class="flex justify-between pb-3 mb-3 border-b border-slate-100"><span>Est. Drive Time:</span> <span class="font-bold text-slate-900">${d.time}</span></div>
                             <div class="flex justify-between pb-3 mb-3"><span>Mileage:</span> <span class="font-medium">${d.mi} Miles</span></div>
                             <div class="flex justify-between border-t border-slate-200 pt-4 mt-2 font-black text-3xl text-emerald-600"><span>Total Comp:</span> <span>$${parseFloat(d.comp).toFixed(2)}</span></div>
@@ -197,7 +199,9 @@
                     "Total Compensation": `$${window.payloadData.comp}`,
                     "Total Tasks": window.payloadData.tCnt,
                     "Unique Locations": window.payloadData.lCnt,
-                    "Kiosk Installs": window.payloadData.kCnt || 0,
+                            ${(d.kCnt && d.kCnt > 0) ? `<div class="flex justify-between text-emerald-600 font-bold pb-3 mb-3 border-b border-slate-100"><span>🛠️ Kiosk Installs:</span> <span>${d.kCnt}</span></div>` : ''}
+                            ${(d.rCnt && d.rCnt > 0) ? `<div class="flex justify-between text-orange-600 font-bold pb-3 mb-3 border-b border-slate-100"><span>🗑️ Kiosk Removals:</span> <span>${d.rCnt}</span></div>` : ''}
+                            ${(d.dCnt && d.dCnt > 0) ? `<div class="flex justify-between text-teal-600 font-bold pb-3 mb-3 border-b border-slate-100"><span>🔌 Digital Tasks:</span> <span>${d.dCnt}</span></div>` : ''}
                     "Mileage": `${window.payloadData.mi} Miles`,
                     "Est. Drive Time": window.payloadData.time,
                     "Due Date": window.payloadData.due || "N/A",
