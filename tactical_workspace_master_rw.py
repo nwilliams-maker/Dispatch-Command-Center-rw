@@ -1310,6 +1310,8 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 t_wo = fresh_sent_db[t['id']].get('wo', 'none')
             
             if stt in config['states']:
+                _remov_keywords = ["kiosk removal", "remove kiosk"]
+                _is_removal = any(kw in f"{native_details} {custom_task_type}".lower() for kw in _remov_keywords)
                 pool.append({
                     "id": t['id'], 
                     "city": addr.get('city', 'Unknown'), 
@@ -1320,7 +1322,8 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                     "lon": t['destination']['location'][0],
                     "escalated": is_esc, 
                     "task_type": tt_val,
-                    "is_digital": is_digital_task, # 🔌 Drives the plug icon
+                    "is_digital": is_digital_task,
+                    "is_removal": _is_removal,  # 🗑️ CVS Kiosk Removals get their own routes
                     "db_status": t_status, 
                     "wo": t_wo,
                     "venue_name": venue_name,
@@ -1352,21 +1355,23 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             # --- NEW: Strict Digital Separation & Dynamic Radius ---
             anc_tt = str(anc.get('task_type', '')).lower()
             anc_is_digital = anc.get('is_digital', False)
+            anc_is_removal = anc.get('is_removal', False)
             anc_status = anc.get('db_status', 'ready')
             anc_wo = anc.get('wo', 'none')
             
-            # Set radius strictly based on the whitelist result
+            # Set radius strictly based on type
             route_radius = 25 if anc_is_digital else 35
             
             candidates = []; rem = []
             for t in pool:
                 t_tt = str(t.get('task_type', '')).lower()
                 t_is_digital = t.get('is_digital', False)
+                t_is_removal = t.get('is_removal', False)
                 t_status = t.get('db_status', 'ready')
                 t_wo = t.get('wo', 'none')
                 
-                # Rule 1: Digital and Standard never mix
-                if anc_is_digital == t_is_digital:
+                # Rule 1: Digital, Removal, and Standard never mix
+                if anc_is_digital == t_is_digital and anc_is_removal == t_is_removal:
                     
                     # Rule 2: Sent and Accepted are FROZEN
                     # 🌟 FIX 1: Add 'field_nation' so these routes stay grouped together!
@@ -1481,7 +1486,8 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 "status": status,
                 "has_ic": has_ic,
                 "esc_count": sum(1 for x in g_data if x.get('escalated')),
-                "is_digital": route_is_digital, # 🔌 Driven by the anchor's verified flag
+                "is_digital": route_is_digital,
+                "is_removal": anc_is_removal,  # 🗑️ CVS Kiosk Removal route flag
                 "inst_count": sum(1 for x in g_data if "install" in str(x.get('task_type', '')).lower()),
                 "remov_count": sum(1 for x in g_data if str(x.get('task_type', '')).lower() in ["kiosk removal", "remove kiosk"]),
                 "wo": anc_wo
@@ -2647,7 +2653,8 @@ def run_pod_tab(pod_name):
                     inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else "" 
                     remov_pill = f"  [ 🗑️ {c.get('remov_count', 0)} Removal ]" if c.get('remov_count', 0) > 0 else ""
                     
-                    with st.expander(f"{badges} 🟢 {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{remov_pill}{esc_pill}"):
+                    remov_tag = " 🗑️ REMOVAL" if c.get('is_removal') else ""
+                    with st.expander(f"{badges} 🟢{remov_tag} {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{remov_pill}{esc_pill}"):
                         render_dispatch(i, c, pod_name)
                     
         with t_flagged:
@@ -2664,7 +2671,8 @@ def run_pod_tab(pod_name):
                     inst_pill = f"  [ 🛠️ {c.get('inst_count', 0)} Installs ]" if c.get('inst_count', 0) > 0 else ""
                     remov_pill = f"  [ 🗑️ {c.get('remov_count', 0)} Removal ]" if c.get('remov_count', 0) > 0 else ""
                     
-                    with st.expander(f"🔒 🔴 {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{remov_pill}{esc_pill}"):
+                    remov_tag = " 🗑️ REMOVAL" if c.get('is_removal') else ""
+                    with st.expander(f"🔒 🔴{remov_tag} {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{remov_pill}{esc_pill}"):
                         render_dispatch(i+1000, c, pod_name)
 
         with t_fn:
