@@ -628,6 +628,16 @@ def background_sheet_move(cluster_hash, payload_json, task_ids=None):
             pass
         
 # --- 2. INSTANT REVOKE LOGIC ---
+def background_fn_revoke(cluster_hash):
+    """Silently removes a route from the Field Nation tab in Google Sheets."""
+    try:
+        requests.post(GAS_WEB_APP_URL, json={
+            "action": "removeFieldNation",
+            "cluster_hash": cluster_hash
+        }, timeout=15)
+    except:
+        pass
+
 def move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=True, cluster_data=None):
     """Moves route to Dispatch column instantly. Sheet update + Onfleet scrub run in background."""
 
@@ -705,6 +715,12 @@ def render_finalization_checklist(cluster_hash, pod_name, prefix="chk"):
 def instant_revoke_handler(cluster_hash, ic_name, payload_json, pod_name):
     # We now enable Onfleet scrubbing (State 0 check) immediately
     move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=True, cluster_data=payload_json)
+
+def revoke_field_nation(cluster_hash, pod_name):
+    """Removes route from Field Nation sheet tab AND resets UI state."""
+    import threading
+    threading.Thread(target=background_fn_revoke, args=(cluster_hash,), daemon=True).start()
+    move_to_dispatch(cluster_hash, "Field Nation", pod_name, action_label="Field Nation Revoked", check_onfleet=True)
 
 # --- FIELD NATION MASS UPLOAD GENERATOR ---
 
@@ -2051,7 +2067,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             with st.popover("🚨 Confirm Field Nation Revocation", use_container_width=True):
                 st.error("Remove this route from Field Nation tracking?")
                 # 🌟 THE FIX: Upgraded to a callback so it doesn't freeze the screen!
-                st.button("🚨 Yes, Revoke FN", key=f"fn_rev_confirm_{pod_name}_{cluster_hash}", type="primary", use_container_width=True, on_click=move_to_dispatch, kwargs={"cluster_hash": cluster_hash, "ic_name": "Field Nation", "pod_name": pod_name, "action_label": "Field Nation Revoked", "check_onfleet": True})
+                st.button("🚨 Yes, Revoke FN", key=f"fn_rev_confirm_{pod_name}_{cluster_hash}", type="primary", use_container_width=True, on_click=revoke_field_nation, kwargs={"cluster_hash": cluster_hash, "pod_name": pod_name})
             st.stop()
 
     BG_COLOR = "#FEF9C3"
