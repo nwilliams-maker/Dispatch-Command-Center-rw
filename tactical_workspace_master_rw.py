@@ -327,15 +327,16 @@ button[kind="secondary"] {{
    ========================================= */
 div[data-testid="stExpander"] div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(2) button {{
     margin-top: 2px !important;
-    transform: scale(0.9) !important;
+    transform: scale(1.1) !important;
     transform-origin: center right !important;
-    padding: 0 4px !important;
+    padding: 0 6px !important;
     border: none !important;
     box-shadow: none !important;
     background: transparent !important;
     color: #ef4444 !important;
-    font-weight: 800 !important;
-    font-size: 16px !important;
+    font-weight: 900 !important;
+    font-size: 26px !important;
+    line-height: 1 !important;
 }}
 
 /* =========================================
@@ -1578,6 +1579,11 @@ def unify_and_sort_by_date(live_routes, ghost_routes, live_hashes):
 
 # --- DISPATCH RENDERING ---
 def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
+    # 🌟 Fire pending Gmail URL if stored from previous run
+    if st.session_state.get('_pending_gmail_url'):
+        _gmail_url = st.session_state.pop('_pending_gmail_url')
+        st.components.v1.html(f"<script>window.open('{_gmail_url}', '_blank');</script>", height=0)
+        st.success("✅ Link Live! Gmail opened.")
     # Capture current state identifiers
     task_ids = [str(t['id']).strip() for t in cluster['data']]
     cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
@@ -2041,19 +2047,12 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                     st.session_state[f"route_state_{cluster_hash}"] = "email_sent"
                     st.session_state[f"reverted_{cluster_hash}"] = False
                 
-                    # 4. ✉️ TRIGGER GMAIL WINDOW
+                    # 4. ✉️ STORE GMAIL URL — inject AFTER rerun so it survives
                     final_sig = email_body_content.replace("LINK_PENDING", final_route_id)
                     subject_line = requests.utils.quote(f"Route Request | {wo_val}")
                     body_content = requests.utils.quote(final_sig)
                     gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={ic.get('email', '')}&su={subject_line}&body={body_content}"
-                    st.components.v1.html(f"<script>window.open('{gmail_url}', '_blank');</script>", height=0)
-                
-                    # 5. ⏳ VISUAL COUNTDOWN & MOVE (Restored)
-                    timer_placeholder = st.empty()
-                    for seconds in range(2, 0, -1):
-                        timer_placeholder.success(f"✅ Link Live! Moving to 'Sent' in {seconds}s...")
-                        time.sleep(1)
-                    timer_placeholder.empty()
+                    st.session_state['_pending_gmail_url'] = gmail_url
                     st.rerun()
     
     # --- 🌐 FIELD NATION PERSISTENCE (CHECKBOX) ---
