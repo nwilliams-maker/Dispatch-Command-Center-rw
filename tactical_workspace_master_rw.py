@@ -952,6 +952,7 @@ def process_digital_pool(master_bar=None):
         venue_name = ""
         venue_id = ""
         client_company = ""
+        campaign_name = ""
         location_in_venue = ""
         
         # Default UI display to native details unless a custom field overwrites it
@@ -987,11 +988,10 @@ def process_digital_pool(master_bar=None):
             if f_name in ['locationinvenue', 'location in venue'] or f_key in ['locationinvenue', 'location_in_venue']:
                 location_in_venue = f_val
             if f_name in ['campaignname', 'campaign name'] or f_key in ['campaignname', 'campaign_name']:
-                client_company = f_val  # 🌟 Campaign Name maps to Customer Name in FN upload
+                campaign_name = f_val  # 🌟 Captured separately so Client Company can't overwrite it
 
-        # 🌟 FALLBACK: Grab Campaign Name directly from index 6 if key match missed or value was empty
-        if not client_company and len(custom_fields) > 6:
-            client_company = str(custom_fields[6].get('value', '') or '').strip()
+        # 🌟 Campaign Name always wins over Client Company for FN Customer Name
+        client_company = campaign_name or client_company
 
         # 2. CHECK REGULAR (STATIC) EXEMPTIONS FIRST
         # Expanded to include "escalation" to prevent crossing over
@@ -1227,6 +1227,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             venue_name = ""
             venue_id = ""
             client_company = ""
+            campaign_name = ""
             location_in_venue = ""
             
             for f in custom_fields:
@@ -1259,8 +1260,10 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 if f_name in ['locationinvenue', 'location in venue'] or f_key in ['locationinvenue', 'location_in_venue']:
                     location_in_venue = f_val
                 if f_name in ['campaignname', 'campaign name'] or f_key in ['campaignname', 'campaign_name']:
-                    client_company = f_val  # 🌟 Campaign Name maps to Customer Name in FN upload
+                    campaign_name = f_val  # 🌟 Captured separately so Client Company can't overwrite it
 
+            # 🌟 Campaign Name always wins over Client Company for FN Customer Name
+            client_company = campaign_name or client_company
             # 2. CHECK REGULAR (STATIC) EXEMPTIONS FIRST
             # Combines native and custom type to ensure "Magnet" or "Photo" are never missed
             search_string = f"{native_details} {custom_task_type}".lower()
@@ -2160,7 +2163,7 @@ def smart_sync_pod(pod_name):
         custom_task_type = ""
         custom_boosted = ""
         tt_val = native_details
-        venue_name = ""; venue_id = ""; client_company = ""; location_in_venue = ""
+        venue_name = ""; venue_id = ""; client_company = ""; campaign_name = ""; location_in_venue = ""
 
         for f in custom_fields:
             f_name = str(f.get('name', '')).strip().lower()
@@ -2183,11 +2186,10 @@ def smart_sync_pod(pod_name):
             if f_name in ['locationinvenue', 'location in venue'] or f_key in ['locationinvenue', 'location_in_venue']:
                 location_in_venue = f_val
             if f_name in ['campaignname', 'campaign name'] or f_key in ['campaignname', 'campaign_name']:
-                client_company = f_val  # 🌟 Campaign Name maps to Customer Name in FN upload
+                campaign_name = f_val  # 🌟 Captured separately so Client Company can't overwrite it
 
-        # 🌟 FALLBACK: Grab Campaign Name directly from index 6 if key match missed or value was empty
-        if not client_company and len(custom_fields) > 6:
-            client_company = str(custom_fields[6].get('value', '') or '').strip()
+        # 🌟 Campaign Name always wins over Client Company for FN Customer Name
+        client_company = campaign_name or client_company
 
         search_string = f"{native_details} {custom_task_type}".lower()
         REGULAR_EXEMPTIONS = ["photo", "magnet", "continuity", "new ad", "pull down", "kiosk", "escalation"]
