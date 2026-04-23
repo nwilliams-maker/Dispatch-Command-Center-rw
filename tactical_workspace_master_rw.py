@@ -3006,8 +3006,7 @@ def run_pod_tab(pod_name):
                     _k_pill = f" | 🛠️ {_k_total} Kiosk" if _k_total > 0 else ""
                     exp_col, btn_col = st.columns([8.5, 1.5], vertical_alignment="center")
                     with exp_col:
-                        with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_k_pill} | Due: {due}"):
-                            st.success("Route accepted. Complete the checklist to finalize.")
+                        with st.expander(f"✅ {c.get('wo', ic_name)} | ${comp} | Due: {due}"):
                             u_locs = []
                             for tk in c['data']:
                                 if tk['full'] not in u_locs: u_locs.append(tk['full'])
@@ -3018,8 +3017,9 @@ def run_pod_tab(pod_name):
                                 _k_tag = f" <span style='color:#16a34a; font-weight:800;'>🛠️ {_k_cnt} Kiosk</span>" if _k_cnt > 0 else ""
                                 _v_prefix = f"<span style='color:#94a3b8; font-weight:600;'>{_venue_key} — </span>" if _venue_key else ""
                                 loc_rows.append(f"<li>{_v_prefix}{l}{_k_tag}</li>")
-                            loc_html = "".join(loc_rows)
-                            st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Venue Locations</span></div><div style="padding:10px 12px;"><ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{loc_html}</ul></div></div>""", unsafe_allow_html=True)
+                            _acc_loc_items = "".join(loc_rows)
+                            _acc_venues_html = f'''<div style="border-top:1px solid #e2e8f0; padding:10px 12px;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Venue Locations</div><ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{_acc_loc_items}</ul></div>'''
+                            st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span></div><div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Contractor</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{ic_name}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Stops / Tasks</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{stops_cnt} <span style="color:#94a3b8; font-size:11px; font-weight:500;">Stops / {tasks_cnt} Tasks</span></div></div></div><div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Due Date</div><div style="font-size:13px; font-weight:700; color:#0f172a;">{due}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div><div style="font-size:18px; font-weight:900; color:#16a34a;">${comp}</div></div></div>{_acc_venues_html}</div>""", unsafe_allow_html=True)
                             render_finalization_checklist(cluster_hash, pod_name, "chk")
                     with btn_col:
                         with st.popover("↩️", use_container_width=True):
@@ -3036,17 +3036,14 @@ def run_pod_tab(pod_name):
                     with exp_col:
                         _gk_total = g.get('kCnt', 0) or 0
                         _gk_pill = f" | 🛠️ {_gk_total} Kiosk" if _gk_total > 0 else ""
-                        with st.expander(f"✅ {g.get('wo', g_ic_name)} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_gk_pill} | Due: {due}"):
-                            st.success("Accepted and synced with OnFleet. Complete the checklist to finalize.")
+                        with st.expander(f"✅ {g.get('wo', g_ic_name)} | ${comp} | Due: {due}"):
                             raw_locs = [s.strip() for s in g.get('locs', '').split('|') if s.strip()]
                             if len(raw_locs) >= 3: task_locs = raw_locs[1:-1]
                             else: task_locs = raw_locs
-                            u_locs = []
-                            for l in task_locs:
-                                if l not in u_locs: u_locs.append(l)
-                            if u_locs:
-                                loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
-                                st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Venue Locations</span></div><div style="padding:10px 12px;"><ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{loc_html}</ul></div></div>""", unsafe_allow_html=True)
+                            u_locs = list(dict.fromkeys(task_locs))
+                            _gacc_items = "".join([f"<li>{l}</li>" for l in u_locs])
+                            _gacc_venues = f'''<div style="border-top:1px solid #e2e8f0; padding:10px 12px;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Venue Locations</div><ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{_gacc_items}</ul></div>''' if u_locs else ""
+                            st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span></div><div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Contractor</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{g_ic_name}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Stops / Tasks</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{stops_cnt} <span style="color:#94a3b8; font-size:11px; font-weight:500;">Stops / {tasks_cnt} Tasks</span></div></div></div><div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Due Date</div><div style="font-size:13px; font-weight:700; color:#0f172a;">{due}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div><div style="font-size:18px; font-weight:900; color:#16a34a;">${comp}</div></div></div>{_gacc_venues}</div>""", unsafe_allow_html=True)
                             render_finalization_checklist(ghost_hash, pod_name, "g_chk")
                     with btn_col:
                         with st.popover("↩️", use_container_width=True):
@@ -3070,8 +3067,14 @@ def run_pod_tab(pod_name):
                 cluster_hash = hashlib.md5("".join(sorted(task_ids)).encode()).hexdigest()
                 exp_col, btn_col = st.columns([8.5, 1.5], vertical_alignment="center")
                 with exp_col:
-                    with st.expander(f"❌ {ic_name} | {c['city']}, {c['state']}"):
-                        st.error("Route declined. Re-route to a new IC.")
+                    comp_dec = c.get('comp', 0)
+                    due_dec = c.get('due', 'N/A')
+                    stops_dec, tasks_dec = c['stops'], len(c['data'])
+                    with st.expander(f"❌ {c.get('wo', ic_name)} | ${comp_dec} | Due: {due_dec}"):
+                        u_locs_dec = list(dict.fromkeys(t['full'] for t in c['data']))
+                        _dec_items = "".join([f"<li><span style='color:#94a3b8; font-weight:600;'>{next((t.get('venue_name','') for t in c['data'] if t['full']==l and t.get('venue_name')),'') + ' — ' if next((t.get('venue_name','') for t in c['data'] if t['full']==l and t.get('venue_name')),'') else ''}</span>{l}</li>" for l in u_locs_dec])
+                        _dec_venues = f'''<div style="border-top:1px solid #e2e8f0; padding:10px 12px;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Venue Locations</div><ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{_dec_items}</ul></div>'''
+                        st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span></div><div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Contractor</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{ic_name}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Stops / Tasks</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{stops_dec} <span style="color:#94a3b8; font-size:11px; font-weight:500;">Stops / {tasks_dec} Tasks</span></div></div></div><div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Due Date</div><div style="font-size:13px; font-weight:700; color:#0f172a;">{due_dec}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div><div style="font-size:18px; font-weight:900; color:#16a34a;">${comp_dec}</div></div></div>{_dec_venues}</div>""", unsafe_allow_html=True)
                         render_dispatch(i+3000, c, pod_name, is_declined=True)
                 with btn_col:
                     with st.popover("↩️", use_container_width=True):
@@ -3107,7 +3110,7 @@ def run_pod_tab(pod_name):
                     _fk_pill = f" | 🛠️ {_fk_total} Kiosk" if _fk_total > 0 else ""
                     exp_col, btn_col = st.columns([8.5, 1.5], vertical_alignment="center")
                     with exp_col:
-                        with st.expander(f"🏁 {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_fk_pill} | Due: {due}"):
+                        with st.expander(f"🏁 {c.get('wo', ic_name)} | ${comp} | Due: {due}"):
                             u_locs = []
                             for tk in c['data']:
                                 if tk['full'] not in u_locs: u_locs.append(tk['full'])
@@ -3118,8 +3121,9 @@ def run_pod_tab(pod_name):
                                 _k_tag = f" <span style='color:#16a34a; font-weight:800;'>🛠️ {_k_cnt} Kiosk</span>" if _k_cnt > 0 else ""
                                 _fv_prefix = f"<span style='color:#94a3b8; font-weight:600;'>{_fvk} — </span>" if _fvk else ""
                                 loc_rows.append(f"<li>{_fv_prefix}{l}{_k_tag}</li>")
-                            loc_html = "".join(loc_rows)
-                            st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Venue Locations</span></div><div style="padding:10px 12px;"><ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{loc_html}</ul></div></div>""", unsafe_allow_html=True)
+                            _fin_items = "".join(loc_rows)
+                            _fin_venues = f'''<div style="border-top:1px solid #e2e8f0; padding:10px 12px;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Venue Locations</div><ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{_fin_items}</ul></div>'''
+                            st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span></div><div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Contractor</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{ic_name}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Stops / Tasks</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{stops_cnt} <span style="color:#94a3b8; font-size:11px; font-weight:500;">Stops / {tasks_cnt} Tasks</span></div></div></div><div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Due Date</div><div style="font-size:13px; font-weight:700; color:#0f172a;">{due}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div><div style="font-size:18px; font-weight:900; color:#16a34a;">${comp}</div></div></div>{_fin_venues}</div>""", unsafe_allow_html=True)
                     with btn_col:
                         with st.popover("↩️", use_container_width=True):
                             st.markdown(f"<p style='font-size:13px; text-align:center;'>Re-route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
@@ -3136,17 +3140,15 @@ def run_pod_tab(pod_name):
                     with exp_col:
                         _gfk_total = g.get('kCnt', 0) or 0
                         _gfk_pill = f" | 🛠️ {_gfk_total} Kiosk" if _gfk_total > 0 else ""
-                        with st.expander(f"🏁 {wo_display} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_gfk_pill} | Due: {due}"):
-                            st.success("Route Finalized and Archived.")
+                        with st.expander(f"🏁 {wo_display} | ${comp} | Due: {due}"):
                             raw_locs = [s.strip() for s in g.get('locs', '').split('|') if s.strip()]
                             if len(raw_locs) >= 3: task_locs = raw_locs[1:-1]
                             else: task_locs = raw_locs
-                            u_locs = []
-                            for l in task_locs:
-                                if l not in u_locs: u_locs.append(l)
-                            if u_locs:
-                                loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
-                                st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Venue Locations</span></div><div style="padding:10px 12px;"><ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{loc_html}</ul></div></div>""", unsafe_allow_html=True)
+                            u_locs = list(dict.fromkeys(task_locs))
+                            _gfin_items = "".join([f"<li>{l}</li>" for l in u_locs])
+                            _gfin_venues = f'''<div style="border-top:1px solid #e2e8f0; padding:10px 12px;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Venue Locations</div><ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{_gfin_items}</ul></div>''' if u_locs else ""
+                            g_ic_name_fin = g.get('contractor_name', 'Unknown')
+                            st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span></div><div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Contractor</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{g_ic_name_fin}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Stops / Tasks</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{stops_cnt} <span style="color:#94a3b8; font-size:11px; font-weight:500;">Stops / {tasks_cnt} Tasks</span></div></div></div><div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Due Date</div><div style="font-size:13px; font-weight:700; color:#0f172a;">{due}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div><div style="font-size:18px; font-weight:900; color:#16a34a;">${comp}</div></div></div>{_gfin_venues}</div>""", unsafe_allow_html=True)
                 
 # --- START ---
 if "ic_df" not in st.session_state:
@@ -3598,13 +3600,16 @@ with tabs[6]:
                         
                         exp_col, btn_col = st.columns([8.5, 1.5], vertical_alignment="center")
                         with exp_col:
-                            with st.expander(f"✉️ {wo_display} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
-                                st.info("Route sent. Awaiting contractor response.")
-                                u_locs = []
+                            with st.expander(f"✉️ {wo_display} | ${comp} | Due: {due}"):
+                                u_locs, _dslv = [], []
                                 for tk in c['data']:
-                                    if tk['full'] not in u_locs: u_locs.append(tk['full'])
-                                loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
-                                st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Venue Locations</span></div><div style="padding:10px 12px;"><ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{loc_html}</ul></div></div>""", unsafe_allow_html=True)
+                                    if tk['full'] not in u_locs:
+                                        u_locs.append(tk['full'])
+                                        _v = tk.get('venue_name', '')
+                                        _dslv.append(f"{_v} — {tk['full']}" if _v else tk['full'])
+                                _ds_items = "".join([f"<li>{l}</li>" for l in _dslv])
+                                _ds_venues = f'''<div style="border-top:1px solid #e2e8f0; padding:10px 12px;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Venue Locations</div><ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{_ds_items}</ul></div>'''
+                                st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span></div><div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Contractor</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{ic_name}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Stops / Tasks</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{stops_cnt} <span style="color:#94a3b8; font-size:11px; font-weight:500;">Stops / {tasks_cnt} Tasks</span></div></div></div><div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Due Date</div><div style="font-size:13px; font-weight:700; color:#0f172a;">{due}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div><div style="font-size:18px; font-weight:900; color:#16a34a;">${comp}</div></div></div>{_ds_venues}</div>""", unsafe_allow_html=True)
                         with btn_col:
                             with st.popover("↩️", use_container_width=True):
                                 st.markdown(f"<p style='font-size:13px; text-align:center;'>Re-route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
@@ -3619,17 +3624,14 @@ with tabs[6]:
                         
                         exp_col, btn_col = st.columns([8.5, 1.5], vertical_alignment="center")
                         with exp_col:
-                            with st.expander(f"✉️ {wo_display} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks | Due: {due}"):
-                                st.info("Route sent. Awaiting contractor response.")
+                            with st.expander(f"✉️ {wo_display} | ${comp} | Due: {due}"):
                                 raw_locs = [s.strip() for s in g.get('locs', '').split('|') if s.strip()]
                                 if len(raw_locs) >= 3: task_locs = raw_locs[1:-1]
                                 else: task_locs = raw_locs
-                                u_locs = []
-                                for l in task_locs:
-                                    if l not in u_locs: u_locs.append(l)
-                                if u_locs:
-                                    loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
-                                    st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Venue Locations</span></div><div style="padding:10px 12px;"><ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{loc_html}</ul></div></div>""", unsafe_allow_html=True)
+                                u_locs = list(dict.fromkeys(task_locs))
+                                _dsg_items = "".join([f"<li>{l}</li>" for l in u_locs])
+                                _dsg_venues = f'''<div style="border-top:1px solid #e2e8f0; padding:10px 12px;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Venue Locations</div><ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{_dsg_items}</ul></div>''' if u_locs else ""
+                                st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span></div><div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Contractor</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{g_ic_name}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Stops / Tasks</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{stops_cnt} <span style="color:#94a3b8; font-size:11px; font-weight:500;">Stops / {tasks_cnt} Tasks</span></div></div></div><div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Due Date</div><div style="font-size:13px; font-weight:700; color:#0f172a;">{due}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div><div style="font-size:18px; font-weight:900; color:#16a34a;">${comp}</div></div></div>{_dsg_venues}</div>""", unsafe_allow_html=True)
                         with btn_col:
                             with st.popover("↩️", use_container_width=True):
                                 st.markdown(f"<p style='font-size:13px; text-align:center;'>Re-route from <b>{g_ic_name}</b>?</p>", unsafe_allow_html=True)
@@ -3658,16 +3660,17 @@ with tabs[6]:
                         _dins_pill = f" | 🔧 {_dins_cnt} Ins/Rem" if _dins_cnt > 0 else ""
                         exp_col, btn_col = st.columns([8.5, 1.5], vertical_alignment="center")
                         with exp_col:
-                            with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_dins_pill} | Due: {due}"):
-                                st.success("Route accepted. Complete the checklist to finalize.")
-                                u_locs = []
+                            with st.expander(f"✅ {c.get('wo', ic_name)} | ${comp} | Due: {due}"):
+                                u_locs, _dalv = [], []
                                 for tk in c['data']:
-                                    if tk['full'] not in u_locs: u_locs.append(tk['full'])
-                                loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
-                                st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Venue Locations</span></div><div style="padding:10px 12px;"><ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{loc_html}</ul></div></div>""", unsafe_allow_html=True)
+                                    if tk['full'] not in u_locs:
+                                        u_locs.append(tk['full'])
+                                        _v = tk.get('venue_name','')
+                                        _dalv.append(f"{_v} — {tk['full']}" if _v else tk['full'])
+                                _dal_items = "".join([f"<li>{l}</li>" for l in _dalv])
+                                _dal_venues = f'''<div style="border-top:1px solid #e2e8f0; padding:10px 12px;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Venue Locations</div><ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{_dal_items}</ul></div>'''
+                                st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span></div><div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Contractor</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{ic_name}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Stops / Tasks</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{stops_cnt} <span style="color:#94a3b8; font-size:11px; font-weight:500;">Stops / {tasks_cnt} Tasks</span></div></div></div><div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Due Date</div><div style="font-size:13px; font-weight:700; color:#0f172a;">{due}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div><div style="font-size:18px; font-weight:900; color:#16a34a;">${comp}</div></div></div>{_dal_venues}</div>""", unsafe_allow_html=True)
                                 render_finalization_checklist(cluster_hash, "Global_Digital", "d_chk")
-                                st.divider()
-                                render_dispatch(i+11000, c, "Global_Digital", is_sent=True)
                         with btn_col:
                             with st.popover("↩️", use_container_width=True):
                                 st.markdown(f"<p style='font-size:13px; text-align:center;'>Are you sure you want to remove this route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
@@ -3683,17 +3686,14 @@ with tabs[6]:
                         with exp_col:
                             _gins_cnt = g.get('digi_ins', 0) or 0
                         _gins_pill = f" | 🔧 {_gins_cnt} Ins/Rem" if _gins_cnt > 0 else ""
-                        with st.expander(f"✅ {g.get('wo', g_ic_name)} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_gins_pill} | Due: {due}"):
-                                st.success("Accepted and synced with OnFleet. Complete the checklist to finalize.")
+                        with st.expander(f"✅ {g.get('wo', g_ic_name)} | ${comp} | Due: {due}"):
                                 raw_locs = [s.strip() for s in g.get('locs', '').split('|') if s.strip()]
                                 if len(raw_locs) >= 3: task_locs = raw_locs[1:-1]
                                 else: task_locs = raw_locs
-                                u_locs = []
-                                for l in task_locs:
-                                    if l not in u_locs: u_locs.append(l)
-                                if u_locs:
-                                    loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
-                                    st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Venue Locations</span></div><div style="padding:10px 12px;"><ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{loc_html}</ul></div></div>""", unsafe_allow_html=True)
+                                u_locs = list(dict.fromkeys(task_locs))
+                                _dag_items = "".join([f"<li>{l}</li>" for l in u_locs])
+                                _dag_venues = f'''<div style="border-top:1px solid #e2e8f0; padding:10px 12px;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Venue Locations</div><ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{_dag_items}</ul></div>''' if u_locs else ""
+                                st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span></div><div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Contractor</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{g_ic_name}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Stops / Tasks</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{stops_cnt} <span style="color:#94a3b8; font-size:11px; font-weight:500;">Stops / {tasks_cnt} Tasks</span></div></div></div><div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Due Date</div><div style="font-size:13px; font-weight:700; color:#0f172a;">{due}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div><div style="font-size:18px; font-weight:900; color:#16a34a;">${comp}</div></div></div>{_dag_venues}</div>""", unsafe_allow_html=True)
                                 render_finalization_checklist(ghost_hash, "Global_Digital", "g_chk_d")
                         with btn_col:
                             with st.popover("↩️", use_container_width=True):
@@ -3717,7 +3717,13 @@ with tabs[6]:
                     ic_name = c.get('contractor_name', 'Unknown')
                     exp_col, btn_col = st.columns([8.5, 1.5], vertical_alignment="center")
                     with exp_col:
-                        with st.expander(f"❌ {c.get('wo', ic_name)} | {c['city']}, {c['state']}"):
+                        comp_ddec = c.get('comp', 0); due_ddec = c.get('due', 'N/A')
+                        stops_ddec, tasks_ddec = c['stops'], len(c['data'])
+                        with st.expander(f"❌ {c.get('wo', ic_name)} | ${comp_ddec} | Due: {due_ddec}"):
+                            u_locs_ddec = list(dict.fromkeys(t['full'] for t in c['data']))
+                            _ddec_items = "".join([f"<li><span style='color:#94a3b8; font-weight:600;'>{next((t.get('venue_name','') for t in c['data'] if t['full']==l and t.get('venue_name')),'') + ' — ' if next((t.get('venue_name','') for t in c['data'] if t['full']==l and t.get('venue_name')),'') else ''}</span>{l}</li>" for l in u_locs_ddec])
+                            _ddec_venues = f'''<div style="border-top:1px solid #e2e8f0; padding:10px 12px;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Venue Locations</div><ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{_ddec_items}</ul></div>'''
+                            st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span></div><div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Contractor</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{ic_name}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Stops / Tasks</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{stops_ddec} <span style="color:#94a3b8; font-size:11px; font-weight:500;">Stops / {tasks_ddec} Tasks</span></div></div></div><div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Due Date</div><div style="font-size:13px; font-weight:700; color:#0f172a;">{due_ddec}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div><div style="font-size:18px; font-weight:900; color:#16a34a;">${comp_ddec}</div></div></div>{_ddec_venues}</div>""", unsafe_allow_html=True)
                             render_dispatch(i+12000, c, "Global_Digital", is_declined=True)
                     with btn_col:
                         with st.popover("↩️", use_container_width=True):
@@ -3747,13 +3753,16 @@ with tabs[6]:
                         _dfins_pill = f" | 🔧 {_dfins_cnt} Ins/Rem" if _dfins_cnt > 0 else ""
                         exp_col, btn_col = st.columns([8.5, 1.5], vertical_alignment="center")
                         with exp_col:
-                            with st.expander(f"🏁 {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_dfins_pill} | Due: {due}"):
-                                u_locs = []
+                            with st.expander(f"🏁 {c.get('wo', ic_name)} | ${comp} | Due: {due}"):
+                                u_locs, _dflv = [], []
                                 for tk in c['data']:
-                                    if tk['full'] not in u_locs: u_locs.append(tk['full'])
-                                loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
-                                st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Venue Locations</span></div><div style="padding:10px 12px;"><ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{loc_html}</ul></div></div>""", unsafe_allow_html=True)
-                                render_dispatch(i+13000, c, "Global_Digital", is_sent=True)
+                                    if tk['full'] not in u_locs:
+                                        u_locs.append(tk['full'])
+                                        _v = tk.get('venue_name','')
+                                        _dflv.append(f"{_v} — {tk['full']}" if _v else tk['full'])
+                                _dfl_items = "".join([f"<li>{l}</li>" for l in _dflv])
+                                _dfl_venues = f'''<div style="border-top:1px solid #e2e8f0; padding:10px 12px;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Venue Locations</div><ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{_dfl_items}</ul></div>'''
+                                st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span></div><div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Contractor</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{ic_name}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Stops / Tasks</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{stops_cnt} <span style="color:#94a3b8; font-size:11px; font-weight:500;">Stops / {tasks_cnt} Tasks</span></div></div></div><div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Due Date</div><div style="font-size:13px; font-weight:700; color:#0f172a;">{due}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div><div style="font-size:18px; font-weight:900; color:#16a34a;">${comp}</div></div></div>{_dfl_venues}</div>""", unsafe_allow_html=True)
                         with btn_col:
                             with st.popover("↩️", use_container_width=True):
                                 st.markdown(f"<p style='font-size:13px; text-align:center;'>Re-route from <b>{ic_name}</b>?</p>", unsafe_allow_html=True)
@@ -3770,17 +3779,14 @@ with tabs[6]:
                         with exp_col:
                             _gdfins_cnt = g.get('digi_ins', 0) or 0
                         _gdfins_pill = f" | 🔧 {_gdfins_cnt} Ins/Rem" if _gdfins_cnt > 0 else ""
-                        with st.expander(f"🏁 {wo_display} | {g.get('city')}, {g.get('state')} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_gdfins_pill} | Due: {due}"):
-                                st.success("Route Finalized and Archived.")
+                        with st.expander(f"🏁 {wo_display} | ${comp} | Due: {due}"):
                                 raw_locs = [s.strip() for s in g.get('locs', '').split('|') if s.strip()]
                                 if len(raw_locs) >= 3: task_locs = raw_locs[1:-1]
                                 else: task_locs = raw_locs
-                                u_locs = []
-                                for l in task_locs:
-                                    if l not in u_locs: u_locs.append(l)
-                                if u_locs:
-                                    loc_html = "".join([f"<li>{l}</li>" for l in u_locs])
-                                    st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Venue Locations</span></div><div style="padding:10px 12px;"><ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{loc_html}</ul></div></div>""", unsafe_allow_html=True)
+                                u_locs = list(dict.fromkeys(task_locs))
+                                _dgf_items = "".join([f"<li>{l}</li>" for l in u_locs])
+                                _dgf_venues = f'''<div style="border-top:1px solid #e2e8f0; padding:10px 12px;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Venue Locations</div><ul style="margin:0; padding-left:16px; font-size:11px; color:#475569; line-height:1.8;">{_dgf_items}</ul></div>''' if u_locs else ""
+                                st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span></div><div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Contractor</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{g_ic_name}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Stops / Tasks</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{stops_cnt} <span style="color:#94a3b8; font-size:11px; font-weight:500;">Stops / {tasks_cnt} Tasks</span></div></div></div><div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Due Date</div><div style="font-size:13px; font-weight:700; color:#0f172a;">{due}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div><div style="font-size:18px; font-weight:900; color:#16a34a;">${comp}</div></div></div>{_dgf_venues}</div>""", unsafe_allow_html=True)
                         
 # --- FINAL FOOTER (End of File) ---
 st.markdown("---")
