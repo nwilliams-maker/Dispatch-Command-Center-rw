@@ -618,11 +618,6 @@ div[data-testid="stHorizontalBlock"] {{ align-items: flex-start !important; }}
 /* TIGHTEN GAPS BETWEEN CARDS */
 div[data-testid="stVerticalBlock"] {{ gap: 1rem !important; }}
 
-/* Tighten stop list rows inside expanders */
-div[data-testid="stExpander"] div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"] {{
-    margin-top: -10px !important;
-    margin-bottom: 0px !important;
-}}
 div[data-testid="stExpander"] {{ margin-top: 0px !important; margin-bottom: 2px !important; }}
 
 /* MINI REVOKE BUTTON (Single Line, Right Aligned) */
@@ -1894,12 +1889,11 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
 </div>
 """, unsafe_allow_html=True)
 
-        # ── ROUTE STOPS (after financials) ─────────────────────────────────
+        # ── ROUTE STOPS (single HTML block — no Streamlit gaps) ────────────
         hist = st.session_state.get(f"history_{cluster_hash}", [])
-        if hist:
-            st.markdown(f"<p style='color:#94a3b8; font-size:12px; margin-bottom:4px; font-weight:600;'>↩️ Previously sent to: {', '.join(hist)}</p>", unsafe_allow_html=True)
+        _hist_html = f"<div style='font-size:11px; color:#94a3b8; font-weight:600; margin-bottom:4px;'>↩️ Previously sent to: {', '.join(hist)}</div>" if hist else ""
 
-        st.markdown("<div style='background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:8px;'><div style='background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:6px 12px;'><span style='font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;'>Route Stops</span></div><div style='padding:6px 10px;'>", unsafe_allow_html=True)
+        _stop_rows = []
         for addr, metrics in stop_metrics.items():
             pill_parts = []
             if metrics['n_ad'] > 0: pill_parts.append(f"🆕 {metrics['n_ad']} New Ad")
@@ -1907,8 +1901,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             if metrics['d_ad'] > 0: pill_parts.append(f"⚪ {metrics['d_ad']} Default")
             if metrics['inst'] > 0: pill_parts.append(f"🛠️ {metrics['inst']} Kiosk Install")
             if metrics['remov'] > 0: pill_parts.append(f"🗑️ {metrics['remov']} Kiosk Removal")
-            for custom_name, count in metrics['custom'].items():
-                pill_parts.append(f"📋 {count} {custom_name}")
+            for custom_name, count in metrics['custom'].items(): pill_parts.append(f"📋 {count} {custom_name}")
             if metrics['digi_off'] > 0: pill_parts.append(f"📵 {metrics['digi_off']} Offline")
             if metrics['digi_ins'] > 0: pill_parts.append(f"🔧 {metrics['digi_ins']} Ins/Rem")
             if metrics['digi_srv'] > 0: pill_parts.append(f"⚙️ {metrics['digi_srv']} Service")
@@ -1916,40 +1909,51 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             esc_count_stop = sum(1 for t in cluster['data'] if t.get('full') == addr and t.get('escalated'))
             esc_inline = f" <span style='color:#dc2626; font-weight:900; font-size:10px;'>❗ {esc_count_stop}</span>" if esc_count_stop > 0 else ""
             display_addr = f"+ {addr}" if metrics.get('is_new') else addr
-            venue_prefix = f"<span style='color:#94a3b8; font-weight:600; font-size:11px;'>{metrics['venue_name']} — </span>" if metrics.get('venue_name') else ""
-            s_col, b_col = st.columns([0.92, 0.08], vertical_alignment="center")
-            with s_col:
-                st.markdown(
-                    f"<div style='padding:3px 0; border-bottom:1px solid #f1f5f9;'>"
-                    f"{venue_prefix}<span style='font-weight:700; font-size:12px; color:#0f172a;'>{display_addr}</span>{esc_inline} &nbsp;"
-                    f"<span style='color:#633094; background:#f3e8ff; padding:1px 5px; border-radius:8px; font-weight:800; font-size:10px;'>{metrics['t_count']} Tasks</span>"
-                    f"<span style='font-size:11px; color:#94a3b8;'> — {pill_str}</span></div>",
-                    unsafe_allow_html=True
-                )
-            with b_col:
-                if not is_sent and not is_declined:
-                    if st.button("-", key=f"split_{pod_name}_{cluster_hash}_{hashlib.md5(addr.encode()).hexdigest()[:6]}", help="Remove this stop from the route"):
-                        tasks_to_move = [t for t in cluster['data'] if t['full'] == addr]
-                        new_fragment = {
-                            "data": tasks_to_move, "center": [tasks_to_move[0]['lat'], tasks_to_move[0]['lon']],
-                            "stops": 1, "city": tasks_to_move[0]['city'], "state": tasks_to_move[0]['state'],
-                            "status": "Ready", "has_ic": cluster.get('has_ic', False),
-                            "esc_count": sum(1 for x in tasks_to_move if x.get('escalated')),
-                            "is_digital": any(x.get('is_digital') for x in tasks_to_move),
-                            "inst_count": sum(1 for x in tasks_to_move if "install" in str(x.get('task_type', '')).lower()),
-                            "remov_count": sum(1 for x in tasks_to_move if "remove" in str(x.get('task_type', '')).lower()),
-                            "wo": "none"
-                        }
-                        cluster['data'] = [t for t in cluster['data'] if t['full'] != addr]
-                        cluster['stops'] = len(set(t['full'] for t in cluster['data']))
-                        target_pod = pod_name if pod_name != "Global_Digital" else next((p for p, cfg in POD_CONFIGS.items() if new_fragment['state'] in cfg['states']), "UNKNOWN")
-                        if target_pod != "UNKNOWN" and f"clusters_{target_pod}" in st.session_state:
-                            st.session_state[f"clusters_{target_pod}"].append(new_fragment)
-                        st.session_state.pop(pay_key, None)
-                        st.session_state.pop(rate_key, None)
-                        st.toast("📍 Stop broken off into a standalone route!")
-                        st.rerun()
-        st.markdown("</div></div>", unsafe_allow_html=True)
+            venue_prefix = f"<span style='color:#94a3b8; font-size:11px; font-weight:600;'>{metrics['venue_name']} — </span>" if metrics.get('venue_name') else ""
+            task_pill = f"<span style='color:#633094; background:#f3e8ff; padding:1px 5px; border-radius:8px; font-weight:800; font-size:10px;'>{metrics['t_count']} Tasks</span>"
+            pill_html = f"<span style='font-size:11px; color:#94a3b8;'> — {pill_str}</span>" if pill_str else ""
+            _stop_rows.append(
+                f"<div style='padding:5px 0; border-bottom:1px solid #f1f5f9; line-height:1.3;'>"
+                f"{venue_prefix}<span style='font-weight:700; font-size:12px; color:#0f172a;'>{display_addr}</span>{esc_inline} &nbsp;{task_pill}{pill_html}"
+                f"</div>"
+            )
+
+        _stop_html = "".join(_stop_rows)
+        st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:8px;">
+    <div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:6px 12px;">
+        <span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Stops</span>
+    </div>
+    <div style="padding:4px 12px 6px 12px;">{_hist_html}{_stop_html}</div>
+</div>""", unsafe_allow_html=True)
+
+        # Break-off tool — selectbox below the list (keeps all interactivity)
+        if not is_sent and not is_declined and len(stop_metrics) > 1:
+            _split_opts = list(stop_metrics.keys())
+            _split_col1, _split_col2 = st.columns([4, 1])
+            with _split_col1:
+                _split_addr = st.selectbox("Break off stop", _split_opts, key=f"split_sel_{pod_name}_{cluster_hash}", label_visibility="collapsed")
+            with _split_col2:
+                if st.button("−", key=f"split_btn_{pod_name}_{cluster_hash}", help="Break off this stop into a new route"):
+                    tasks_to_move = [t for t in cluster['data'] if t['full'] == _split_addr]
+                    new_fragment = {
+                        "data": tasks_to_move, "center": [tasks_to_move[0]['lat'], tasks_to_move[0]['lon']],
+                        "stops": 1, "city": tasks_to_move[0]['city'], "state": tasks_to_move[0]['state'],
+                        "status": "Ready", "has_ic": cluster.get('has_ic', False),
+                        "esc_count": sum(1 for x in tasks_to_move if x.get('escalated')),
+                        "is_digital": any(x.get('is_digital') for x in tasks_to_move),
+                        "inst_count": sum(1 for x in tasks_to_move if "install" in str(x.get('task_type', '')).lower()),
+                        "remov_count": sum(1 for x in tasks_to_move if "remove" in str(x.get('task_type', '')).lower()),
+                        "wo": "none"
+                    }
+                    cluster['data'] = [t for t in cluster['data'] if t['full'] != _split_addr]
+                    cluster['stops'] = len(set(t['full'] for t in cluster['data']))
+                    target_pod = pod_name if pod_name != "Global_Digital" else next((p for p, cfg in POD_CONFIGS.items() if new_fragment['state'] in cfg['states']), "UNKNOWN")
+                    if target_pod != "UNKNOWN" and f"clusters_{target_pod}" in st.session_state:
+                        st.session_state[f"clusters_{target_pod}"].append(new_fragment)
+                    st.session_state.pop(pay_key, None)
+                    st.session_state.pop(rate_key, None)
+                    st.toast("📍 Stop broken off into a standalone route!")
+                    st.rerun()
 
         stops_text = ""
         for i, (addr, metrics) in enumerate(list(stop_metrics.items())[:2], start=1):
