@@ -1399,14 +1399,14 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             
             candidates.sort(key=lambda x: x[0])
             
-            # --- PRESERVED: 20 STOP LIMIT LOGIC ---
+            # --- STOP LIMIT: 10 for CVS Removal, 20 for all others ---
+            stop_limit = 10 if anc_is_removal else 20
             group = [anc]
             unique_stops = {anc['full']}
             spillover = []
             
             for _, t in candidates:
-                # Only add the task if we're under 20 stops OR the task is at an address we already have
-                if len(unique_stops) < 20 or t['full'] in unique_stops:
+                if len(unique_stops) < stop_limit or t['full'] in unique_stops:
                     group.append(t)
                     unique_stops.add(t['full'])
                 else:
