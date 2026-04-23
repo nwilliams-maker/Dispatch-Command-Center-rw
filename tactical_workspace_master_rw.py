@@ -2037,6 +2037,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                     "locs": " | ".join([home] + list(stop_metrics.keys()) + [home]),
                     "taskIds": ",".join(task_ids),
                     "tCnt": len(task_ids),
+                    "kCnt": cluster.get('inst_count', 0),
                     "jobOnly": " | ".join([f"{addr} {pills}" for addr, pills in loc_pills.items()])
                 }
 
