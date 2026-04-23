@@ -110,6 +110,28 @@ else:
     st.sidebar.error("Logo file not found! Check the file name.")
 
 # --- UI STYLING ---
+st.components.v1.html("""
+<script>
+(function() {
+    var SCROLL_KEY = 'tbm_scroll_pos';
+
+    // Save scroll position on every scroll
+    window.parent.document.addEventListener('scroll', function() {
+        sessionStorage.setItem(SCROLL_KEY, window.parent.scrollY);
+    }, { passive: true });
+
+    // Restore scroll position whenever Streamlit rerenders
+    var observer = new MutationObserver(function() {
+        var saved = sessionStorage.getItem(SCROLL_KEY);
+        if (saved && parseInt(saved) > 50) {
+            window.parent.scrollTo({ top: parseInt(saved), behavior: 'instant' });
+        }
+    });
+    observer.observe(window.parent.document.body, { childList: true, subtree: false });
+})();
+</script>
+""", height=0)
+
 st.markdown(f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
@@ -2660,7 +2682,7 @@ def run_pod_tab(pod_name):
                 <span title="Continuity: Replacing an existing ad with updated creative.">🔄 Continuity</span>
                 <span title="Default: Pull-down or placeholder installation.">⚪ Default</span>
                 <span title="Kiosk Install: Physical kiosk installation at this stop.">🛠️ Kiosk Install</span>
-                <span title="Kiosk Removal: Physical kiosk removal.">🗑️ Kiosk Removal</span>
+                <span title="Kiosk Removal: Physical kiosk removal — CVS routes only.">🗑️ Kiosk Removal</span>
                 <span title="Custom task type defined in Onfleet outside of standard categories.">📋 Custom</span>
             </div>
         </div>
