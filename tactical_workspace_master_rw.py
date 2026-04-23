@@ -2323,8 +2323,8 @@ def run_pod_tab(pod_name):
     
     # Grab the matching "Midnight" text color for the current pod
     text_color = {
-        "Blue": "#1e3a8a", "Green": "#064e3b", "Orange": "#7c2d12",
-        "Purple": "#4c1d95", "Red": "#7f1d1d"
+        "Blue": "#2563eb", "Green": "#16a34a", "Orange": "#ea580c",
+        "Purple": "#9333ea", "Red": "#dc2626"
     }.get(pod_name, "#633094")
     
     # Check if data exists for this pod to determine button state
