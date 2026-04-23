@@ -2627,6 +2627,11 @@ def run_pod_tab(pod_name):
                     remov_pill = f"  [ 🗑️ {c.get('remov_count', 0)} Removal ]" if c.get('remov_count', 0) > 0 else ""
                     
                     with st.expander(f"🌐 FN:{digi_pill} {c['city']}, {c['state']} | {c['stops']} Stops{inst_pill}{remov_pill}{esc_pill}"):
+                        # 🌟 Guarantee route_state is set before render so FN card shows
+                        _fn_task_ids = [str(t['id']).strip() for t in c['data']]
+                        _fn_hash = hashlib.md5("".join(sorted(_fn_task_ids)).encode()).hexdigest()
+                        if not st.session_state.get(f"route_state_{_fn_hash}"):
+                            st.session_state[f"route_state_{_fn_hash}"] = "field_nation"
                         render_dispatch(i+5000, c, pod_name)
                     
         with t_digital:
