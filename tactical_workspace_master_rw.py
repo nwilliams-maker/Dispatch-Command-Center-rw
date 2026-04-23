@@ -2613,40 +2613,51 @@ def run_pod_tab(pod_name):
     st.markdown("""
 <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:14px 20px; margin-bottom:20px; box-shadow:0 2px 4px rgba(0,0,0,0.04);">
     <div style="font-size:10px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:12px;">📖 Route Key</div>
-    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px;">
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr 1fr; gap:12px;">
         <div>
             <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px;">Status</div>
             <div style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:#334155;">
-                <span>🟢 Ready</span>
-                <span>🔒 Action Required</span>
-                <span>🔴 Flagged</span>
-                <span>🌐 Field Nation</span>
+                <span title="Route is within distance limits and standard rate — ready to dispatch.">🟢 Ready</span>
+                <span title="Rate is $25+/stop or IC is 60+ miles away. Unlock required before sending.">🔒 Action Required</span>
+                <span title="Route was flagged for review — low density or pricing issue.">🔴 Flagged</span>
+                <span title="Route has been assigned to Field Nation for external dispatch.">🌐 Field Nation</span>
             </div>
         </div>
         <div>
             <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px;">Flags</div>
             <div style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:#334155;">
-                <span>💰 High Rate</span>
-                <span>📡 Long Distance</span>
-                <span>❗ Escalated</span>
-                <span>🗑️ CVS Removal</span>
+                <span title="Calculated rate is at or above $25/stop — requires authorization to dispatch.">💰 High Rate</span>
+                <span title="Closest available IC is 60+ miles from the route center.">📡 Long Distance</span>
+                <span title="Route contains one or more escalated tasks requiring priority handling.">❗ Escalated</span>
+                <span title="Route consists exclusively of CVS Kiosk Removal tasks — capped at 10 stops.">🗑️ CVS Removal</span>
             </div>
         </div>
         <div>
             <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px;">Campaign Type</div>
             <div style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:#334155;">
-                <span>⭐ Local Plus</span>
-                <span>🔥 Boosted</span>
-                <span>📺 Dig+Bottom</span>
+                <span title="Local Plus campaign — higher value placements in targeted local markets.">⭐ Local Plus</span>
+                <span title="Boosted campaign — premium national or regional campaign with elevated priority.">🔥 Boosted</span>
+                <span title="Digital with Bottom campaign — includes both digital screen and bottom panel placement.">📺 Dig+Bottom</span>
             </div>
         </div>
         <div>
             <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px;">Task Types</div>
             <div style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:#334155;">
-                <span>🆕 New Ad &nbsp; 🔄 Continuity &nbsp; ⚪ Default</span>
-                <span>🛠️ Kiosk Install &nbsp; 🗑️ Kiosk Removal</span>
-                <span>📵 Offline &nbsp; 🔧 Ins/Rem &nbsp; ⚙️ Service</span>
-                <span>📋 Custom &nbsp; 🔌 Digital</span>
+                <span title="New Ad: Fresh creative installation at this location.">🆕 New Ad</span>
+                <span title="Continuity: Replacing an existing ad with updated creative.">🔄 Continuity</span>
+                <span title="Default: Pull-down or placeholder installation.">⚪ Default</span>
+                <span title="Kiosk Install: Physical kiosk installation at this stop.">🛠️ Kiosk Install</span>
+                <span title="Kiosk Removal: Physical kiosk removal — CVS routes only.">🗑️ Kiosk Removal</span>
+                <span title="Custom task type defined in Onfleet outside of standard categories.">📋 Custom</span>
+            </div>
+        </div>
+        <div>
+            <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px;">Digital</div>
+            <div style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:#334155;">
+                <span title="Digital Offline: Screen at this location has been reported offline.">📵 Offline</span>
+                <span title="Digital Ins/Rem: Installation or removal of a digital screen unit.">🔧 Ins/Rem</span>
+                <span title="Digital Service: Routine maintenance or software service of a digital screen.">⚙️ Service</span>
+                <span title="Digital route — IC must be digital-certified to receive this route.">🔌 Digital</span>
             </div>
         </div>
     </div>
