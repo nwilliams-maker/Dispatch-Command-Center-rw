@@ -2900,18 +2900,13 @@ def run_pod_tab(pod_name):
                     with exp_col:
                         with st.expander(f"✅ {c.get('wo', ic_name)} | {c['city']}, {c['state']} | ${comp} | {stops_cnt} Stops | {tasks_cnt} Tasks{_k_pill} | Due: {due}"):
                             st.success("Route accepted. Complete the checklist to finalize.")
-                            # Build address → venue name map
-                            _addr_venue = {}
-                            for _tk in c['data']:
-                                if _tk['full'] not in _addr_venue and _tk.get('venue_name'):
-                                    _addr_venue[_tk['full']] = _tk['venue_name']
                             u_locs = []
                             for tk in c['data']:
                                 if tk['full'] not in u_locs: u_locs.append(tk['full'])
                             loc_rows = []
                             for l in u_locs:
-                                _venue_key = _addr_venue.get(l, '')
-                                _k_cnt = _k_by_addr.get(_venue_key, 0) or _k_by_addr.get(l, 0)
+                                _venue_key = next((_tk.get('venue_name','') for _tk in c['data'] if _tk['full'] == l and _tk.get('venue_name')), '')
+                                _k_cnt = sum(1 for _tk in c['data'] if _tk['full'] == l and 'install' in str(_tk.get('task_type','')).lower())
                                 _k_tag = f" <span style='color:#16a34a; font-weight:800;'>🛠️ {_k_cnt} Kiosk</span>" if _k_cnt > 0 else ""
                                 _v_prefix = f"<span style='color:#94a3b8; font-weight:600;'>{_venue_key} — </span>" if _venue_key else ""
                                 loc_rows.append(f"<li>{_v_prefix}{l}{_k_tag}</li>")
@@ -3008,14 +3003,10 @@ def run_pod_tab(pod_name):
                             u_locs = []
                             for tk in c['data']:
                                 if tk['full'] not in u_locs: u_locs.append(tk['full'])
-                            _faddr_venue = {}
-                            for _tk in c['data']:
-                                if _tk['full'] not in _faddr_venue and _tk.get('venue_name'):
-                                    _faddr_venue[_tk['full']] = _tk['venue_name']
                             loc_rows = []
                             for l in u_locs:
-                                _fvk = _faddr_venue.get(l, '')
-                                _k_cnt = _fk_by_addr.get(_fvk, 0) or _fk_by_addr.get(l, 0)
+                                _fvk = next((_tk.get('venue_name','') for _tk in c['data'] if _tk['full'] == l and _tk.get('venue_name')), '')
+                                _k_cnt = sum(1 for _tk in c['data'] if _tk['full'] == l and 'install' in str(_tk.get('task_type','')).lower())
                                 _k_tag = f" <span style='color:#16a34a; font-weight:800;'>🛠️ {_k_cnt} Kiosk</span>" if _k_cnt > 0 else ""
                                 _fv_prefix = f"<span style='color:#94a3b8; font-weight:600;'>{_fvk} — </span>" if _fvk else ""
                                 loc_rows.append(f"<li>{_fv_prefix}{l}{_k_tag}</li>")
