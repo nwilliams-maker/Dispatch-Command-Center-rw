@@ -2266,24 +2266,31 @@ def run_pod_tab(pod_name):
             <style>
                 @keyframes pulse-bg {{
                     0%, 100% {{ opacity: 1; }}
-                    50% {{ opacity: 0.5; }}
+                    50% {{ opacity: 0.6; }}
                 }}
                 @keyframes spin {{
                     0% {{ transform: rotate(0deg); }}
                     100% {{ transform: rotate(360deg); }}
                 }}
+                @keyframes dots {{
+                    0%   {{ content: ''; }}
+                    25%  {{ content: '.'; }}
+                    50%  {{ content: '..'; }}
+                    75%  {{ content: '...'; }}
+                    100% {{ content: ''; }}
+                }}
                 .dcc-loading-card {{
-                    background: #f1f5f9;
+                    background: #f8fafc;
                     border: 1px solid #e2e8f0;
                     border-radius: 16px;
-                    padding: 32px;
+                    padding: 36px 32px;
                     text-align: center;
                     margin: 20px 0;
                     animation: pulse-bg 2s ease-in-out infinite;
                 }}
                 .dcc-spinner {{
-                    width: 40px;
-                    height: 40px;
+                    width: 44px;
+                    height: 44px;
                     border: 4px solid #e2e8f0;
                     border-top: 4px solid #633094;
                     border-radius: 50%;
@@ -2294,19 +2301,37 @@ def run_pod_tab(pod_name):
                     content: '';
                     animation: dots 1.5s steps(4, end) infinite;
                 }}
-                @keyframes dots {{
-                    0%   {{ content: ''; }}
-                    25%  {{ content: '.'; }}
-                    50%  {{ content: '..'; }}
-                    75%  {{ content: '...'; }}
-                    100% {{ content: ''; }}
+                .dcc-countdown {{
+                    display: inline-block;
+                    font-size: 13px;
+                    font-weight: 700;
+                    color: #633094;
+                    background: #f3e8ff;
+                    border-radius: 20px;
+                    padding: 4px 14px;
+                    margin-top: 12px;
                 }}
             </style>
             <div class='dcc-loading-card'>
                 <div class='dcc-spinner'></div>
                 <p style='font-size:16px; font-weight:800; color:#0f172a; margin:0 0 4px 0;'>Initializing {pod_name} Pod</p>
-                <p style='font-size:13px; color:#64748b; margin:0;'>Fetching tasks from Onfleet and building routes<span class='dcc-loading-dots'></span></p>
+                <p style='font-size:13px; color:#64748b; margin:0 0 8px 0;'>Fetching tasks from Onfleet and building routes<span class='dcc-loading-dots'></span></p>
+                <div class='dcc-countdown' id='dcc-timer'>⏱ 1:00</div>
             </div>
+            <script>
+                (function() {{
+                    var el = document.getElementById('dcc-timer');
+                    if (!el) return;
+                    var total = 60;
+                    var interval = setInterval(function() {{
+                        total--;
+                        if (total <= 0) {{ clearInterval(interval); el.innerText = '⏱ 0:00'; return; }}
+                        var m = Math.floor(total / 60);
+                        var s = total % 60;
+                        el.innerText = '⏱ ' + m + ':' + (s < 10 ? '0' : '') + s;
+                    }}, 1000);
+                }})();
+            </script>
         """, unsafe_allow_html=True)
         _bar = st.progress(0, text=f"🔌 Connecting to Onfleet...")
         import time as _time; _time.sleep(0.05)
