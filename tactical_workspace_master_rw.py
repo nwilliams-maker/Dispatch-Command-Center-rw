@@ -372,14 +372,14 @@ div[data-testid="stExpander"] div[data-testid="stHorizontalBlock"] > div[data-te
 /* =========================================
    1b. REVOKE / RE-ROUTE BUTTON SIZING
    ========================================= */
-div[data-testid="stColumn"] div[data-testid="stPopover"] > button {
+div[data-testid="stColumn"] div[data-testid="stPopover"] > button {{
     font-size: 10px !important;
     padding: 4px 6px !important;
     font-weight: 700 !important;
     min-height: 0 !important;
     height: auto !important;
     line-height: 1.2 !important;
-}
+}}
 
 /* =========================================
    2. REVOKE POPOVER FUSION (OUTSIDE EXPANDER)
