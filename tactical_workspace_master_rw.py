@@ -704,108 +704,8 @@ def instant_revoke_handler(cluster_hash, ic_name, payload_json, pod_name):
     move_to_dispatch(cluster_hash, ic_name, pod_name, action_label="Revoked", check_onfleet=True, cluster_data=payload_json)
 
 # --- FIELD NATION MASS UPLOAD GENERATOR ---
-def generate_fn_upload(stop_metrics, cluster, due, final_pay, cluster_hash):
-    """Generates a Field Nation mass upload Excel file for kiosk install stops only."""
-    import io
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment
 
-    # Build a lookup: address -> first kiosk task (for venue metadata)
-    kiosk_task_lookup = {}
-    for t in cluster.get('data', []):
-        if 'install' in str(t.get('task_type', '')).lower():
-            addr = t.get('full', '')
-            if addr not in kiosk_task_lookup:
-                kiosk_task_lookup[addr] = t
-
-    kiosk_stops = [(addr, m) for addr, m in stop_metrics.items() if m['inst'] > 0]
-    if not kiosk_stops:
-        return None, 0
-
-    # Format due date
-    try:
-        if hasattr(due, 'strftime'):
-            start_date = due.strftime("%-m/%-d/%Y")
-            end_date   = due.strftime("%-m/%-d/%Y")
-        else:
-            from datetime import datetime as _dt
-            due_dt     = _dt.strptime(str(due), "%Y-%m-%d")
-            start_date = due_dt.strftime("%-m/%-d/%Y")
-            end_date   = due_dt.strftime("%-m/%-d/%Y")
-    except Exception:
-        start_date = str(due)
-        end_date   = str(due)
-
-    pay_per_stop = round(final_pay / len(kiosk_stops), 2) if kiosk_stops else 25.0
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Sheet1"
-
-    headers = [
-        "Location Name", "Address #1", "City", "State", "Postal Code", "Country",
-        "Schedule Type", "Scheduled Start Date", "Scheduled Start Time",
-        "Scheduled End Date", "Scheduled End Time", "Pay Type", "Pay Rate",
-        "Approximate Hours to Complete", "Est. WO-Value", "Work Order Manager",
-        "", "1. Customer Name", "1. Venue ID", "1. Location in Venue"
-    ]
-
-    header_fill = PatternFill("solid", start_color="FEF9C3")
-    header_font = Font(bold=True, name="Arial")
-
-    for col, h in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col, value=h)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = Alignment(horizontal="center")
-
-    for row_idx, (addr, metrics) in enumerate(kiosk_stops, 2):
-        task     = kiosk_task_lookup.get(addr, {})
-        parts    = [p.strip() for p in addr.split(",")]
-        street   = parts[0] if len(parts) > 0 else addr
-        city     = parts[1] if len(parts) > 1 else cluster.get('city', '')
-        state    = parts[2] if len(parts) > 2 else cluster.get('state', '')
-        zip_code = task.get('zip', parts[3] if len(parts) > 3 else '')
-
-        venue_name      = task.get('venue_name', 'Terraboost Media')
-        venue_id        = task.get('venue_id', '')
-        client_company  = task.get('client_company', 'Terraboost Media')
-        loc_in_venue    = task.get('location_in_venue', 'Kiosk Install')
-
-        row = [
-            venue_name,                                         # Location Name
-            street,                                             # Address #1
-            city,                                               # City
-            state,                                              # State
-            zip_code,                                           # Postal Code
-            "US",                                               # Country
-            "Complete work anytime over a date range",          # Schedule Type
-            start_date,                                         # Scheduled Start Date
-            "8:00 AM",                                          # Scheduled Start Time
-            end_date,                                           # Scheduled End Date
-            "5:00 PM",                                          # Scheduled End Time
-            "Fixed",                                            # Pay Type
-            pay_per_stop,                                       # Pay Rate
-            1.0,                                                # Approximate Hours
-            pay_per_stop,                                       # Est. WO-Value
-            "",                                                 # Work Order Manager
-            "",                                                 # blank column
-            client_company,                                     # 1. Customer Name
-            venue_id,                                           # 1. Venue ID
-            loc_in_venue,                                       # 1. Location in Venue
-        ]
-        for col, val in enumerate(row, 1):
-            cell = ws.cell(row=row_idx, column=col, value=val)
-            cell.font = Font(name="Arial")
-
-    for col in ws.columns:
-        max_len = max((len(str(c.value)) for c in col if c.value), default=10)
-        ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 40)
-
-    buf = io.BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    return buf, len(kiosk_stops)
+from fn_utils import FN_STATE_MANAGER, generate_fn_upload, save_fn_to_sheet
 
 # --- UTILITIES ---
 def haversine(lat1, lon1, lat2, lon2):
@@ -1857,13 +1757,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 "locs": " | ".join([home] + list(stop_metrics.keys()) + [home])
             }
 
-            def _save_fn_background(payload):
-                try:
-                    requests.post(GAS_WEB_APP_URL, json={"action": "saveToFieldNation", "payload": payload}, timeout=15)
-                except:
-                    pass
-
-            threading.Thread(target=_save_fn_background, args=(fn_payload,), daemon=True).start()
+            save_fn_to_sheet(GAS_WEB_APP_URL, fn_payload)
             st.session_state[f"route_state_{cluster_hash}"] = "field_nation"
             st.toast("✅ Saved to Field Nation Tab")
             st.rerun()
@@ -1886,7 +1780,8 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         # 🌟 FIELD NATION MASS UPLOAD DOWNLOAD
         _due = st.session_state.get(f"dd_{pod_name}_{cluster_hash}", datetime.now().date() + timedelta(14))
         _pay = st.session_state.get(pay_key, 0.0)
-        kiosk_stop_count = sum(1 for m in stop_metrics.values() if m['inst'] > 0)
+        # Use inst_count from cluster as primary check (set at build time), fall back to stop_metrics scan
+        kiosk_stop_count = cluster.get('inst_count', 0) or sum(1 for m in stop_metrics.values() if m['inst'] > 0)
         if kiosk_stop_count > 0:
             fn_buf, fn_stop_count = generate_fn_upload(stop_metrics, cluster, _due, _pay, cluster_hash)
             if fn_buf:
@@ -1898,6 +1793,8 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                     key=f"fn_dl_{cluster_hash}",
                     use_container_width=True
                 )
+        else:
+            st.caption("ℹ️ No Kiosk Install stops detected on this route.")
 
         # 🌟 UNIQUE KEY
         if st.button("📢 Mark as Posted (Move to Sent)", key=f"posted_{pod_name}_{cluster_hash}", type="primary", use_container_width=True):
