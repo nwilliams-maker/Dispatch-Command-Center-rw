@@ -7,8 +7,7 @@ import io
 import threading
 import requests
 from datetime import datetime
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment
+import csv
 
 
 # ---------------------------------------------------------------------------
@@ -132,19 +131,11 @@ def generate_fn_upload(stop_metrics: dict, cluster: dict, due, final_pay: float,
 
     all_headers = base_headers + custom_headers
 
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Sheet1"
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(all_headers)
 
-    header_fill = PatternFill("solid", start_color="FEF9C3")
-    header_font = Font(bold=True, name="Arial")
-    for col, h in enumerate(all_headers, 1):
-        cell = ws.cell(row=1, column=col, value=h)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = Alignment(horizontal="center")
-
-    for row_idx, (addr, tasks) in enumerate(kiosk_stops, 2):
+    for addr, tasks in kiosk_stops:
         parts    = [p.strip() for p in addr.split(",")]
         street   = parts[0] if len(parts) > 0 else addr
         city     = parts[1] if len(parts) > 1 else cluster.get('city', '')
@@ -195,16 +186,9 @@ def generate_fn_upload(stop_metrics: dict, cluster: dict, due, final_pay: float,
                 custom_cols.append("")
             custom_cols.append("")
 
-        full_row = base_row + custom_cols
-        for col, val in enumerate(full_row, 1):
-            cell = ws.cell(row=row_idx, column=col, value=val)
-            cell.font = Font(name="Arial")
+        writer.writerow(base_row + custom_cols)
 
-    for col in ws.columns:
-        max_len = max((len(str(c.value)) for c in col if c.value), default=10)
-        ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 40)
-
-    buf = io.BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    return buf, len(kiosk_stops)
+    # Return as bytes for st.download_button
+    bytes_buf = io.BytesIO(buf.getvalue().encode('utf-8'))
+    bytes_buf.seek(0)
+    return bytes_buf, len(kiosk_stops)
