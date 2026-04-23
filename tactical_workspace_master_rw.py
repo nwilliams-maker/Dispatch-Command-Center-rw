@@ -989,9 +989,9 @@ def process_digital_pool(master_bar=None):
             if f_name in ['campaignname', 'campaign name'] or f_key in ['campaignname', 'campaign_name']:
                 client_company = f_val  # 🌟 Campaign Name maps to Customer Name in FN upload
 
-        # 🌟 FALLBACK: Grab Campaign Name directly from index 6 if key match missed
+        # 🌟 FALLBACK: Grab Campaign Name directly from index 6 if key match missed or value was empty
         if not client_company and len(custom_fields) > 6:
-            client_company = str(custom_fields[6].get('value', '')).strip()
+            client_company = str(custom_fields[6].get('value', '') or '').strip()
 
         # 2. CHECK REGULAR (STATIC) EXEMPTIONS FIRST
         # Expanded to include "escalation" to prevent crossing over
@@ -2185,9 +2185,9 @@ def smart_sync_pod(pod_name):
             if f_name in ['campaignname', 'campaign name'] or f_key in ['campaignname', 'campaign_name']:
                 client_company = f_val  # 🌟 Campaign Name maps to Customer Name in FN upload
 
-        # 🌟 FALLBACK: Grab Campaign Name directly from index 6 if key match missed
+        # 🌟 FALLBACK: Grab Campaign Name directly from index 6 if key match missed or value was empty
         if not client_company and len(custom_fields) > 6:
-            client_company = str(custom_fields[6].get('value', '')).strip()
+            client_company = str(custom_fields[6].get('value', '') or '').strip()
 
         search_string = f"{native_details} {custom_task_type}".lower()
         REGULAR_EXEMPTIONS = ["photo", "magnet", "continuity", "new ad", "pull down", "kiosk", "escalation"]
