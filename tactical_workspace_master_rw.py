@@ -769,6 +769,12 @@ def auto_sync_checker():
 
         if changed:
             st.session_state.sent_db = sent_db
+            # Store changed tids so run_pod_tab can fire pod-scoped toast
+            _changed_tids = [tid for tid, info in sent_db.items()
+                             if info.get('status') in ('accepted', 'declined')
+                             and not st.session_state.get(f"_notified_{tid}")]
+            if _changed_tids:
+                st.session_state['_pending_notif_tids'] = _changed_tids
             st.rerun(scope="app")
 
     except:
@@ -2612,16 +2618,25 @@ def run_pod_tab(pod_name):
         for t in c.get('data', []):
             pod_task_ids.add(str(t['id']).strip())
 
-    for tid, info in sent_db.items():
-        if tid in pod_task_ids and info.get('status') in ('accepted', 'declined'):
-            _notif_key = f"_notified_{tid}"
-            if not st.session_state.get(_notif_key):
-                st.session_state[_notif_key] = True
-                wo = info.get('wo', 'Route')
-                icon = "✅" if info['status'] == 'accepted' else "❌"
-                st.toast(f"{wo} was {info['status'].upper()}", icon=icon)
-                break
 
+
+
+    # Pod-scoped toast notification
+    _pending = st.session_state.get('_pending_notif_tids', [])
+    if _pending:
+        _pod_clusters = st.session_state.get(f"clusters_{pod_name}", [])
+        _pod_tids = set(str(t['id']).strip() for c in _pod_clusters for t in c.get('data', []))
+        _sent_db = st.session_state.get('sent_db', {})
+        for _tid in _pending:
+            if _tid in _pod_tids and not st.session_state.get(f"_notified_{_tid}"):
+                st.session_state[f"_notified_{_tid}"] = True
+                _info = _sent_db.get(_tid, {})
+                _wo = _info.get('wo', 'Route')
+                _icon = "✅" if _info.get('status') == 'accepted' else "❌"
+                st.toast(f"{_wo} was {_info.get('status','').upper()}", icon=_icon)
+                # Remove from pending
+                st.session_state['_pending_notif_tids'] = [t for t in _pending if t != _tid]
+                break
 
     # Grab the contractor database from session state
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
