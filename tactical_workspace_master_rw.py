@@ -609,9 +609,15 @@ div[data-testid="stHorizontalBlock"] {{ align-items: flex-start !important; }}
 /* TIGHTEN GAPS BETWEEN CARDS */
 div[data-testid="stVerticalBlock"] {{ gap: 1rem !important; }}
 
-/* Collapse gap between consecutive stop rows inside expanders */
-div[data-testid="stExpander"] div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"] + div[data-testid="stHorizontalBlock"] {{
-    margin-top: -1rem !important;
+/* Zero gap inside expanders — spacing handled by element borders/padding */
+div[data-testid="stExpander"] div[data-testid="stVerticalBlock"] {{
+    gap: 0px !important;
+}}
+/* Restore spacing above inputs, cards, and buttons inside expanders */
+div[data-testid="stExpander"] div[data-testid="stVerticalBlock"] > div[data-testid="stNumberInputContainer"],
+div[data-testid="stExpander"] div[data-testid="stVerticalBlock"] > div[data-testid="stDateInput"],
+div[data-testid="stExpander"] div[data-testid="element-container"] {{
+    margin-top: 6px !important;
 }}
 
 /* Collapse gap between consecutive stop row columns inside expanders */
