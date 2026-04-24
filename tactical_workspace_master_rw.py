@@ -754,12 +754,6 @@ def auto_sync_checker():
 
         if changed:
             st.session_state.sent_db = sent_db
-            for tid, info in sent_db.items():
-                if info.get('status') in ('accepted', 'declined'):
-                    wo = info.get('wo', 'Route')
-                    icon = "✅" if info['status'] == 'accepted' else "❌"
-                    st.toast(f"{icon} {wo} was {info['status'].upper()}", icon=icon)
-                    break
             st.rerun(scope="app")
 
     except:
@@ -2586,6 +2580,24 @@ def venue_section(inner_html):
 
 def run_pod_tab(pod_name):
     auto_sync_checker()  # 🔄 Auto-detect accepted/declined routes every 10s
+
+    # Show toast only if a route in THIS pod changed
+    sent_db = st.session_state.get('sent_db', {})
+    pod_clusters = st.session_state.get(f"clusters_{pod_name}", [])
+    pod_task_ids = set()
+    for c in pod_clusters:
+        for t in c.get('data', []):
+            pod_task_ids.add(str(t['id']).strip())
+
+    for tid, info in sent_db.items():
+        if tid in pod_task_ids and info.get('status') in ('accepted', 'declined'):
+            _notif_key = f"_notified_{tid}"
+            if not st.session_state.get(_notif_key):
+                st.session_state[_notif_key] = True
+                wo = info.get('wo', 'Route')
+                icon = "✅" if info['status'] == 'accepted' else "❌"
+                st.toast(f"{icon} {wo} was {info['status'].upper()}", icon=icon)
+                break
 
 
     # Grab the contractor database from session state
