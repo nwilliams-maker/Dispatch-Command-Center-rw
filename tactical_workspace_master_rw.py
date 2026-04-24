@@ -2628,6 +2628,8 @@ def run_pod_tab(pod_name):
 
 
 
+    auto_sync_checker()  # 🔄 Auto-detect accepted/declined routes every 10s
+
     # Pod-scoped toast notification
     _pending = st.session_state.get('_pending_notif_tids', [])
     if _pending:
@@ -3369,9 +3371,6 @@ if "ic_df" not in st.session_state:
 st.markdown("<h1 style='color: #633094;'>Terraboost Media: Dispatch Command Center</h1>", unsafe_allow_html=True)
 
 # Updated Main Tabs
-# 🔄 Run sync checker globally — fires regardless of active tab
-auto_sync_checker()
-
 tabs = st.tabs(["Global", "Blue Pod", "Green Pod", "Orange Pod", "Purple Pod", "Red Pod", "Digital"])
 # --- TAB 0: GLOBAL CONTROL ---
 with tabs[0]:
