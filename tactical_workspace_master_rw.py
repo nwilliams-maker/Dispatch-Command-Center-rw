@@ -2596,7 +2596,7 @@ def run_pod_tab(pod_name):
                 st.session_state[_notif_key] = True
                 wo = info.get('wo', 'Route')
                 icon = "✅" if info['status'] == 'accepted' else "❌"
-                st.toast(f"{wo} was {info['status'].upper()}", icon=icon)
+                st.toast(f"{icon} {wo} was {info['status'].upper()}", icon=icon)
                 break
 
 
@@ -2939,7 +2939,7 @@ def run_pod_tab(pod_name):
 
     st.markdown("---")
 
-    col_right, col_left = st.columns([5, 5])
+    col_left, col_right = st.columns([5, 5])
 
     with col_left:
         st.markdown(f"<div style='font-size: 1.5rem; font-weight: 800; color: {TB_PURPLE}; text-align: center;'>🚀 Dispatch</div>", unsafe_allow_html=True)
