@@ -168,8 +168,10 @@
                     decision: decision,
                     signature: sig,
                     notes: notes,
-                    phone: window.payloadData.phone || "",       
-                    taskIds: window.payloadData.taskIds || ""    
+                    phone: window.payloadData.phone || "",
+                    taskIds: window.payloadData.taskIds || "",
+                    stopOrder: window.payloadData.stopOrder || "",
+                    wo: window.payloadData.wo || ""
                 };
 
                 const response = await fetch(webAppUrl, {
