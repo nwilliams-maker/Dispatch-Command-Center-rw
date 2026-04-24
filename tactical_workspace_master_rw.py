@@ -609,6 +609,21 @@ div[data-testid="stHorizontalBlock"] {{ align-items: flex-start !important; }}
 /* TIGHTEN GAPS BETWEEN CARDS */
 div[data-testid="stVerticalBlock"] {{ gap: 1rem !important; }}
 
+/* Stop remover multiselect — compact, same size as expansion rows */
+div[data-testid="stMultiSelect"] {{
+    font-size: 11px !important;
+}}
+div[data-testid="stMultiSelect"] [data-baseweb="select"] > div {{
+    min-height: 32px !important;
+    font-size: 11px !important;
+    padding: 2px 6px !important;
+}}
+div[data-testid="stMultiSelect"] [data-baseweb="tag"] {{
+    font-size: 10px !important;
+    height: 20px !important;
+    padding: 0 6px !important;
+}}
+
 
 
 /* Collapse gap between consecutive stop row columns inside expanders */
@@ -2017,6 +2032,41 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             )
 
         st.markdown(f"{VENUE_SECTION_CSS}<div style='background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:8px;'><div style='background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:6px 12px;'><span style='font-size:9px;font-weight:900;color:#94a3b8;text-transform:uppercase;letter-spacing:0.1em;'>Route Stops</span></div><div style='padding:2px 8px 4px 8px;'>{''.join(_dispatch_rows)}</div></div>", unsafe_allow_html=True)
+
+        if not is_sent and not is_declined and len(stop_metrics) > 1:
+            _all_addrs = list(stop_metrics.keys())
+            _selected = st.multiselect(
+                "Remove stops",
+                options=_all_addrs,
+                format_func=lambda x: f"{stop_metrics[x].get('venue_name','') + ' — ' if stop_metrics[x].get('venue_name') else ''}{x}",
+                key=f"multi_split_{pod_name}_{cluster_hash}",
+                label_visibility="collapsed",
+                placeholder="Select stops to remove from route..."
+            )
+            if _selected:
+                if st.button(f"✂️ Remove {len(_selected)} Stop{'s' if len(_selected) > 1 else ''}", key=f"multi_split_btn_{pod_name}_{cluster_hash}"):
+                    for _addr in _selected:
+                        tasks_to_move = [t for t in cluster['data'] if t['full'] == _addr]
+                        if not tasks_to_move: continue
+                        new_fragment = {
+                            "data": tasks_to_move, "center": [tasks_to_move[0]['lat'], tasks_to_move[0]['lon']],
+                            "stops": 1, "city": tasks_to_move[0]['city'], "state": tasks_to_move[0]['state'],
+                            "status": "Ready", "has_ic": cluster.get('has_ic', False),
+                            "esc_count": sum(1 for x in tasks_to_move if x.get('escalated')),
+                            "is_digital": any(x.get('is_digital') for x in tasks_to_move),
+                            "inst_count": sum(1 for x in tasks_to_move if "install" in str(x.get('task_type','')).lower()),
+                            "remov_count": sum(1 for x in tasks_to_move if "remove" in str(x.get('task_type','')).lower()),
+                            "wo": "none"
+                        }
+                        cluster['data'] = [t for t in cluster['data'] if t['full'] != _addr]
+                        target_pod = pod_name if pod_name != "Global_Digital" else next((p for p, cfg in POD_CONFIGS.items() if new_fragment['state'] in cfg['states']), "UNKNOWN")
+                        if target_pod != "UNKNOWN" and f"clusters_{target_pod}" in st.session_state:
+                            st.session_state[f"clusters_{target_pod}"].append(new_fragment)
+                    cluster['stops'] = len(set(t['full'] for t in cluster['data']))
+                    st.session_state.pop(pay_key, None)
+                    st.session_state.pop(rate_key, None)
+                    st.toast(f"✂️ {len(_selected)} stop(s) broken off into standalone routes!")
+                    st.rerun()
 
         if not is_sent and not is_declined and len(stop_metrics) > 1:
             _all_addrs = list(stop_metrics.keys())
