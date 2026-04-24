@@ -725,7 +725,7 @@ def background_sheet_finalize(cluster_hash):
     except:
         pass
 
-@st.fragment(run_every=30)
+@st.fragment(run_every=15)
 def auto_sync_checker(pod_name):
     """Polls every 10s. If any sent route in this pod has been accepted/declined, toasts and reruns."""
     sent_db = st.session_state.get('sent_db', {})
@@ -776,11 +776,7 @@ def auto_sync_checker(pod_name):
                     _chash = pod_tids_map[tid]
                     st.session_state[f"route_state_{_chash}"] = info['status']
                     st.session_state[f"reverted_{_chash}"] = False
-                    if not st.session_state.get(f"_notified_{tid}"):
-                        st.session_state[f"_notified_{tid}"] = True
-                        _nt_wo = info.get('wo', 'Route')
-                        _nt_icon = "✅" if info['status'] == 'accepted' else "❌"
-                        st.toast(f"{_nt_wo} was {info['status'].upper()}", icon=_nt_icon)
+
             st.rerun(scope="app")
 
     except:
@@ -2632,11 +2628,6 @@ def run_pod_tab(pod_name):
 
 
 
-
-    # Fire pending toast from previous auto_sync_checker detection
-    _pt = st.session_state.pop('_pending_toast', None)
-    if _pt:
-        st.toast(f"{_pt['wo']} was {_pt['status'].upper()}", icon=_pt['icon'])
 
     auto_sync_checker(pod_name)  # 🔄 Auto-detect accepted/declined routes every 30s
 
