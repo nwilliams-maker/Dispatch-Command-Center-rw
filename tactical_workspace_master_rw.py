@@ -2039,12 +2039,12 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 "Remove stops",
                 options=_all_addrs,
                 format_func=lambda x: f"{stop_metrics[x].get('venue_name','') + ' — ' if stop_metrics[x].get('venue_name') else ''}{x}",
-                key=f"multi_split_{pod_name}_{cluster_hash}",
+                key=f"multi_split_{pod_name}_{cluster_hash}_{i}",
                 label_visibility="collapsed",
                 placeholder="Select stops to remove from route..."
             )
             if _selected:
-                if st.button(f"✂️ Remove {len(_selected)} Stop{'s' if len(_selected) > 1 else ''}", key=f"multi_split_btn_{pod_name}_{cluster_hash}"):
+                if st.button(f"✂️ Remove {len(_selected)} Stop{'s' if len(_selected) > 1 else ''}", key=f"multi_split_btn_{pod_name}_{cluster_hash}_{i}"):
                     for _addr in _selected:
                         tasks_to_move = [t for t in cluster['data'] if t['full'] == _addr]
                         if not tasks_to_move: continue
@@ -2074,12 +2074,12 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 "Select stops to break off",
                 options=_all_addrs,
                 format_func=lambda x: f"{stop_metrics[x].get('venue_name','') + ' — ' if stop_metrics[x].get('venue_name') else ''}{x}",
-                key=f"multi_split_{pod_name}_{cluster_hash}",
+                key=f"multi_split_{pod_name}_{cluster_hash}_{i}",
                 label_visibility="collapsed",
                 placeholder="Select stops to break off..."
             )
             if _selected:
-                if st.button(f"✂️ Break Off {len(_selected)} Stop{'s' if len(_selected)>1 else ''}", key=f"multi_split_btn_{pod_name}_{cluster_hash}", use_container_width=True):
+                if st.button(f"✂️ Break Off {len(_selected)} Stop{'s' if len(_selected)>1 else ''}", key=f"multi_split_btn_{pod_name}_{cluster_hash}_{i}", use_container_width=True):
                     for _addr in _selected:
                         tasks_to_move = [t for t in cluster['data'] if t['full'] == _addr]
                         if not tasks_to_move: continue
