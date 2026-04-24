@@ -1250,7 +1250,7 @@ def process_digital_pool(master_bar=None):
                     status = "Flagged"
 
         _d_boosted_vals = [str(x.get('boosted_standard', '')).lower() for x in group if x.get('boosted_standard')]
-        _d_important_tags = ['local plus', 'boosted', 'digital with bottom']
+        _d_important_tags = ['local plus', 'boosted']
         _d_boosted_tag = next((b for b in _d_important_tags if any(b in v for v in _d_boosted_vals)), '')
         clusters.append({
             "data": group, "center": [anc['lat'], anc['lon']], "stops": len(unique_stops), 
@@ -1623,7 +1623,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
             
             # Determine dominant boosted_standard for this cluster
             _boosted_vals = [str(x.get('boosted_standard', '')).lower() for x in g_data if x.get('boosted_standard')]
-            _important_tags = ['local plus', 'boosted', 'digital with bottom']
+            _important_tags = ['local plus', 'boosted']
             _boosted_tag = next((b for b in _important_tags if any(b in v for v in _boosted_vals)), '')
 
             clusters.append({
@@ -2501,7 +2501,7 @@ def smart_sync_pod(pod_name):
         unmatched = remaining
 
         _ss_boosted_vals = [str(x.get('boosted_standard', '')).lower() for x in group if x.get('boosted_standard')]
-        _ss_important_tags = ['local plus', 'boosted', 'digital with bottom']
+        _ss_important_tags = ['local plus', 'boosted']
         _ss_boosted_tag = next((b for b in _ss_important_tags if any(b in v for v in _ss_boosted_vals)), '')
         existing_clusters.append({
             "data": group,
@@ -2904,18 +2904,16 @@ def run_pod_tab(pod_name):
         <div>
             <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px;">Flags</div>
             <div style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:#334155;">
-                <span title="Calculated rate is at or above $25/stop — requires authorization to dispatch.">💰 High Rate</span>
                 <span title="Closest available IC is 60+ miles from the route center.">📡 Long Distance</span>
-                <span title="Route contains one or more escalated tasks requiring priority handling.">❗ Escalated</span>
                 <span title="Route consists exclusively of CVS Kiosk Removal tasks — capped at 10 stops.">🗑️ CVS Removal</span>
             </div>
         </div>
         <div>
-            <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px;">Campaign Type</div>
+            <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px;">Priority</div>
             <div style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:#334155;">
+                <span title="Route contains one or more escalated tasks requiring priority handling.">❗ Escalation</span>
                 <span title="Local Plus campaign — higher value placements in targeted local markets.">⭐ Local Plus</span>
                 <span title="Boosted campaign — premium national or regional campaign with elevated priority.">🔥 Boosted</span>
-                <span title="Digital with Bottom campaign — includes both digital screen and bottom panel placement.">📺 Dig+Bottom</span>
             </div>
         </div>
         <div>
@@ -2974,7 +2972,6 @@ def run_pod_tab(pod_name):
                                 _, hrs, _ = get_gmaps(closest_ic[loc_col], [t['full'] for t in c['data'][:25]])
                                 est_pay = hrs * 25.0 # 🌟 STRICTLY HOURLY
                                 est_rate = est_pay / c['stops'] if c['stops'] > 0 else 0
-                                if est_rate >= 25.0: badges += " 💰"
                                 if closest_ic['d'] > 60: badges += " 📡"
 
                     esc_pill = f" | ❗ {c.get('esc_count', 0)}" if c.get('esc_count', 0) > 0 else ""
@@ -3689,9 +3686,8 @@ with tabs[6]:
     <span style="font-size:13px;" title="Flagged for review">🔴 Flagged</span>
     <span style="font-size:13px;" title="Field Nation">🌐 FN</span>
     <span style="font-size:11px; color:#0f766e; font-weight:600; align-self:center; margin-left:4px; margin-right:4px; border-right:1px solid #99f6e4; padding-right:12px;">Flags:</span>
-    <span style="font-size:13px;" title="Rate above $50/stop">💰 High Rate</span>
     <span style="font-size:13px;" title="IC 40+ miles away">📡 Distance</span>
-    <span style="font-size:13px;" title="Contains escalated tasks">❗ Escalated</span>
+    <span style="font-size:13px;" title="Contains escalated tasks requiring priority handling">❗ Escalation</span>
     <span style="font-size:11px; color:#0f766e; font-weight:600; align-self:center; margin-left:4px; margin-right:4px; border-right:1px solid #99f6e4; padding-right:12px;">Tasks:</span>
     <span style="font-size:13px;" title="Screen offline">📵 Offline</span>
     <span style="font-size:13px;" title="Install / Removal">🔧 Ins/Rem</span>
