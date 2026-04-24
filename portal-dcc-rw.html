@@ -210,7 +210,9 @@
                     
                     // System Status
                     "Onfleet Auto-Assign": result.onfleetSuccess ? "SUCCESS" : "FAILED/SKIPPED",
-                    "Onfleet Msg": result.onfleetMsg || "N/A"
+                    "Onfleet Msg": result.onfleetMsg || "N/A",
+                    "Onfleet Route Created": result.routeSuccess ? "YES" : "NO",
+                    "Onfleet Route Msg": result.routeMsg || "N/A"
                 })
             });
 
