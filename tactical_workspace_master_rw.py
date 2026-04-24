@@ -1014,6 +1014,24 @@ def get_gmaps(home, waypoints):
     except: pass
     return 0, 0, "0h 0m"
 
+@st.cache_data(ttl=120, show_spinner=False)
+def fetch_worker_task_counts():
+    """Fetch current assigned task count per worker from Onfleet. Cached 2 min."""
+    try:
+        res = requests.get("https://onfleet.com/api/v2/workers?analytics=true", headers=headers, timeout=10)
+        if res.status_code != 200:
+            return {}
+        workers = res.json()
+        counts = {}
+        for w in workers:
+            name = str(w.get('name', '')).strip()
+            task_count = len(w.get('tasks', []))
+            if name:
+                counts[name] = task_count
+        return counts
+    except:
+        return {}
+
 @st.cache_data(ttl=600)
 def load_ic_database(sheet_url):
     try:
@@ -1670,6 +1688,8 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
         if not master_bar: 
             prog_bar.empty()
 
+        st.session_state['_worker_counts'] = fetch_worker_task_counts()
+
     except Exception as e:
         st.error(f"Error initializing {pod_name}: {str(e)}")
 # 🌟 NEW HELPER: Standardized Digital Badges
@@ -1811,7 +1831,8 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     # --- 3. CONTRACTOR FILTERING (100 MILES) ---
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
     ic_opts = {} 
-    v_ics = pd.DataFrame() 
+    v_ics = pd.DataFrame()
+    _worker_counts = st.session_state.get('_worker_counts', {})
 
     if not ic_df.empty:
         ic_df.columns = [str(c).strip().lower() for c in ic_df.columns]
@@ -1826,7 +1847,9 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                     cert_val = str(r.get('digital certified', '')).strip().upper()
                     cert_icon = " 🔌" if cert_val in ['YES', 'Y', 'TRUE', '1', '1.0'] else ""
                     ic_name = r.get('name', 'Unknown')
-                    label = f"{ic_name}{cert_icon} ({round(r['d'], 1)} mi)"
+                    _task_cnt = _worker_counts.get(ic_name, 0)
+                    _cnt_tag = f" 🔵{_task_cnt}" if _task_cnt > 0 else " 🔵0"
+                    label = f"{ic_name}{cert_icon}{_cnt_tag} ({round(r['d'], 1)} mi)"
                     ic_opts[label] = r
 
     # --- DYNAMIC PRICING SYNC ---
@@ -2552,6 +2575,7 @@ def smart_sync_pod(pod_name):
         })
 
     st.session_state[f"clusters_{pod_name}"] = existing_clusters
+    st.session_state['_worker_counts'] = fetch_worker_task_counts()
     _bar.empty()
     st.toast(f"✅ {len(new_pool)} new task(s) merged into {pod_name} routes.")
 
@@ -2629,7 +2653,7 @@ def run_pod_tab(pod_name):
 
 
 
-    auto_sync_checker(pod_name)  # 🔄 Auto-detect accepted/declined routes every 30s
+    auto_sync_checker(pod_name)  # 🔄 Auto-detect accepted/declined routes every 15s
 
     # Grab the contractor database from session state
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
