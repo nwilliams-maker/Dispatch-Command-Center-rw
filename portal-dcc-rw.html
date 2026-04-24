@@ -181,6 +181,7 @@
                 });
                 
                 const result = await response.json();
+                console.log("GAS Response:", JSON.stringify(result));
 
                await fetch(formspreeUrl, {
                     method: 'POST',
