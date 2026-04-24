@@ -2368,25 +2368,25 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 subject_line = requests.utils.quote(f"Route Request | {wo_val}")
                 body_content = requests.utils.quote(final_sig)
                 gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={ic.get('email', '')}&su={subject_line}&body={body_content}"
-                # Desktop: JS popup. Mobile: visible tap link (JS popups blocked on mobile)
-                st.components.v1.html(f"""<script>
-if (window.innerWidth > 768) {{
-    window.open('{gmail_url}', '_blank');
-}}
-</script>
-<div id="mobile-gmail-link" style="display:none;">
-    <a href="{gmail_url}" target="_blank" style="display:block;text-align:center;
-    background:#633094;color:white;padding:12px;border-radius:10px;
-    font-weight:800;font-size:15px;text-decoration:none;margin:8px 0;">
-    📧 Open Gmail Draft</a>
-</div>
-<script>
-if (window.innerWidth <= 768) {{
-    document.getElementById('mobile-gmail-link').style.display = 'block';
-}}
-</script>""", height=60)
+                # Desktop: JS popup fires immediately. Mobile: CSS shows tap link.
+                # Show success + link first, THEN rerun after delay so JS has time to execute
                 _link_ph = st.empty()
                 _link_ph.success("✅ Link Live! Gmail opening...")
+                st.components.v1.html(f"""
+<style>
+.gmail-mobile-link {{ display: none; }}
+@media (max-width: 768px) {{
+    .gmail-mobile-link {{ display: block !important; }}
+}}
+</style>
+<script>
+if (window.innerWidth > 768) {{ window.open('{gmail_url}', '_blank'); }}
+</script>
+<a class="gmail-mobile-link" href="{gmail_url}" target="_blank"
+style="display:block;text-align:center;background:#633094;color:white;
+padding:12px;border-radius:10px;font-weight:800;font-size:15px;
+text-decoration:none;margin:4px 0;">📧 Open Gmail Draft</a>
+""", height=60)
                 time.sleep(1)
                 _link_ph.empty()
                 st.rerun()
