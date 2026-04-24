@@ -838,22 +838,13 @@ def fetch_sent_records_from_sheet():
         base_url = f"{IC_SHEET_URL.split('/edit')[0]}/export?format=csv&gid="
         
         sheets_to_fetch = [
+            (SAVED_ROUTES_GID, "sent"),
+            (FIELD_NATION_GID, "field_nation"),
             (DECLINED_ROUTES_GID, "declined"),
             (ACCEPTED_ROUTES_GID, "accepted"),
-            (SAVED_ROUTES_GID, "sent"),
             (FINALIZED_ROUTES_GID, "finalized"),
         ]
 
-       # 3. Add Field Nation only if the GID is defined to avoid errors
-        if 'FIELD_NATION_GID' in globals() and FIELD_NATION_GID:
-            # We check if it's already there to prevent duplicates
-            if (FIELD_NATION_GID, "field_nation") not in sheets_to_fetch:
-                sheets_to_fetch.append((FIELD_NATION_GID, "field_nation"))
-                
-        # 🌟 NEW: Add Finalized routes to the download queue
-        if 'FINALIZED_ROUTES_GID' in globals() and FINALIZED_ROUTES_GID:
-            if (FINALIZED_ROUTES_GID, "finalized") not in sheets_to_fetch:
-                sheets_to_fetch.append((FINALIZED_ROUTES_GID, "finalized"))
         
         sent_dict = {}
         # 🌟 THE FIX: Add Global_Digital to the dictionary!
@@ -2609,8 +2600,26 @@ def make_venue_details(data):
     return "".join(rows)
 
 def make_venue_details_ghost(locs_list):
-    """Simple non-expandable rows for ghost routes (no task data)."""
-    rows = [f"<div style='padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:12px;color:#0f172a;font-weight:600;'>{l}</div>" for l in locs_list]
+    """Expandable accordion rows for ghost routes — no campaign data available."""
+    rows = []
+    for loc in locs_list:
+        # Try to split venue name from address if format is "Venue — Address"
+        if " — " in loc:
+            parts = loc.split(" — ", 1)
+            venue_prefix = f"<span style='color:#94a3b8;font-size:11px;font-weight:600;'>{parts[0]} — </span>"
+            addr = parts[1]
+        else:
+            venue_prefix = ""
+            addr = loc
+        rows.append(
+            f"<details class='fn-loc-row'>"
+            f"<summary class='fn-loc-summary'>"
+            f"<span class='fn-chevron'>›</span>"
+            f"{venue_prefix}<span style='font-weight:700;color:#0f172a;font-size:12px;'>{addr}</span>"
+            f"</summary>"
+            f"<div style='padding:6px 8px;background:#f8fafc;border-radius:6px;margin-top:4px;font-size:10px;color:#94a3b8;'>No campaign data available for archived routes.</div>"
+            f"</details>"
+        )
     return "".join(rows)
 
 VENUE_SECTION_CSS = """<style>
