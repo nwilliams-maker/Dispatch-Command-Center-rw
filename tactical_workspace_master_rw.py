@@ -1004,19 +1004,13 @@ def get_gmaps(home, waypoints):
         res = requests.get(url).json()
         if res['status'] == 'OK':
             mi = sum(l['distance']['value'] for l in res['routes'][0]['legs']) * 0.000621371
-            
-            # This is the raw driving time with live traffic
             drive_hrs = sum(l['duration']['value'] for l in res['routes'][0]['legs']) / 3600
-            
-            # 🌟 NEW: Add "Service Time" (e.g., 15 minutes / 0.25 hours per stop)
-            # You can change 0.25 to whatever average time you expect them to be at a location
-            service_hrs = len(waypoints) * (10/60) 
-            
+            service_hrs = len(waypoints) * (10/60)
             total_hrs = drive_hrs + service_hrs
-            
-            return round(mi, 1), total_hrs, f"{int(total_hrs)}h {int((total_hrs * 60) % 60)}m"
+            waypoint_order = res['routes'][0].get('waypoint_order', list(range(len(waypoints))))
+            return round(mi, 1), total_hrs, f"{int(total_hrs)}h {int((total_hrs * 60) % 60)}m", waypoint_order
     except: pass
-    return 0, 0, "0h 0m"
+    return 0, 0, "0h 0m", []
 
 @st.cache_data(ttl=120, show_spinner=False)
 def fetch_worker_task_counts():
@@ -1288,7 +1282,7 @@ def process_digital_pool(master_bar=None):
                 status = "Flagged"
             else:
                 ic_loc_d = f"{anc['lat']},{anc['lon']}"
-                _, d_hrs, _ = get_gmaps(ic_loc_d, tuple(list(unique_stops)[:25]))
+                _, d_hrs, _, _ = get_gmaps(ic_loc_d, tuple(list(unique_stops)[:25]))
                 d_pay = round(d_hrs * 25.0, 2)
                 d_rate = round(d_pay / len(unique_stops), 2) if unique_stops else 0
                 if d_rate > 50.0:
@@ -1631,7 +1625,7 @@ def process_pod(pod_name, master_bar=None, pod_idx=0, total_pods=1):
                 
                 # 🚀 OPTIMIZATION: Reverted back to real Google Maps!
                 # Wrapping u_locs[:25] in a tuple() makes Streamlit's cache process it instantly.
-                _, hrs, _ = get_gmaps(closest_ic_loc, tuple(u_locs[:25]))
+                _, hrs, _, _ = get_gmaps(closest_ic_loc, tuple(u_locs[:25]))
                 pay = round(hrs * 25.0, 2) # 🌟 STRICTLY HOURLY ($25/hr)
                 return round(pay / len(u_locs), 2), len(u_locs)
             
@@ -1873,7 +1867,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         selected_label = st.session_state.get(sel_key)
         if selected_label and selected_label != st.session_state.get(last_sel_key):
             ic_new = ic_opts[selected_label]
-            _, h, _ = get_gmaps(ic_new.get('location', f"{cluster['center'][0]},{cluster['center'][1]}"), tuple(stop_metrics.keys()))
+            _, h, _, _ = get_gmaps(ic_new.get('location', f"{cluster['center'][0]},{cluster['center'][1]}"), tuple(stop_metrics.keys()))
             new_pay = float(round(h * 25.0, 2)) # 🌟 STRICTLY HOURLY
             st.session_state[pay_key] = new_pay
             st.session_state[rate_key] = round(new_pay / cluster['stops'], 2) if cluster['stops'] > 0 else 0
@@ -1902,13 +1896,13 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         elif default_label:
             # Calculate from the Contractor's Home
             ic_init = ic_opts[default_label]
-            _, h, _ = get_gmaps(ic_init.get('location', f"{cluster['center'][0]},{cluster['center'][1]}"), tuple(stop_metrics.keys()))
+            _, h, _, _ = get_gmaps(ic_init.get('location', f"{cluster['center'][0]},{cluster['center'][1]}"), tuple(stop_metrics.keys()))
             initial_pay = float(round(h * 25.0, 2)) # 🌟 STRICTLY HOURLY
             st.session_state[sel_key] = default_label
             st.session_state[last_sel_key] = default_label
         else:
             # 🌟 THE FIX: If no IC is found, calculate the hourly rate from the cluster's center!
-            _, h, _ = get_gmaps(f"{cluster['center'][0]},{cluster['center'][1]}", tuple(stop_metrics.keys()))
+            _, h, _, _ = get_gmaps(f"{cluster['center'][0]},{cluster['center'][1]}", tuple(stop_metrics.keys()))
             initial_pay = float(round(h * 25.0, 2)) # 🌟 STRICTLY HOURLY
 
         # 🌟 Floor: if Maps returned 0 (fail/no IC), seed from $20/stop default
@@ -1944,7 +1938,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             st.info("No ICs within 100mi.")
 
         ic_location = ic_location_tmp
-        mi, hrs, t_str = get_gmaps(ic_location, tuple(stop_metrics.keys()))
+        mi, hrs, t_str, _wp_order = get_gmaps(ic_location, tuple(stop_metrics.keys()))
 
         curr_rate = st.session_state[rate_key]
         ic_dist = ic.get('d', 0)
@@ -2259,10 +2253,19 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             _dispatch_result = {}
             with st.spinner("Generating link..."):
                 home = ic.get('location', f"{cluster['center'][0]},{cluster['center'][1]}")
+                # Build ordered task IDs from Google Maps waypoint order
+                _addr_list = list(stop_metrics.keys())
+                _ordered_addrs = [_addr_list[i] for i in _wp_order] if _wp_order else _addr_list
+                _stop_order_ids = []
+                for _oa in _ordered_addrs:
+                    for _t in cluster['data']:
+                        if _t.get('full') == _oa:
+                            _stop_order_ids.append(_t['id'])
+
                 payload = {
                     "cluster_hash": cluster_hash,
-                    "icn": ic.get('name', 'Unknown'), 
-                    "ice": ic.get('email', ''), 
+                    "icn": ic.get('name', 'Unknown'),
+                    "ice": ic.get('email', ''),
                     "wo": wo_val, 
                     "city": cluster.get('city', 'Unknown'),
                     "state": cluster.get('state', 'Unknown'),
@@ -2275,6 +2278,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                     "rCnt": cluster.get('remov_count', 0),
                     "dCnt": sum(1 for t in cluster['data'] if t.get('is_digital')),
                     "jobOnly": " | ".join([f"{addr} {pills}" for addr, pills in loc_pills.items()]),
+                    "stopOrder": ",".join(str(tid) for tid in _stop_order_ids),
                     "stopData": json.dumps([{
                         "addr": addr,
                         "venue": metrics.get("venue_name", ""),
@@ -3128,7 +3132,7 @@ def run_pod_tab(pod_name):
                             if not v_ics.empty:
                                 v_ics['d'] = v_ics.apply(lambda x: haversine(c['center'][0], c['center'][1], x[lat_col], x[lng_col]), axis=1)
                                 closest_ic = v_ics.sort_values('d').iloc[0]
-                                _, hrs, _ = get_gmaps(closest_ic[loc_col], [t['full'] for t in c['data'][:25]])
+                                _, hrs, _, _ = get_gmaps(closest_ic[loc_col], [t['full'] for t in c['data'][:25]])
                                 est_pay = hrs * 25.0 # 🌟 STRICTLY HOURLY
                                 est_rate = est_pay / c['stops'] if c['stops'] > 0 else 0
                                 if closest_ic['d'] > 60: badges += " 📡"
