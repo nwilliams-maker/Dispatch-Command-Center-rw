@@ -726,25 +726,18 @@ def background_sheet_finalize(cluster_hash):
         pass
 
 @st.fragment(run_every=10)
-def auto_sync_checker():
-    """Polls GAS every 30s. If any sent route has been accepted/declined, triggers a full app rerun."""
+def auto_sync_checker(pod_name):
+    """Polls every 10s. If any sent route in this pod has been accepted/declined, toasts and reruns."""
     sent_db = st.session_state.get('sent_db', {})
     if not sent_db:
-        return  # Nothing pending, skip
+        return
 
-    # Collect route IDs for routes currently in 'sent' state
-    pending_route_ids = set()
-    for tid, info in sent_db.items():
-        if info.get('status', '').lower() == 'sent':
-            wo = info.get('wo', '')
-            if wo:
-                pending_route_ids.add(wo.strip().upper())
-
-    if not pending_route_ids:
+    # Only check routes currently in 'sent' state
+    pending_tids = [tid for tid, info in sent_db.items() if info.get('status', '').lower() == 'sent']
+    if not pending_tids:
         return
 
     try:
-        # Lightweight check — fetch just Accepted and Declined sheets via CSV
         base_url = f"{IC_SHEET_URL.split('/edit')[0]}/export?format=csv&gid="
         changed = False
         for gid, status_label in [(ACCEPTED_ROUTES_GID, 'accepted'), (DECLINED_ROUTES_GID, 'declined')]:
@@ -769,17 +762,22 @@ def auto_sync_checker():
 
         if changed:
             st.session_state.sent_db = sent_db
-            fetch_sent_records_from_sheet.clear()  # Bust cache so UI gets fresh data
-            # Store changed tids so run_pod_tab can fire pod-scoped toast
-            _changed_tids = [tid for tid, info in sent_db.items()
-                             if info.get('status') in ('accepted', 'declined')
-                             and not st.session_state.get(f"_notified_{tid}")]
-            if _changed_tids:
-                st.session_state['_pending_notif_tids'] = _changed_tids
+            fetch_sent_records_from_sheet.clear()
+            # Fire toast if changed route belongs to this pod
+            pod_clusters = st.session_state.get(f"clusters_{pod_name}", [])
+            pod_tids = set(str(t['id']).strip() for c in pod_clusters for t in c.get('data', []))
+            for tid, info in sent_db.items():
+                if tid in pod_tids and info.get('status') in ('accepted', 'declined'):
+                    if not st.session_state.get(f"_notified_{tid}"):
+                        st.session_state[f"_notified_{tid}"] = True
+                        wo = info.get('wo', 'Route')
+                        icon = "✅" if info['status'] == 'accepted' else "❌"
+                        st.toast(f"{wo} was {info['status'].upper()}", icon=icon)
+                        break
             st.rerun(scope="app")
 
     except:
-        pass  # Never crash the UI on a background poll
+        pass
 
 @st.fragment
 def render_finalization_checklist(cluster_hash, pod_name, prefix="chk"):
@@ -2628,24 +2626,7 @@ def run_pod_tab(pod_name):
 
 
 
-    auto_sync_checker()  # 🔄 Auto-detect accepted/declined routes every 10s
-
-    # Pod-scoped toast notification
-    _pending = st.session_state.get('_pending_notif_tids', [])
-    if _pending:
-        _pod_clusters = st.session_state.get(f"clusters_{pod_name}", [])
-        _pod_tids = set(str(t['id']).strip() for c in _pod_clusters for t in c.get('data', []))
-        _sent_db = st.session_state.get('sent_db', {})
-        for _tid in _pending:
-            if _tid in _pod_tids and not st.session_state.get(f"_notified_{_tid}"):
-                st.session_state[f"_notified_{_tid}"] = True
-                _info = _sent_db.get(_tid, {})
-                _wo = _info.get('wo', 'Route')
-                _icon = "✅" if _info.get('status') == 'accepted' else "❌"
-                st.toast(f"{_wo} was {_info.get('status','').upper()}", icon=_icon)
-                # Remove from pending
-                st.session_state['_pending_notif_tids'] = [t for t in _pending if t != _tid]
-                break
+    auto_sync_checker(pod_name)  # 🔄 Auto-detect accepted/declined routes every 10s
 
     # Grab the contractor database from session state
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
