@@ -609,6 +609,11 @@ div[data-testid="stHorizontalBlock"] {{ align-items: flex-start !important; }}
 /* TIGHTEN GAPS BETWEEN CARDS */
 div[data-testid="stVerticalBlock"] {{ gap: 1rem !important; }}
 
+/* Collapse gap between consecutive stop rows inside expanders */
+div[data-testid="stExpander"] div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"] + div[data-testid="stHorizontalBlock"] {{
+    margin-top: -16px !important;
+}}
+
 /* Collapse gap between consecutive stop row columns inside expanders */
 div[data-testid="stExpander"] div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"] + div[data-testid="stHorizontalBlock"] {{
     margin-top: -14px !important;
@@ -1959,36 +1964,38 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 f"</summary>{camp_block}</details>"
             )
 
-        st.markdown(f"{VENUE_SECTION_CSS}<div style='background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:8px;'><div style='background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:6px 12px;'><span style='font-size:9px;font-weight:900;color:#94a3b8;text-transform:uppercase;letter-spacing:0.1em;'>Route Stops</span></div><div style='padding:4px 8px 6px 8px;'>{''.join(_dispatch_rows)}</div></div>", unsafe_allow_html=True)
+        # Render stop rows with inline - button
+        st.markdown(f"{VENUE_SECTION_CSS}<div style='background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:8px;'><div style='background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:6px 12px;'><span style='font-size:9px;font-weight:900;color:#94a3b8;text-transform:uppercase;letter-spacing:0.1em;'>Route Stops</span></div></div>", unsafe_allow_html=True)
+        for _row_html in _dispatch_rows:
+            _rs_col, _rb_col = st.columns([0.93, 0.07], vertical_alignment="center")
+            with _rs_col:
+                st.markdown(_row_html, unsafe_allow_html=True)
+            with _rb_col:
+                if not is_sent and not is_declined:
+                    _addr = list(stop_metrics.keys())[_dispatch_rows.index(_row_html)]
+                    if st.button("-", key=f"split_{pod_name}_{cluster_hash}_{hashlib.md5(_addr.encode()).hexdigest()[:6]}", help="Break off this stop"):
+                        tasks_to_move = [t for t in cluster['data'] if t['full'] == _addr]
+                        new_fragment = {
+                            "data": tasks_to_move, "center": [tasks_to_move[0]['lat'], tasks_to_move[0]['lon']],
+                            "stops": 1, "city": tasks_to_move[0]['city'], "state": tasks_to_move[0]['state'],
+                            "status": "Ready", "has_ic": cluster.get('has_ic', False),
+                            "esc_count": sum(1 for x in tasks_to_move if x.get('escalated')),
+                            "is_digital": any(x.get('is_digital') for x in tasks_to_move),
+                            "inst_count": sum(1 for x in tasks_to_move if "install" in str(x.get('task_type', '')).lower()),
+                            "remov_count": sum(1 for x in tasks_to_move if "remove" in str(x.get('task_type', '')).lower()),
+                            "wo": "none"
+                        }
+                        cluster['data'] = [t for t in cluster['data'] if t['full'] != _addr]
+                        cluster['stops'] = len(set(t['full'] for t in cluster['data']))
+                        target_pod = pod_name if pod_name != "Global_Digital" else next((p for p, cfg in POD_CONFIGS.items() if new_fragment['state'] in cfg['states']), "UNKNOWN")
+                        if target_pod != "UNKNOWN" and f"clusters_{target_pod}" in st.session_state:
+                            st.session_state[f"clusters_{target_pod}"].append(new_fragment)
+                        st.session_state.pop(pay_key, None)
+                        st.session_state.pop(rate_key, None)
+                        st.toast("📍 Stop broken off into a standalone route!")
+                        st.rerun()
 
-        # Break-off tool
-        if not is_sent and not is_declined and len(stop_metrics) > 1:
-            _split_opts = list(stop_metrics.keys())
-            _sc1, _sc2 = st.columns([4, 1])
-            with _sc1:
-                _split_addr = st.selectbox("Break off stop", _split_opts, key=f"split_sel_{pod_name}_{cluster_hash}", label_visibility="collapsed")
-            with _sc2:
-                if st.button("−", key=f"split_btn_{pod_name}_{cluster_hash}", help="Break off this stop into a new route"):
-                    tasks_to_move = [t for t in cluster['data'] if t['full'] == _split_addr]
-                    new_fragment = {
-                        "data": tasks_to_move, "center": [tasks_to_move[0]['lat'], tasks_to_move[0]['lon']],
-                        "stops": 1, "city": tasks_to_move[0]['city'], "state": tasks_to_move[0]['state'],
-                        "status": "Ready", "has_ic": cluster.get('has_ic', False),
-                        "esc_count": sum(1 for x in tasks_to_move if x.get('escalated')),
-                        "is_digital": any(x.get('is_digital') for x in tasks_to_move),
-                        "inst_count": sum(1 for x in tasks_to_move if "install" in str(x.get('task_type', '')).lower()),
-                        "remov_count": sum(1 for x in tasks_to_move if "remove" in str(x.get('task_type', '')).lower()),
-                        "wo": "none"
-                    }
-                    cluster['data'] = [t for t in cluster['data'] if t['full'] != _split_addr]
-                    cluster['stops'] = len(set(t['full'] for t in cluster['data']))
-                    target_pod = pod_name if pod_name != "Global_Digital" else next((p for p, cfg in POD_CONFIGS.items() if new_fragment['state'] in cfg['states']), "UNKNOWN")
-                    if target_pod != "UNKNOWN" and f"clusters_{target_pod}" in st.session_state:
-                        st.session_state[f"clusters_{target_pod}"].append(new_fragment)
-                    st.session_state.pop(pay_key, None)
-                    st.session_state.pop(rate_key, None)
-                    st.toast("📍 Stop broken off into a standalone route!")
-                    st.rerun()
+
 
         stops_text = ""
         for i, (addr, metrics) in enumerate(list(stop_metrics.items())[:2], start=1):
