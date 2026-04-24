@@ -2950,7 +2950,7 @@ def run_pod_tab(pod_name):
     st.markdown("""
 <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:14px 20px; margin-bottom:20px; box-shadow:0 2px 4px rgba(0,0,0,0.04);">
     <div style="font-size:10px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:12px;">📖 Route Key</div>
-    <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr 1fr; gap:12px;">
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr; gap:12px;">
         <div>
             <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px;">Status</div>
             <div style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:#334155;">
@@ -2984,6 +2984,12 @@ def run_pod_tab(pod_name):
                 <span title="Kiosk Install: Physical kiosk installation at this stop.">🛠️ Kiosk Install</span>
                 <span title="Kiosk Removal: Physical kiosk removal — CVS routes only.">🗑️ Kiosk Removal</span>
                 <span title="Custom task type defined in Onfleet outside of standard categories.">📋 Custom</span>
+            </div>
+        </div>
+        <div>
+            <div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px;">Contractor</div>
+            <div style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:#334155;">
+                <span title="Number of tasks currently assigned to this contractor in Onfleet.">🔵 Current Tasks</span>
             </div>
         </div>
         <div>
