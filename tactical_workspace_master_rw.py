@@ -2838,13 +2838,35 @@ def run_pod_tab(pod_name):
                             _k_cnt = sum(1 for _tk in _loc_tasks if 'install' in str(_tk.get('task_type','')).lower())
                             _k_tag = f" <span style='color:#16a34a; font-weight:800; font-size:10px;'>🛠️ {_k_cnt}</span>" if _k_cnt > 0 else ""
                             _venue_prefix = f"<span style='color:#94a3b8; font-size:11px; font-weight:600;'>{_venue} — </span>" if _venue else ""
-                            _camp_html = "".join([f"<div style='font-size:10px; color:#64748b; padding-left:4px; margin-top:2px;'>• {cmp}</div>" for cmp in _campaigns if cmp])
+                            _camp_rows = []
+                            for _tk in _loc_tasks:
+                                _cmp = _tk.get('client_company', '')
+                                if not _cmp: continue
+                                _badges = ""
+                                if _tk.get('escalated'): _badges += " ❗"
+                                _bs = str(_tk.get('boosted_standard', '')).lower()
+                                if 'local plus' in _bs: _badges += " ⭐"
+                                elif 'boosted' in _bs: _badges += " 🔥"
+                                _camp_rows.append(f"<div style='font-size:10px; color:#64748b; padding-left:4px; margin-top:2px;'>• {_cmp}{_badges}</div>")
+                            # Deduplicate while preserving badges
+                            _seen_camps = set()
+                            _uniq_camp_rows = []
+                            for _row in _camp_rows:
+                                if _row not in _seen_camps:
+                                    _seen_camps.add(_row)
+                                    _uniq_camp_rows.append(_row)
+                            _camp_html = "".join(_uniq_camp_rows)
                             _camp_block = f"<div style='padding:6px 8px; background:#f8fafc; border-radius:6px; margin-top:4px;'>{_camp_html}</div>" if _camp_html else ""
+                            _esc_cnt = sum(1 for _tk in _loc_tasks if _tk.get('escalated'))
+                            _esc_inline = f" <span style='color:#dc2626;font-weight:900;font-size:10px;'>❗ {_esc_cnt}</span>" if _esc_cnt > 0 else ""
+                            _primary_camp = _campaigns[0] if _campaigns else ""
+                            _camp_label = f" <span style='font-size:10px;color:#64748b;font-style:italic;'>— {_primary_camp}</span>" if _primary_camp else ""
                             _fn_loc_rows.append(
                                 f"<details class='fn-loc-row'>"
                                 f"<summary class='fn-loc-summary'>"
-                                f"{_venue_prefix}<span style='font-weight:700; color:#0f172a;'>{_loc}</span>{_k_tag}"
-                                f"<span class='fn-chevron'>›</span></summary>"
+                                f"<span class='fn-chevron'>›</span>"
+                                f"{_venue_prefix}<span style='font-weight:700; color:#0f172a;'>{_loc}</span>{_k_tag}{_esc_inline}"
+                                f"</summary>"
                                 f"{_camp_block}"
                                 f"</details>"
                             )
@@ -2854,11 +2876,11 @@ def run_pod_tab(pod_name):
 <style>
 .fn-loc-row {{border-bottom:1px solid #f1f5f9;}}
 .fn-loc-row:last-child {{border-bottom:none;}}
-.fn-loc-summary {{display:flex;align-items:center;justify-content:space-between;padding:7px 4px;font-size:12px;cursor:pointer;border-radius:6px;list-style:none;user-select:none;transition:background 0.15s ease;}}
+.fn-loc-summary {{display:flex;align-items:center;justify-content:flex-start;gap:6px;padding:7px 4px;font-size:12px;cursor:pointer;border-radius:6px;list-style:none;user-select:none;transition:background 0.15s ease;}}
 .fn-loc-summary::-webkit-details-marker {{display:none;}}
 .fn-loc-summary::marker {{display:none;}}
 .fn-loc-summary:hover {{background:#f8fafc;}}
-.fn-chevron {{font-size:16px;color:#94a3b8;font-weight:300;transition:transform 0.2s ease;flex-shrink:0;margin-left:8px;}}
+.fn-chevron {{font-size:13px;color:#94a3b8;font-weight:300;transition:transform 0.2s ease;flex-shrink:0;margin-right:4px;}}
 details[open] .fn-chevron {{transform:rotate(90deg);}}
 </style>
 <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;">
