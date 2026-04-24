@@ -609,16 +609,7 @@ div[data-testid="stHorizontalBlock"] {{ align-items: flex-start !important; }}
 /* TIGHTEN GAPS BETWEEN CARDS */
 div[data-testid="stVerticalBlock"] {{ gap: 1rem !important; }}
 
-/* Zero gap inside expanders — spacing handled by element borders/padding */
-div[data-testid="stExpander"] div[data-testid="stVerticalBlock"] {{
-    gap: 0px !important;
-}}
-/* Restore spacing above inputs, cards, and buttons inside expanders */
-div[data-testid="stExpander"] div[data-testid="stVerticalBlock"] > div[data-testid="stNumberInputContainer"],
-div[data-testid="stExpander"] div[data-testid="stVerticalBlock"] > div[data-testid="stDateInput"],
-div[data-testid="stExpander"] div[data-testid="element-container"] {{
-    margin-top: 6px !important;
-}}
+
 
 /* Collapse gap between consecutive stop row columns inside expanders */
 div[data-testid="stExpander"] div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"] + div[data-testid="stHorizontalBlock"] {{
@@ -1970,15 +1961,13 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 f"</summary>{camp_block}</details>"
             )
 
-        # Render stop rows with inline - button
-        st.markdown(f"{VENUE_SECTION_CSS}<div style='background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:8px;'><div style='background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:6px 12px;'><span style='font-size:9px;font-weight:900;color:#94a3b8;text-transform:uppercase;letter-spacing:0.1em;'>Route Stops</span></div></div>", unsafe_allow_html=True)
-        for _row_html in _dispatch_rows:
-            _rs_col, _rb_col = st.columns([0.93, 0.07], vertical_alignment="center")
-            with _rs_col:
-                st.markdown(_row_html, unsafe_allow_html=True)
-            with _rb_col:
-                if not is_sent and not is_declined:
-                    _addr = list(stop_metrics.keys())[_dispatch_rows.index(_row_html)]
+        # Render all stop HTML in one block (left) + stacked - buttons (right)
+        _stops_col, _btns_col = st.columns([0.93, 0.07])
+        with _stops_col:
+            st.markdown(f"{VENUE_SECTION_CSS}<div style='background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:8px;'><div style='background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:6px 12px;'><span style='font-size:9px;font-weight:900;color:#94a3b8;text-transform:uppercase;letter-spacing:0.1em;'>Route Stops</span></div><div style='padding:2px 8px 4px 8px;'>{''.join(_dispatch_rows)}</div></div>", unsafe_allow_html=True)
+        with _btns_col:
+            if not is_sent and not is_declined:
+                for _addr in list(stop_metrics.keys()):
                     if st.button("-", key=f"split_{pod_name}_{cluster_hash}_{hashlib.md5(_addr.encode()).hexdigest()[:6]}", help="Break off this stop"):
                         tasks_to_move = [t for t in cluster['data'] if t['full'] == _addr]
                         new_fragment = {
