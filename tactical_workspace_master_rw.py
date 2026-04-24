@@ -710,7 +710,7 @@ def background_sheet_finalize(cluster_hash):
     except:
         pass
 
-@st.fragment(run_every=30)
+@st.fragment(run_every=10)
 def auto_sync_checker():
     """Polls GAS every 30s. If any sent route has been accepted/declined, triggers a full app rerun."""
     sent_db = st.session_state.get('sent_db', {})
@@ -754,6 +754,12 @@ def auto_sync_checker():
 
         if changed:
             st.session_state.sent_db = sent_db
+            for tid, info in sent_db.items():
+                if info.get('status') in ('accepted', 'declined'):
+                    wo = info.get('wo', 'Route')
+                    icon = "✅" if info['status'] == 'accepted' else "❌"
+                    st.toast(f"{icon} {wo} was {info['status'].upper()}", icon=icon)
+                    break
             st.rerun(scope="app")
 
     except:
@@ -2524,7 +2530,9 @@ def venue_section(inner_html):
     return f'{VENUE_SECTION_CSS}<div style="border-top:1px solid #e2e8f0;padding:6px 12px 8px 12px;"><div style="font-size:9px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Venue Locations</div>{inner_html}</div>'
 
 def run_pod_tab(pod_name):
-    auto_sync_checker()  # 🔄 Auto-detect accepted/declined routes every 30s
+    auto_sync_checker()  # 🔄 Auto-detect accepted/declined routes every 10s
+
+
     # Grab the contractor database from session state
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
     
