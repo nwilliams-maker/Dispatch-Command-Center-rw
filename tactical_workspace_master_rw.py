@@ -611,7 +611,7 @@ div[data-testid="stVerticalBlock"] {{ gap: 1rem !important; }}
 
 /* Collapse gap between consecutive stop rows inside expanders */
 div[data-testid="stExpander"] div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"] + div[data-testid="stHorizontalBlock"] {{
-    margin-top: -16px !important;
+    margin-top: -1rem !important;
 }}
 
 /* Collapse gap between consecutive stop row columns inside expanders */
