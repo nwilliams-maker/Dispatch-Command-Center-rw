@@ -11,6 +11,7 @@ from streamlit_folium import st_folium
 import folium
 import threading
 import os
+import re
 
 # --- CONFIG & CREDENTIALS ---
 # We check the Environment (Railway) FIRST to avoid the Streamlit Secrets crash
@@ -1002,7 +1003,7 @@ def get_gmaps(home, waypoints):
 
 @st.cache_data(ttl=120, show_spinner=False)
 def fetch_worker_task_counts():
-    """Fetch current assigned task count per worker from Onfleet. Cached 2 min."""
+    """Fetch current assigned task count per worker from Onfleet, keyed by phone. Cached 2 min."""
     try:
         res = requests.get("https://onfleet.com/api/v2/workers?analytics=true", headers=headers, timeout=10)
         if res.status_code != 200:
@@ -1010,10 +1011,10 @@ def fetch_worker_task_counts():
         workers = res.json()
         counts = {}
         for w in workers:
-            name = str(w.get('name', '')).strip()
+            phone = re.sub(r'\D', '', str(w.get('phone', '')))[-10:]
             task_count = len(w.get('tasks', []))
-            if name:
-                counts[name] = task_count
+            if phone:
+                counts[phone] = task_count
         return counts
     except:
         return {}
@@ -1833,7 +1834,8 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                     cert_val = str(r.get('digital certified', '')).strip().upper()
                     cert_icon = " 🔌" if cert_val in ['YES', 'Y', 'TRUE', '1', '1.0'] else ""
                     ic_name = r.get('name', 'Unknown')
-                    _task_cnt = _worker_counts.get(ic_name, 0)
+                    _ic_phone = re.sub(r'\D', '', str(r.get('phone', '')))[-10:]
+                    _task_cnt = _worker_counts.get(_ic_phone, 0)
                     _cnt_tag = f" 🔵{_task_cnt}" if _task_cnt > 0 else " 🔵0"
                     label = f"{ic_name}{cert_icon}{_cnt_tag} ({round(r['d'], 1)} mi)"
                     ic_opts[label] = r
