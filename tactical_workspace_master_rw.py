@@ -1894,15 +1894,15 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         _dispatch_rows = []
         for addr, metrics in stop_metrics.items():
             pill_parts = []
-            if metrics['n_ad'] > 0: pill_parts.append(f"🆕 {metrics['n_ad']} New Ad")
-            if metrics['c_ad'] > 0: pill_parts.append(f"🔄 {metrics['c_ad']} Continuity")
-            if metrics['d_ad'] > 0: pill_parts.append(f"⚪ {metrics['d_ad']} Default")
-            if metrics['inst'] > 0: pill_parts.append(f"🛠️ {metrics['inst']} Kiosk Install")
-            if metrics['remov'] > 0: pill_parts.append(f"🗑️ {metrics['remov']} Kiosk Removal")
-            for cn, cnt in metrics['custom'].items(): pill_parts.append(f"📋 {cnt} {cn}")
-            if metrics['digi_off'] > 0: pill_parts.append(f"📵 {metrics['digi_off']} Offline")
-            if metrics['digi_ins'] > 0: pill_parts.append(f"🔧 {metrics['digi_ins']} Ins/Rem")
-            if metrics['digi_srv'] > 0: pill_parts.append(f"⚙️ {metrics['digi_srv']} Service")
+            if metrics['n_ad'] > 0: pill_parts.append(f"{metrics['n_ad']} New Ad")
+            if metrics['c_ad'] > 0: pill_parts.append(f"{metrics['c_ad']} Continuity")
+            if metrics['d_ad'] > 0: pill_parts.append(f"{metrics['d_ad']} Default")
+            if metrics['inst'] > 0: pill_parts.append(f"{metrics['inst']} 🛠️ Install")
+            if metrics['remov'] > 0: pill_parts.append(f"{metrics['remov']} 🗑️ Removal")
+            for cn, cnt in metrics['custom'].items(): pill_parts.append(f"{cnt} {cn}")
+            if metrics['digi_off'] > 0: pill_parts.append(f"{metrics['digi_off']} 📵 Offline")
+            if metrics['digi_ins'] > 0: pill_parts.append(f"{metrics['digi_ins']} 🔧 Ins/Rem")
+            if metrics['digi_srv'] > 0: pill_parts.append(f"{metrics['digi_srv']} ⚙️ Service")
             pill_str = " | ".join(pill_parts)
             esc_count_stop = sum(1 for t in cluster['data'] if t.get('full') == addr and t.get('escalated'))
             esc_inline = f" <span style='color:#dc2626;font-weight:900;font-size:10px;'>❗ {esc_count_stop}</span>" if esc_count_stop > 0 else ""
@@ -1925,11 +1925,15 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 row = f"<div style='font-size:10px;color:#64748b;padding-left:4px;margin-top:2px;'>• {cmp}{badges}</div>"
                 if row not in seen_c: seen_c.add(row); camp_rows.append(row)
             camp_block = f"<div style='padding:6px 8px;background:#f8fafc;border-radius:6px;margin-top:4px;'>{''.join(camp_rows)}</div>" if camp_rows else ""
+            _venue_col = f"<div style='font-size:11px;font-weight:600;color:#94a3b8;min-width:80px;flex:0 0 80px;line-height:1.3;'>{metrics['venue_name'] + ' —' if metrics.get('venue_name') else ''}</div>" if metrics.get('venue_name') else "<div style='flex:0 0 0px;'></div>"
             _dispatch_rows.append(
                 f"<details class='fn-loc-row'>"
-                f"<summary class='fn-loc-summary'>"
-                f"<span class='fn-chevron'>›</span>"
-                f"{venue_prefix}<span style='font-weight:700;color:#0f172a;'>{display_addr}</span>{esc_inline} &nbsp;{task_pill}{pill_html}"
+                f"<summary class='fn-loc-summary' style='align-items:flex-start;gap:4px;'>"
+                f"<span class='fn-chevron' style='margin-top:2px;flex-shrink:0;'>›</span>"
+                f"{_venue_col}"
+                f"<div style='flex:1;min-width:0;font-weight:700;font-size:12px;color:#0f172a;line-height:1.3;'>{display_addr}{esc_inline}</div>"
+                f"<div style='flex-shrink:0;margin:0 6px;'>{task_pill}</div>"
+                f"<div style='flex:1.5;font-size:11px;color:#64748b;line-height:1.3;'>{pill_str}</div>"
                 f"</summary>{camp_block}</details>"
             )
 
