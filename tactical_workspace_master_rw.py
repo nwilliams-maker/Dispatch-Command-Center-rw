@@ -725,7 +725,7 @@ def background_sheet_finalize(cluster_hash):
     except:
         pass
 
-@st.fragment(run_every=10)
+@st.fragment(run_every=30)
 def auto_sync_checker(pod_name):
     """Polls every 10s. If any sent route in this pod has been accepted/declined, toasts and reruns."""
     sent_db = st.session_state.get('sent_db', {})
@@ -763,9 +763,9 @@ def auto_sync_checker(pod_name):
         if changed:
             st.session_state.sent_db = sent_db
             fetch_sent_records_from_sheet.clear()
-            # Update route_state in session state so traffic cop moves route immediately
+            # Update route_state + store toast info for run_pod_tab to fire after rerun
             pod_clusters = st.session_state.get(f"clusters_{pod_name}", [])
-            pod_tids_map = {}  # tid -> cluster_hash
+            pod_tids_map = {}
             for c in pod_clusters:
                 _tids = [str(t['id']).strip() for t in c.get('data', [])]
                 _hash = hashlib.md5("".join(sorted(_tids)).encode()).hexdigest()
@@ -774,15 +774,16 @@ def auto_sync_checker(pod_name):
             for tid, info in sent_db.items():
                 if tid in pod_tids_map and info.get('status') in ('accepted', 'declined'):
                     _chash = pod_tids_map[tid]
-                    # Set route_state so traffic cop picks it up instantly
                     st.session_state[f"route_state_{_chash}"] = info['status']
                     st.session_state[f"reverted_{_chash}"] = False
-                    # Fire toast once per change
                     if not st.session_state.get(f"_notified_{tid}"):
                         st.session_state[f"_notified_{tid}"] = True
-                        wo = info.get('wo', 'Route')
-                        icon = "✅" if info['status'] == 'accepted' else "❌"
-                        st.toast(f"{wo} was {info['status'].upper()}", icon=icon)
+                        # Store toast to fire AFTER rerun (toast+rerun together cancels toast)
+                        st.session_state['_pending_toast'] = {
+                            'wo': info.get('wo', 'Route'),
+                            'status': info['status'],
+                            'icon': "✅" if info['status'] == 'accepted' else "❌"
+                        }
             st.rerun(scope="app")
 
     except:
@@ -2637,6 +2638,11 @@ def run_pod_tab(pod_name):
 
     auto_sync_checker(pod_name)  # 🔄 Auto-detect accepted/declined routes every 10s
 
+    # Fire pending toast set by auto_sync_checker (after rerun so it renders properly)
+    _pt = st.session_state.pop('_pending_toast', None)
+    if _pt:
+        st.toast(f"{_pt['wo']} was {_pt['status'].upper()}", icon=_pt['icon'])
+
     # Grab the contractor database from session state
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
     
@@ -2786,6 +2792,10 @@ def run_pod_tab(pod_name):
         # 🌟 THE FIX: If we just clicked Finalize, override the Google Sheet instantly!
         if route_state == "finalized":
             finalized.append(c)
+        elif route_state == "accepted" and not is_reverted:
+            accepted.append(c)
+        elif route_state == "declined" and not is_reverted:
+            declined.append(c)
         elif sheet_match and not is_reverted:
             raw_status = str(sheet_match.get('status', '')).lower()
             if raw_status == 'field_nation':
