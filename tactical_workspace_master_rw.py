@@ -1745,6 +1745,7 @@ def unify_and_sort_by_date(live_routes, ghost_routes, live_hashes):
     return unified
 
 # --- DISPATCH RENDERING ---
+@st.fragment
 def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
     # Capture current state identifiers
     task_ids = [str(t['id']).strip() for t in cluster['data']]
