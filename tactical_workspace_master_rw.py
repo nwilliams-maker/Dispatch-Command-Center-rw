@@ -2320,7 +2320,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 _link_ph = st.empty()
                 _link_ph.success("✅ Link Live! Gmail opening...")
                 # Desktop: fire popup via height=0 script (not blocked by browser)
-                st.components.v1.html(f"<script>window.open('{gmail_url}', '_blank');</script>", height=0)
+                st.components.v1.html(f"<script>if(window.screen.width>768){{window.open('{gmail_url}','_blank');}}</script>", height=0)
                 # Mobile: show tap link via CSS (hidden on desktop)
                 st.markdown(f"""<style>
 .gmail-tap-link {{ display:none; }}
