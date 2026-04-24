@@ -2323,7 +2323,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
 .gmail-tap {{ display:none; }}
 @media (max-width: 768px) {{ .gmail-tap {{ display:block !important; }} }}
 </style>
-<script>window.open('{gmail_url}', '_blank');</script>
+<script>if(window.innerWidth > 768){{ window.open('{gmail_url}', '_blank'); }}</script>
 <a class="gmail-tap" href="{gmail_url}" target="_blank"
 style="display:block;text-align:center;background:#633094;color:white;
 padding:12px;border-radius:10px;font-weight:800;font-size:15px;
