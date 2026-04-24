@@ -2090,7 +2090,12 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         if ic_name == prev_ic_name and cluster.get('wo', 'none') != 'none':
             wo_val = cluster['wo']
         else:
-            wo_val = f"{ic.get('name', 'Unknown')}-{datetime.now().strftime('%m%d%Y')}"
+            _base_wo = f"{ic.get('name', 'Unknown')}-{datetime.now().strftime('%m%d%Y')}"
+            # Count how many routes already sent to this IC today
+            _local_sent_db = st.session_state.get('sent_db', {})
+            _existing = [info for info in _local_sent_db.values() if str(info.get('wo', '')).startswith(_base_wo)]
+            _wo_num = len(_existing) + 1
+            wo_val = f"{_base_wo}-{_wo_num}"
         # 🌟 NEW: Calculate route-level task breakdowns for the email preview
         route_task_counts = {}
         total_installs = 0
@@ -2596,7 +2601,7 @@ def run_pod_tab(pod_name):
                 st.session_state[_notif_key] = True
                 wo = info.get('wo', 'Route')
                 icon = "✅" if info['status'] == 'accepted' else "❌"
-                st.toast(f"{icon} {wo} was {info['status'].upper()}", icon=icon)
+                st.toast(f"{wo} was {info['status'].upper()}", icon=icon)
                 break
 
 
