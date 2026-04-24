@@ -2712,7 +2712,12 @@ def run_pod_tab(pod_name):
 
     # --- KEEPING THE CLEAN AUTO-SYNC LOGIC ---
     sent_db, ghost_db = fetch_sent_records_from_sheet()
-    
+    # Merge real-time status updates from auto_sync_checker (overrides stale cache)
+    _ss_db = st.session_state.get('sent_db', {})
+    for _tid, _info in _ss_db.items():
+        if _tid in sent_db and _info.get('status') != sent_db[_tid].get('status'):
+            sent_db[_tid]['status'] = _info['status']
+
     # 🌟 THE FIX: Omni-Ghost Sorter
     pod_ghosts, finalized_ghosts, sent_ghosts = [], [], []
     seen_ghosts = set() # 🛡️ THE FIX: Streamlit Crash Shield
