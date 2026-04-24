@@ -646,6 +646,64 @@ div.mini-btn button {{
     border-radius: 4px !important;
 }}
 
+@media (max-width: 768px) {{
+    /* Stack columns vertically */
+    div[data-testid="stHorizontalBlock"] {{
+        flex-direction: column !important;
+    }}
+    div[data-testid="stColumn"] {{
+        width: 100% !important;
+        min-width: 100% !important;
+        flex: 1 1 100% !important;
+    }}
+
+    /* Tighten page padding */
+    .main .block-container {{
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+        padding-top: 0.5rem !important;
+    }}
+
+    /* Shrink tab pills so they fit on small screens */
+    .stTabs [data-baseweb="tab"] {{
+        padding: 6px 10px !important;
+        font-size: 11px !important;
+        border-radius: 20px !important;
+    }}
+
+    /* Reduce map height on mobile */
+    iframe[title="streamlit_folium.st_folium"] {{
+        height: 250px !important;
+    }}
+
+    /* Supercards full width */
+    .dashboard-supercard {{
+        height: auto !important;
+        margin-bottom: 8px !important;
+    }}
+
+    /* Expander header smaller text */
+    div[data-testid="stExpander"] details summary p {{
+        font-size: 0.75rem !important;
+    }}
+
+    /* Hide revoke button column on mobile — use full width for expander */
+    div[data-testid="stHorizontalBlock"]:has(div[data-testid="stPopover"]) > div[data-testid="stColumn"]:nth-child(2) {{
+        max-width: 48px !important;
+        min-width: 48px !important;
+        flex: 0 0 48px !important;
+    }}
+
+    /* Logo smaller on mobile */
+    div[style*="position: fixed"] img {{
+        width: 90px !important;
+    }}
+
+    /* Reduce h1 size */
+    h1 {{ font-size: 1.3rem !important; }}
+    h2 {{ font-size: 1.1rem !important; }}
+}}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -2310,8 +2368,23 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 subject_line = requests.utils.quote(f"Route Request | {wo_val}")
                 body_content = requests.utils.quote(final_sig)
                 gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={ic.get('email', '')}&su={subject_line}&body={body_content}"
-                # Fire Gmail popup immediately then give browser 1s to execute before rerun
-                st.components.v1.html(f"<script>window.open('{gmail_url}', '_blank');</script>", height=0)
+                # Desktop: JS popup. Mobile: visible tap link (JS popups blocked on mobile)
+                st.components.v1.html(f"""<script>
+if (window.innerWidth > 768) {{
+    window.open('{gmail_url}', '_blank');
+}}
+</script>
+<div id="mobile-gmail-link" style="display:none;">
+    <a href="{gmail_url}" target="_blank" style="display:block;text-align:center;
+    background:#633094;color:white;padding:12px;border-radius:10px;
+    font-weight:800;font-size:15px;text-decoration:none;margin:8px 0;">
+    📧 Open Gmail Draft</a>
+</div>
+<script>
+if (window.innerWidth <= 768) {{
+    document.getElementById('mobile-gmail-link').style.display = 'block';
+}}
+</script>""", height=60)
                 _link_ph = st.empty()
                 _link_ph.success("✅ Link Live! Gmail opening...")
                 time.sleep(1)
