@@ -939,13 +939,15 @@ def fetch_sent_records_from_sheet():
                                             break
                                 
                                 if pod_name != "UNKNOWN":
-                                    # 🌟 EXACT HASH FIX: Read the exact hash from the database payload
-                                    ghost_hash = p.get("cluster_hash") 
-                                    
-                                    # Fallback to math ONLY if the payload is old and doesn't have it
+                                    ghost_hash = p.get("cluster_hash")
                                     if not ghost_hash:
                                         clean_tids = [str(t).strip() for t in tids if str(t).strip()]
                                         ghost_hash = hashlib.md5("".join(sorted(clean_tids)).encode()).hexdigest()
+                                    # Parse rich stop data if available
+                                    try:
+                                        stop_data = json.loads(p.get("stopData", "[]"))
+                                    except:
+                                        stop_data = []
 
                                     ghost_routes[pod_name].append({
                                         "contractor_name": c_name,
@@ -956,10 +958,11 @@ def fetch_sent_records_from_sheet():
                                         "tasks": p.get('tCnt', len(tids)),
                                         "pay": p.get('comp', 0),
                                         "wo": p.get('wo', c_name),
-                                        "due": p.get('due', 'N/A'),  
-                                        "status": status_label, # 🌟 NEW: Save the DB status so the Traffic Cop knows!
-                                        "hash": ghost_hash, 
-                                        "locs": p.get('locs', '') 
+                                        "due": p.get('due', 'N/A'),
+                                        "status": status_label,
+                                        "hash": ghost_hash,
+                                        "locs": p.get('locs', ''),
+                                        "stop_data": stop_data
                                     })
                         except Exception: continue
             except Exception: continue
@@ -2248,7 +2251,24 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                     "kCnt": cluster.get('inst_count', 0),
                     "rCnt": cluster.get('remov_count', 0),
                     "dCnt": sum(1 for t in cluster['data'] if t.get('is_digital')),
-                    "jobOnly": " | ".join([f"{addr} {pills}" for addr, pills in loc_pills.items()])
+                    "jobOnly": " | ".join([f"{addr} {pills}" for addr, pills in loc_pills.items()]),
+                    "stopData": json.dumps([{
+                        "addr": addr,
+                        "venue": metrics.get("venue_name", ""),
+                        "t_count": metrics.get("t_count", 0),
+                        "esc": metrics.get("esc", False),
+                        "inst": metrics.get("inst", 0),
+                        "remov": metrics.get("remov", 0),
+                        "n_ad": metrics.get("n_ad", 0),
+                        "c_ad": metrics.get("c_ad", 0),
+                        "d_ad": metrics.get("d_ad", 0),
+                        "campaigns": list(dict.fromkeys([
+                            {"name": t.get("client_company", ""),
+                             "esc": t.get("escalated", False),
+                             "bs": str(t.get("boosted_standard", "")).lower()}
+                            for t in cluster["data"] if t.get("full") == addr and t.get("client_company")
+                        ], ))
+                    } for addr, metrics in stop_metrics.items()])
                 }
                 try:
                     _dispatch_result = requests.post(GAS_WEB_APP_URL, json={"action": "saveRoute", "payload": payload}, timeout=25).json()
@@ -2599,11 +2619,16 @@ def make_venue_details(data):
         )
     return "".join(rows)
 
-def make_venue_details_ghost(locs_list):
-    """Expandable accordion rows for ghost routes — no campaign data available."""
+def make_venue_details_ghost(locs_list, stop_data=None):
+    """Expandable accordion rows for ghost routes. Uses rich stop_data if available."""
+    # Build lookup by address from stop_data
+    sd_map = {}
+    if stop_data:
+        for sd in stop_data:
+            sd_map[sd.get('addr', '')] = sd
+
     rows = []
     for loc in locs_list:
-        # Try to split venue name from address if format is "Venue — Address"
         if " — " in loc:
             parts = loc.split(" — ", 1)
             venue_prefix = f"<span style='color:#94a3b8;font-size:11px;font-weight:600;'>{parts[0]} — </span>"
@@ -2611,14 +2636,49 @@ def make_venue_details_ghost(locs_list):
         else:
             venue_prefix = ""
             addr = loc
+
+        sd = sd_map.get(addr) or sd_map.get(loc) or {}
+        venue = sd.get('venue', '')
+        if venue and not venue_prefix:
+            venue_prefix = f"<span style='color:#94a3b8;font-size:11px;font-weight:600;'>{venue} — </span>"
+
+        # Build icon summary
+        icon_parts = []
+        if sd.get('n_ad', 0) > 0: icon_parts.append("🆕")
+        if sd.get('c_ad', 0) > 0: icon_parts.append("🔄")
+        if sd.get('d_ad', 0) > 0: icon_parts.append("⚪")
+        if sd.get('inst', 0) > 0: icon_parts.append(f"🛠️ {sd['inst']}")
+        if sd.get('remov', 0) > 0: icon_parts.append(f"🗑️ {sd['remov']}")
+        icon_html = f" <span style='font-size:12px;'>{' '.join(icon_parts)}</span>" if icon_parts else ""
+        esc_html = f" <span style='color:#dc2626;font-weight:900;font-size:10px;'>❗</span>" if sd.get('esc') else ""
+
+        t_pill = f" <span style='color:#633094;background:#f3e8ff;padding:1px 5px;border-radius:8px;font-weight:800;font-size:10px;'>{sd['t_count']} Tasks</span>" if sd.get('t_count') else ""
+
+        # Build campaign expansion
+        camps = sd.get('campaigns', [])
+        camp_rows = []
+        seen = set()
+        for cp in camps:
+            cname = cp.get('name', '')
+            if not cname: continue
+            badges = ""
+            if cp.get('esc'): badges += " ❗"
+            bs = cp.get('bs', '')
+            if 'local plus' in bs: badges += " ⭐"
+            elif 'boosted' in bs: badges += " 🔥"
+            row = f"<div style='font-size:10px;color:#64748b;padding-left:4px;margin-top:2px;'>• {cname}{badges}</div>"
+            if row not in seen:
+                seen.add(row)
+                camp_rows.append(row)
+
+        camp_block = f"<div style='padding:6px 8px;background:#f8fafc;border-radius:6px;margin-top:4px;'>{''.join(camp_rows)}</div>" if camp_rows else                      f"<div style='padding:6px 8px;background:#f8fafc;border-radius:6px;margin-top:4px;font-size:10px;color:#94a3b8;'>No campaign data.</div>"
+
         rows.append(
             f"<details class='fn-loc-row'>"
             f"<summary class='fn-loc-summary'>"
             f"<span class='fn-chevron'>›</span>"
-            f"{venue_prefix}<span style='font-weight:700;color:#0f172a;font-size:12px;'>{addr}</span>"
-            f"</summary>"
-            f"<div style='padding:6px 8px;background:#f8fafc;border-radius:6px;margin-top:4px;font-size:10px;color:#94a3b8;'>No campaign data available for archived routes.</div>"
-            f"</details>"
+            f"{venue_prefix}<span style='font-weight:700;color:#0f172a;font-size:12px;'>{addr}</span>{esc_html}{t_pill}{icon_html}"
+            f"</summary>{camp_block}</details>"
         )
     return "".join(rows)
 
@@ -3186,7 +3246,7 @@ def run_pod_tab(pod_name):
                             if len(raw_locs) >= 3: task_locs = raw_locs[1:-1]
                             else: task_locs = raw_locs
                             u_locs = list(dict.fromkeys(task_locs))
-                            _gvenues_html = venue_section(make_venue_details_ghost(u_locs)) if u_locs else ""
+                            _gvenues_html = venue_section(make_venue_details_ghost(u_locs, stop_data=g.get('stop_data', []))) if u_locs else ""
                             st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;">
     <div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;">
         <span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span>
@@ -3275,7 +3335,7 @@ def run_pod_tab(pod_name):
                             if len(raw_locs) >= 3: task_locs = raw_locs[1:-1]
                             else: task_locs = raw_locs
                             u_locs = list(dict.fromkeys(task_locs))
-                            _gacc_venues = venue_section(make_venue_details_ghost(u_locs)) if u_locs else ""
+                            _gacc_venues = venue_section(make_venue_details_ghost(u_locs, stop_data=g.get('stop_data', []))) if u_locs else ""
                             st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span></div><div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Contractor</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{g_ic_name}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Stops / Tasks</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{stops_cnt} <span style="color:#94a3b8; font-size:11px; font-weight:500;">Stops / {tasks_cnt} Tasks</span></div></div></div><div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Due Date</div><div style="font-size:13px; font-weight:700; color:#0f172a;">{due}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div><div style="font-size:18px; font-weight:900; color:#16a34a;">${comp}</div></div></div>{_gacc_venues}</div>""", unsafe_allow_html=True)
                             render_finalization_checklist(ghost_hash, pod_name, "g_chk")
                             if _gk_total > 0:
@@ -3377,7 +3437,7 @@ def run_pod_tab(pod_name):
                             if len(raw_locs) >= 3: task_locs = raw_locs[1:-1]
                             else: task_locs = raw_locs
                             u_locs = list(dict.fromkeys(task_locs))
-                            _gfin_venues = venue_section(make_venue_details_ghost(u_locs)) if u_locs else ""
+                            _gfin_venues = venue_section(make_venue_details_ghost(u_locs, stop_data=g.get('stop_data', []))) if u_locs else ""
                             g_ic_name_fin = g.get('contractor_name', 'Unknown')
                             st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span></div><div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Contractor</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{g_ic_name_fin}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Stops / Tasks</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{stops_cnt} <span style="color:#94a3b8; font-size:11px; font-weight:500;">Stops / {tasks_cnt} Tasks</span></div></div></div><div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Due Date</div><div style="font-size:13px; font-weight:700; color:#0f172a;">{due}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div><div style="font-size:18px; font-weight:900; color:#16a34a;">${comp}</div></div></div>{_gfin_venues}</div>""", unsafe_allow_html=True)
                 
@@ -3858,7 +3918,7 @@ with tabs[6]:
                                 if len(raw_locs) >= 3: task_locs = raw_locs[1:-1]
                                 else: task_locs = raw_locs
                                 u_locs = list(dict.fromkeys(task_locs))
-                                _dsg_venues = venue_section(make_venue_details_ghost(u_locs)) if u_locs else ""
+                                _dsg_venues = venue_section(make_venue_details_ghost(u_locs, stop_data=g.get('stop_data', []))) if u_locs else ""
                                 st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span></div><div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Contractor</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{g_ic_name}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Stops / Tasks</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{stops_cnt} <span style="color:#94a3b8; font-size:11px; font-weight:500;">Stops / {tasks_cnt} Tasks</span></div></div></div><div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Due Date</div><div style="font-size:13px; font-weight:700; color:#0f172a;">{due}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div><div style="font-size:18px; font-weight:900; color:#16a34a;">${comp}</div></div></div>{_dsg_venues}</div>""", unsafe_allow_html=True)
                         with btn_col:
                             with st.popover("↩️", use_container_width=True):
@@ -3918,7 +3978,7 @@ with tabs[6]:
                                 if len(raw_locs) >= 3: task_locs = raw_locs[1:-1]
                                 else: task_locs = raw_locs
                                 u_locs = list(dict.fromkeys(task_locs))
-                                _dag_venues = venue_section(make_venue_details_ghost(u_locs)) if u_locs else ""
+                                _dag_venues = venue_section(make_venue_details_ghost(u_locs, stop_data=g.get('stop_data', []))) if u_locs else ""
                                 st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span></div><div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Contractor</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{g_ic_name}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Stops / Tasks</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{stops_cnt} <span style="color:#94a3b8; font-size:11px; font-weight:500;">Stops / {tasks_cnt} Tasks</span></div></div></div><div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Due Date</div><div style="font-size:13px; font-weight:700; color:#0f172a;">{due}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div><div style="font-size:18px; font-weight:900; color:#16a34a;">${comp}</div></div></div>{_dag_venues}</div>""", unsafe_allow_html=True)
                                 render_finalization_checklist(ghost_hash, "Global_Digital", "g_chk_d")
                         with btn_col:
@@ -4006,7 +4066,7 @@ with tabs[6]:
                                 if len(raw_locs) >= 3: task_locs = raw_locs[1:-1]
                                 else: task_locs = raw_locs
                                 u_locs = list(dict.fromkeys(task_locs))
-                                _dgf_venues = venue_section(make_venue_details_ghost(u_locs)) if u_locs else ""
+                                _dgf_venues = venue_section(make_venue_details_ghost(u_locs, stop_data=g.get('stop_data', []))) if u_locs else ""
                                 st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span></div><div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Contractor</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{g_ic_name}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Stops / Tasks</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{stops_cnt} <span style="color:#94a3b8; font-size:11px; font-weight:500;">Stops / {tasks_cnt} Tasks</span></div></div></div><div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Due Date</div><div style="font-size:13px; font-weight:700; color:#0f172a;">{due}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div><div style="font-size:18px; font-weight:900; color:#16a34a;">${comp}</div></div></div>{_dgf_venues}</div>""", unsafe_allow_html=True)
                         
 # --- FINAL FOOTER (End of File) ---
