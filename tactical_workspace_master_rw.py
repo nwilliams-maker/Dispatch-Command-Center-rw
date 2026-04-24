@@ -646,6 +646,18 @@ div.mini-btn button {{
     border-radius: 4px !important;
 }}
 
+
+@media (max-width: 768px) {{
+    div[data-testid="stHorizontalBlock"] {{ flex-direction: column !important; }}
+    div[data-testid="stColumn"] {{ width: 100% !important; min-width: 100% !important; flex: 1 1 100% !important; }}
+    .main .block-container {{ padding-left: 0.5rem !important; padding-right: 0.5rem !important; padding-top: 0.5rem !important; }}
+    .stTabs [data-baseweb="tab"] {{ padding: 6px 10px !important; font-size: 11px !important; border-radius: 20px !important; }}
+    iframe[title="streamlit_folium.st_folium"] {{ height: 250px !important; }}
+    .dashboard-supercard {{ height: auto !important; margin-bottom: 8px !important; }}
+    div[data-testid="stExpander"] details summary p {{ font-size: 0.75rem !important; }}
+    h1 {{ font-size: 1.3rem !important; }}
+    h2 {{ font-size: 1.1rem !important; }}
+}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -2305,10 +2317,19 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 subject_line = requests.utils.quote(f"Route Request | {wo_val}")
                 body_content = requests.utils.quote(final_sig)
                 gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={ic.get('email', '')}&su={subject_line}&body={body_content}"
-                # Fire Gmail popup immediately then give browser 1s to execute before rerun
-                st.components.v1.html(f"<script>window.open('{gmail_url}', '_blank');</script>", height=0)
+                # Desktop: JS popup. Mobile (≤768px): CSS tap link shown instead.
                 _link_ph = st.empty()
                 _link_ph.success("✅ Link Live! Gmail opening...")
+                st.components.v1.html(f"""<style>
+.gmail-tap {{ display:none; }}
+@media (max-width: 768px) {{ .gmail-tap {{ display:block !important; }} }}
+</style>
+<script>window.open('{gmail_url}', '_blank');</script>
+<a class="gmail-tap" href="{gmail_url}" target="_blank"
+style="display:block;text-align:center;background:#633094;color:white;
+padding:12px;border-radius:10px;font-weight:800;font-size:15px;
+text-decoration:none;margin:4px 0;">📧 Open Gmail Draft</a>
+""", height=55)
                 time.sleep(1)
                 _link_ph.empty()
                 st.rerun()
