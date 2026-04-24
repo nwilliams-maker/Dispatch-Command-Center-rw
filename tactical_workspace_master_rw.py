@@ -2321,15 +2321,16 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 _link_ph.success("✅ Link Live! Gmail opening...")
                 # Desktop: fire popup via height=0 script (not blocked by browser)
                 st.components.v1.html(f"<script>if(window.screen.width>768){{window.open('{gmail_url}','_blank');}}</script>", height=0)
-                # Mobile: show tap link via CSS (hidden on desktop)
+                # Mobile: mailto link opens native mail app with pre-filled draft
+                _mailto = f"mailto:{ic.get('email','')}?subject={subject_line}&body={body_content}"
                 st.markdown(f"""<style>
 .gmail-tap-link {{ display:none; }}
 @media (max-width: 768px) {{ .gmail-tap-link {{ display:block !important; }} }}
 </style>
-<a class="gmail-tap-link" href="{gmail_url}" target="_blank"
+<a class="gmail-tap-link" href="{_mailto}"
 style="display:block;text-align:center;background:#633094;color:white;
 padding:12px;border-radius:10px;font-weight:800;font-size:15px;
-text-decoration:none;margin:4px 0;">📧 Open Gmail Draft</a>""", unsafe_allow_html=True)
+text-decoration:none;margin:4px 0;">📧 Open Email Draft</a>""", unsafe_allow_html=True)
                 time.sleep(1)
                 _link_ph.empty()
                 st.rerun()
