@@ -1961,34 +1961,7 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 f"</summary>{camp_block}</details>"
             )
 
-        # Render all stop HTML in one block (left) + stacked - buttons (right)
-        _stops_col, _btns_col = st.columns([0.93, 0.07])
-        with _stops_col:
-            st.markdown(f"{VENUE_SECTION_CSS}<div style='background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:8px;'><div style='background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:6px 12px;'><span style='font-size:9px;font-weight:900;color:#94a3b8;text-transform:uppercase;letter-spacing:0.1em;'>Route Stops</span></div><div style='padding:2px 8px 4px 8px;'>{''.join(_dispatch_rows)}</div></div>", unsafe_allow_html=True)
-        with _btns_col:
-            if not is_sent and not is_declined:
-                for _addr in list(stop_metrics.keys()):
-                    if st.button("-", key=f"split_{pod_name}_{cluster_hash}_{hashlib.md5(_addr.encode()).hexdigest()[:6]}", help="Break off this stop"):
-                        tasks_to_move = [t for t in cluster['data'] if t['full'] == _addr]
-                        new_fragment = {
-                            "data": tasks_to_move, "center": [tasks_to_move[0]['lat'], tasks_to_move[0]['lon']],
-                            "stops": 1, "city": tasks_to_move[0]['city'], "state": tasks_to_move[0]['state'],
-                            "status": "Ready", "has_ic": cluster.get('has_ic', False),
-                            "esc_count": sum(1 for x in tasks_to_move if x.get('escalated')),
-                            "is_digital": any(x.get('is_digital') for x in tasks_to_move),
-                            "inst_count": sum(1 for x in tasks_to_move if "install" in str(x.get('task_type', '')).lower()),
-                            "remov_count": sum(1 for x in tasks_to_move if "remove" in str(x.get('task_type', '')).lower()),
-                            "wo": "none"
-                        }
-                        cluster['data'] = [t for t in cluster['data'] if t['full'] != _addr]
-                        cluster['stops'] = len(set(t['full'] for t in cluster['data']))
-                        target_pod = pod_name if pod_name != "Global_Digital" else next((p for p, cfg in POD_CONFIGS.items() if new_fragment['state'] in cfg['states']), "UNKNOWN")
-                        if target_pod != "UNKNOWN" and f"clusters_{target_pod}" in st.session_state:
-                            st.session_state[f"clusters_{target_pod}"].append(new_fragment)
-                        st.session_state.pop(pay_key, None)
-                        st.session_state.pop(rate_key, None)
-                        st.toast("📍 Stop broken off into a standalone route!")
-                        st.rerun()
+        st.markdown(f"{VENUE_SECTION_CSS}<div style='background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:8px;'><div style='background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:6px 12px;'><span style='font-size:9px;font-weight:900;color:#94a3b8;text-transform:uppercase;letter-spacing:0.1em;'>Route Stops</span></div><div style='padding:2px 8px 4px 8px;'>{''.join(_dispatch_rows)}</div></div>", unsafe_allow_html=True)
 
 
 
