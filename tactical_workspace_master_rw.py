@@ -728,19 +728,25 @@ def background_sheet_finalize(cluster_hash):
 
 @st.fragment(run_every=15)
 def auto_sync_checker(pod_name):
-    """Polls every 10s. If any sent route in this pod has been accepted/declined, toasts and reruns."""
-    sent_db = st.session_state.get('sent_db', {})
-    if not sent_db:
+    """Polls every 15s. Checks pod cluster task IDs directly against Accepted/Declined sheets."""
+    # Build set of all task IDs in this pod's clusters
+    pod_clusters = st.session_state.get(f"clusters_{pod_name}", [])
+    if not pod_clusters:
         return
 
-    # Only check routes currently in 'sent' state
-    pending_tids = [tid for tid, info in sent_db.items() if info.get('status', '').lower() == 'sent']
-    if not pending_tids:
+    pod_tid_set = set()
+    for c in pod_clusters:
+        for t in c.get('data', []):
+            pod_tid_set.add(str(t['id']).strip())
+
+    if not pod_tid_set:
         return
 
     try:
         base_url = f"{IC_SHEET_URL.split('/edit')[0]}/export?format=csv&gid="
         changed = False
+        sent_db = st.session_state.get('sent_db', {})
+
         for gid, status_label in [(ACCEPTED_ROUTES_GID, 'accepted'), (DECLINED_ROUTES_GID, 'declined')]:
             try:
                 df = pd.read_csv(base_url + str(gid))
@@ -750,12 +756,17 @@ def auto_sync_checker(pod_name):
                 for _, row in df.iterrows():
                     try:
                         p = json.loads(row['json payload'])
-                        tids = str(p.get('taskIds', '')).split(',')
-                        for tid in tids:
-                            tid = tid.strip()
-                            if tid in sent_db and sent_db[tid].get('status', '').lower() == 'sent':
-                                sent_db[tid]['status'] = status_label
-                                changed = True
+                        tids = [t.strip() for t in str(p.get('taskIds', '')).split(',') if t.strip()]
+                        matching = [tid for tid in tids if tid in pod_tid_set]
+                        if matching:
+                            for tid in matching:
+                                current = sent_db.get(tid, {}).get('status', '').lower()
+                                if current != status_label:
+                                    if tid not in sent_db:
+                                        sent_db[tid] = {}
+                                    sent_db[tid]['status'] = status_label
+                                    sent_db[tid]['wo'] = p.get('wo', '')
+                                    changed = True
                     except:
                         pass
             except:
