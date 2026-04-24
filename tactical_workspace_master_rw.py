@@ -646,64 +646,6 @@ div.mini-btn button {{
     border-radius: 4px !important;
 }}
 
-@media (max-width: 768px) {{
-    /* Stack columns vertically */
-    div[data-testid="stHorizontalBlock"] {{
-        flex-direction: column !important;
-    }}
-    div[data-testid="stColumn"] {{
-        width: 100% !important;
-        min-width: 100% !important;
-        flex: 1 1 100% !important;
-    }}
-
-    /* Tighten page padding */
-    .main .block-container {{
-        padding-left: 0.5rem !important;
-        padding-right: 0.5rem !important;
-        padding-top: 0.5rem !important;
-    }}
-
-    /* Shrink tab pills so they fit on small screens */
-    .stTabs [data-baseweb="tab"] {{
-        padding: 6px 10px !important;
-        font-size: 11px !important;
-        border-radius: 20px !important;
-    }}
-
-    /* Reduce map height on mobile */
-    iframe[title="streamlit_folium.st_folium"] {{
-        height: 250px !important;
-    }}
-
-    /* Supercards full width */
-    .dashboard-supercard {{
-        height: auto !important;
-        margin-bottom: 8px !important;
-    }}
-
-    /* Expander header smaller text */
-    div[data-testid="stExpander"] details summary p {{
-        font-size: 0.75rem !important;
-    }}
-
-    /* Hide revoke button column on mobile — use full width for expander */
-    div[data-testid="stHorizontalBlock"]:has(div[data-testid="stPopover"]) > div[data-testid="stColumn"]:nth-child(2) {{
-        max-width: 48px !important;
-        min-width: 48px !important;
-        flex: 0 0 48px !important;
-    }}
-
-    /* Logo smaller on mobile */
-    div[style*="position: fixed"] img {{
-        width: 90px !important;
-    }}
-
-    /* Reduce h1 size */
-    h1 {{ font-size: 1.3rem !important; }}
-    h2 {{ font-size: 1.1rem !important; }}
-}}
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -787,22 +729,15 @@ def background_sheet_finalize(cluster_hash):
 @st.fragment(run_every=15)
 def auto_sync_checker(pod_name):
     """Polls every 15s. Checks pod cluster task IDs directly against Accepted/Declined sheets."""
-    # Only watch task IDs from routes currently in the Sent bucket
+    # Build set of all task IDs in this pod's clusters
     pod_clusters = st.session_state.get(f"clusters_{pod_name}", [])
-    sent_db = st.session_state.get('sent_db', {})
+    if not pod_clusters:
+        return
 
     pod_tid_set = set()
     for c in pod_clusters:
-        tids = [str(t['id']).strip() for t in c.get('data', [])]
-        cluster_hash = hashlib.md5("".join(sorted(tids)).encode()).hexdigest()
-        route_state = st.session_state.get(f"route_state_{cluster_hash}")
-        is_reverted = st.session_state.get(f"reverted_{cluster_hash}", False)
-        # Check if this cluster is in the Sent bucket
-        sheet_match = sent_db.get(next((tid for tid in tids if tid in sent_db), None))
-        raw_status = str(sheet_match.get('status', '')).lower() if sheet_match else ''
-        is_sent = (raw_status == 'sent' or route_state == 'email_sent') and not is_reverted
-        if is_sent:
-            pod_tid_set.update(tids)
+        for t in c.get('data', []):
+            pod_tid_set.add(str(t['id']).strip())
 
     if not pod_tid_set:
         return
@@ -810,6 +745,7 @@ def auto_sync_checker(pod_name):
     try:
         base_url = f"{IC_SHEET_URL.split('/edit')[0]}/export?format=csv&gid="
         changed = False
+        sent_db = st.session_state.get('sent_db', {})
 
         for gid, status_label in [(ACCEPTED_ROUTES_GID, 'accepted'), (DECLINED_ROUTES_GID, 'declined')]:
             try:
@@ -2337,11 +2273,12 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                         "n_ad": metrics.get("n_ad", 0),
                         "c_ad": metrics.get("c_ad", 0),
                         "d_ad": metrics.get("d_ad", 0),
-                        "campaigns": [dict(t) for t in {
-                            (t.get("client_company",""), t.get("escalated",False), str(t.get("boosted_standard","")).lower()): 
-                            {"name": t.get("client_company",""), "esc": t.get("escalated",False), "bs": str(t.get("boosted_standard","")).lower()}
+                        "campaigns": list(dict.fromkeys([
+                            {"name": t.get("client_company", ""),
+                             "esc": t.get("escalated", False),
+                             "bs": str(t.get("boosted_standard", "")).lower()}
                             for t in cluster["data"] if t.get("full") == addr and t.get("client_company")
-                        }.values()]
+                        ], ))
                     } for addr, metrics in stop_metrics.items()])
                 }
                 try:
@@ -2368,25 +2305,10 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 subject_line = requests.utils.quote(f"Route Request | {wo_val}")
                 body_content = requests.utils.quote(final_sig)
                 gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={ic.get('email', '')}&su={subject_line}&body={body_content}"
-                # Desktop: JS popup fires immediately. Mobile: CSS shows tap link.
-                # Show success + link first, THEN rerun after delay so JS has time to execute
+                # Fire Gmail popup immediately then give browser 1s to execute before rerun
+                st.components.v1.html(f"<script>window.open('{gmail_url}', '_blank');</script>", height=0)
                 _link_ph = st.empty()
                 _link_ph.success("✅ Link Live! Gmail opening...")
-                st.components.v1.html(f"""
-<style>
-.gmail-mobile-link {{ display: none; }}
-@media (max-width: 768px) {{
-    .gmail-mobile-link {{ display: block !important; }}
-}}
-</style>
-<script>
-if (window.innerWidth > 768) {{ window.open('{gmail_url}', '_blank'); }}
-</script>
-<a class="gmail-mobile-link" href="{gmail_url}" target="_blank"
-style="display:block;text-align:center;background:#633094;color:white;
-padding:12px;border-radius:10px;font-weight:800;font-size:15px;
-text-decoration:none;margin:4px 0;">📧 Open Gmail Draft</a>
-""", height=60)
                 time.sleep(1)
                 _link_ph.empty()
                 st.rerun()
@@ -4168,4 +4090,4 @@ st.markdown(
     </div>
     """, 
     unsafe_allow_html=True
-)
+    )
