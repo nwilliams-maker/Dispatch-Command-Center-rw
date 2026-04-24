@@ -769,6 +769,7 @@ def auto_sync_checker():
 
         if changed:
             st.session_state.sent_db = sent_db
+            fetch_sent_records_from_sheet.clear()  # Bust cache so UI gets fresh data
             # Store changed tids so run_pod_tab can fire pod-scoped toast
             _changed_tids = [tid for tid, info in sent_db.items()
                              if info.get('status') in ('accepted', 'declined')
@@ -2614,7 +2615,7 @@ def venue_section(inner_html):
     return f'{VENUE_SECTION_CSS}<div style="border-top:1px solid #e2e8f0;padding:6px 12px 8px 12px;"><div style="font-size:9px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Venue Locations</div>{inner_html}</div>'
 
 def run_pod_tab(pod_name):
-    auto_sync_checker()  # 🔄 Auto-detect accepted/declined routes every 10s
+
 
     # Show toast only if a route in THIS pod changed
     sent_db = st.session_state.get('sent_db', {})
@@ -3368,6 +3369,9 @@ if "ic_df" not in st.session_state:
 st.markdown("<h1 style='color: #633094;'>Terraboost Media: Dispatch Command Center</h1>", unsafe_allow_html=True)
 
 # Updated Main Tabs
+# 🔄 Run sync checker globally — fires regardless of active tab
+auto_sync_checker()
+
 tabs = st.tabs(["Global", "Blue Pod", "Green Pod", "Orange Pod", "Purple Pod", "Red Pod", "Digital"])
 # --- TAB 0: GLOBAL CONTROL ---
 with tabs[0]:
