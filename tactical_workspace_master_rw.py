@@ -2285,12 +2285,11 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                         "n_ad": metrics.get("n_ad", 0),
                         "c_ad": metrics.get("c_ad", 0),
                         "d_ad": metrics.get("d_ad", 0),
-                        "campaigns": list(dict.fromkeys([
-                            {"name": t.get("client_company", ""),
-                             "esc": t.get("escalated", False),
-                             "bs": str(t.get("boosted_standard", "")).lower()}
+                        "campaigns": list({
+                            (t.get("client_company",""), t.get("escalated",False), str(t.get("boosted_standard","")).lower()):
+                            {"name": t.get("client_company",""), "esc": t.get("escalated",False), "bs": str(t.get("boosted_standard","")).lower()}
                             for t in cluster["data"] if t.get("full") == addr and t.get("client_company")
-                        ], ))
+                        }.values())
                     } for addr, metrics in stop_metrics.items()])
                 }
                 try:
