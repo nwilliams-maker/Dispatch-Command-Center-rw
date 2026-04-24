@@ -1039,6 +1039,22 @@ def process_digital_pool(master_bar=None):
         res_json = response.json()
         all_tasks_raw.extend(res_json.get('tasks', []))
         url = f"https://onfleet.com/api/v2/tasks/all?state=0&from={time_window}&lastId={res_json['lastId']}" if res_json.get('lastId') else None
+        # Tick timer on every page fetch
+        _ov2 = st.session_state.get('_loading_overlay')
+        _st2 = st.session_state.get('_loading_start')
+        if _ov2 and _st2:
+            import time as _t3
+            _el2 = int(_t3.time() - _st2); _m2 = _el2 // 60; _s2 = _el2 % 60
+            _pct = min(0.1 + 0.3 * (len(all_tasks_raw) / max(500, len(all_tasks_raw))), 0.39)
+            prog_bar.progress(_pct, text=f"📡 Fetching tasks... {len(all_tasks_raw)} found")
+            _ov2.markdown(f"""<style>@keyframes spin{{0%{{transform:rotate(0deg)}}100%{{transform:rotate(360deg)}}}}
+.dcc-card{{background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:36px 32px;text-align:center;margin:20px 0;}}
+.dcc-spin{{width:44px;height:44px;border:4px solid #e2e8f0;border-top:4px solid #0f766e;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 16px auto;}}
+.dcc-pill{{display:inline-block;font-size:13px;font-weight:700;color:#0f766e;background:#ccfbf1;border-radius:20px;padding:4px 14px;margin-top:12px;}}</style>
+<div class='dcc-card'><div class='dcc-spin'></div>
+<p style='font-size:16px;font-weight:800;color:#0f172a;margin:0 0 4px 0;'>Initializing Digital Pool</p>
+<p style='font-size:13px;color:#64748b;margin:0 0 8px 0;'>Fetching tasks... {len(all_tasks_raw)} found</p>
+<div class='dcc-pill'>⏱ {_m2}:{_s2:02d}</div></div>""", unsafe_allow_html=True)
         
     prog_bar.progress(0.4, text="🔍 Isolating Digital Service Calls...")
     # Tick digital overlay timer
