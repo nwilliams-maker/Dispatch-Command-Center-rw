@@ -778,12 +778,9 @@ def auto_sync_checker(pod_name):
                     st.session_state[f"reverted_{_chash}"] = False
                     if not st.session_state.get(f"_notified_{tid}"):
                         st.session_state[f"_notified_{tid}"] = True
-                        # Store toast to fire AFTER rerun (toast+rerun together cancels toast)
-                        st.session_state['_pending_toast'] = {
-                            'wo': info.get('wo', 'Route'),
-                            'status': info['status'],
-                            'icon': "✅" if info['status'] == 'accepted' else "❌"
-                        }
+                        _nt_wo = info.get('wo', 'Route')
+                        _nt_icon = "✅" if info['status'] == 'accepted' else "❌"
+                        st.toast(f"{_nt_wo} was {info['status'].upper()}", icon=_nt_icon)
             st.rerun(scope="app")
 
     except:
@@ -2636,12 +2633,12 @@ def run_pod_tab(pod_name):
 
 
 
-    auto_sync_checker(pod_name)  # 🔄 Auto-detect accepted/declined routes every 10s
-
-    # Fire pending toast set by auto_sync_checker (after rerun so it renders properly)
+    # Fire pending toast from previous auto_sync_checker detection
     _pt = st.session_state.pop('_pending_toast', None)
     if _pt:
         st.toast(f"{_pt['wo']} was {_pt['status'].upper()}", icon=_pt['icon'])
+
+    auto_sync_checker(pod_name)  # 🔄 Auto-detect accepted/declined routes every 30s
 
     # Grab the contractor database from session state
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
