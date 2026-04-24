@@ -763,17 +763,26 @@ def auto_sync_checker(pod_name):
         if changed:
             st.session_state.sent_db = sent_db
             fetch_sent_records_from_sheet.clear()
-            # Fire toast if changed route belongs to this pod
+            # Update route_state in session state so traffic cop moves route immediately
             pod_clusters = st.session_state.get(f"clusters_{pod_name}", [])
-            pod_tids = set(str(t['id']).strip() for c in pod_clusters for t in c.get('data', []))
+            pod_tids_map = {}  # tid -> cluster_hash
+            for c in pod_clusters:
+                _tids = [str(t['id']).strip() for t in c.get('data', [])]
+                _hash = hashlib.md5("".join(sorted(_tids)).encode()).hexdigest()
+                for _tid in _tids:
+                    pod_tids_map[_tid] = _hash
             for tid, info in sent_db.items():
-                if tid in pod_tids and info.get('status') in ('accepted', 'declined'):
+                if tid in pod_tids_map and info.get('status') in ('accepted', 'declined'):
+                    _chash = pod_tids_map[tid]
+                    # Set route_state so traffic cop picks it up instantly
+                    st.session_state[f"route_state_{_chash}"] = info['status']
+                    st.session_state[f"reverted_{_chash}"] = False
+                    # Fire toast once per change
                     if not st.session_state.get(f"_notified_{tid}"):
                         st.session_state[f"_notified_{tid}"] = True
                         wo = info.get('wo', 'Route')
                         icon = "✅" if info['status'] == 'accepted' else "❌"
                         st.toast(f"{wo} was {info['status'].upper()}", icon=icon)
-                        break
             st.rerun(scope="app")
 
     except:
