@@ -1955,8 +1955,8 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             if metrics['n_ad'] > 0: icon_parts.append("🆕")
             if metrics['c_ad'] > 0: icon_parts.append("🔄")
             if metrics['d_ad'] > 0: icon_parts.append("⚪")
-            if metrics['inst'] > 0: icon_parts.append("🛠️")
-            if metrics['remov'] > 0: icon_parts.append("🗑️")
+            if metrics['inst'] > 0: icon_parts.append(f"🛠️ {metrics['inst']}")
+            if metrics['remov'] > 0: icon_parts.append(f"🗑️ {metrics['remov']}")
             if metrics['custom']: icon_parts.append("📋")
             if metrics['digi_off'] > 0: icon_parts.append("📵")
             if metrics['digi_ins'] > 0: icon_parts.append("🔧")
@@ -2535,7 +2535,7 @@ def make_venue_details(data):
         venue = next((t.get('venue_name','') for t in loc_tasks if t.get('venue_name')), '')
         k_cnt = sum(1 for t in loc_tasks if 'install' in str(t.get('task_type','')).lower())
         esc_cnt = sum(1 for t in loc_tasks if t.get('escalated'))
-        k_tag = f" <span style='color:#16a34a;font-weight:800;font-size:10px;'>🛠️ {k_cnt}</span>" if k_cnt > 0 else ""
+        k_tag = f" <span style='color:#16a34a;font-weight:800;font-size:10px;'>🛠️ {k_cnt} Kiosk</span>" if k_cnt > 0 else ""
         esc_tag = f" <span style='color:#dc2626;font-weight:900;font-size:10px;'>❗ {esc_cnt}</span>" if esc_cnt > 0 else ""
         venue_prefix = f"<span style='color:#94a3b8;font-size:11px;font-weight:600;'>{venue} — </span>" if venue else ""
         # Build campaign expansion
