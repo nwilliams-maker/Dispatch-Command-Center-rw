@@ -729,15 +729,22 @@ def background_sheet_finalize(cluster_hash):
 @st.fragment(run_every=15)
 def auto_sync_checker(pod_name):
     """Polls every 15s. Checks pod cluster task IDs directly against Accepted/Declined sheets."""
-    # Build set of all task IDs in this pod's clusters
+    # Only watch task IDs from routes currently in the Sent bucket
     pod_clusters = st.session_state.get(f"clusters_{pod_name}", [])
-    if not pod_clusters:
-        return
+    sent_db = st.session_state.get('sent_db', {})
 
     pod_tid_set = set()
     for c in pod_clusters:
-        for t in c.get('data', []):
-            pod_tid_set.add(str(t['id']).strip())
+        tids = [str(t['id']).strip() for t in c.get('data', [])]
+        cluster_hash = hashlib.md5("".join(sorted(tids)).encode()).hexdigest()
+        route_state = st.session_state.get(f"route_state_{cluster_hash}")
+        is_reverted = st.session_state.get(f"reverted_{cluster_hash}", False)
+        # Check if this cluster is in the Sent bucket
+        sheet_match = sent_db.get(next((tid for tid in tids if tid in sent_db), None))
+        raw_status = str(sheet_match.get('status', '')).lower() if sheet_match else ''
+        is_sent = (raw_status == 'sent' or route_state == 'email_sent') and not is_reverted
+        if is_sent:
+            pod_tid_set.update(tids)
 
     if not pod_tid_set:
         return
@@ -745,7 +752,6 @@ def auto_sync_checker(pod_name):
     try:
         base_url = f"{IC_SHEET_URL.split('/edit')[0]}/export?format=csv&gid="
         changed = False
-        sent_db = st.session_state.get('sent_db', {})
 
         for gid, status_label in [(ACCEPTED_ROUTES_GID, 'accepted'), (DECLINED_ROUTES_GID, 'declined')]:
             try:
