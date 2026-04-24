@@ -2319,16 +2319,17 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 # Desktop: JS popup. Mobile (≤768px): CSS tap link shown instead.
                 _link_ph = st.empty()
                 _link_ph.success("✅ Link Live! Gmail opening...")
-                st.components.v1.html(f"""<style>
-.gmail-tap {{ display:none; }}
-@media (max-width: 768px) {{ .gmail-tap {{ display:block !important; }} }}
+                # Desktop: fire popup via height=0 script (not blocked by browser)
+                st.components.v1.html(f"<script>window.open('{gmail_url}', '_blank');</script>", height=0)
+                # Mobile: show tap link via CSS (hidden on desktop)
+                st.markdown(f"""<style>
+.gmail-tap-link {{ display:none; }}
+@media (max-width: 768px) {{ .gmail-tap-link {{ display:block !important; }} }}
 </style>
-<script>if(window.innerWidth > 768){{ window.open('{gmail_url}', '_blank'); }}</script>
-<a class="gmail-tap" href="{gmail_url}" target="_blank"
+<a class="gmail-tap-link" href="{gmail_url}" target="_blank"
 style="display:block;text-align:center;background:#633094;color:white;
 padding:12px;border-radius:10px;font-weight:800;font-size:15px;
-text-decoration:none;margin:4px 0;">📧 Open Gmail Draft</a>
-""", height=55)
+text-decoration:none;margin:4px 0;">📧 Open Gmail Draft</a>""", unsafe_allow_html=True)
                 time.sleep(1)
                 _link_ph.empty()
                 st.rerun()
