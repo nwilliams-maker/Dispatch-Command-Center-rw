@@ -2208,14 +2208,20 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
             st.caption("📋 Email dispatch disabled — route is assigned to Field Nation.")
 
         if st.button(btn_label, type="primary", key=f"gbtn_{pod_name}_{cluster_hash}", disabled=not is_unlocked or is_fn, use_container_width=True):
-            # 🛡️ STEP 1: FAST COLLISION CHECK (Memory-based)
+            # 🛡️ STEP 1: FAST COLLISION CHECK — only block active sent routes (not revoked/declined)
             local_sent_db = st.session_state.get('sent_db', {})
-            collision = next((tid for tid in task_ids if tid in local_sent_db), None)
-        
-            # 🌟 THE FIX: Only block collisions if we are trying to send a brand new route!
+            _active_statuses = ('sent',)
+            collision = next(
+                (tid for tid in task_ids
+                 if tid in local_sent_db
+                 and local_sent_db[tid].get('status', '').lower() in _active_statuses
+                 and not st.session_state.get(f"reverted_{cluster_hash}", False)),
+                None
+            )
+
             if collision and not is_already_sent:
                 st.error(f"🚫 COLLISION: Dispatched by someone else ({local_sent_db[collision]['name']}).")
-                st.rerun() 
+                st.rerun()
                 return
 
             # 🚀 STEP 2: PROCEED WITH DISPATCH
