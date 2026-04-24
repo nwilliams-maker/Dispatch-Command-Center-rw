@@ -763,20 +763,6 @@ def auto_sync_checker(pod_name):
         if changed:
             st.session_state.sent_db = sent_db
             fetch_sent_records_from_sheet.clear()
-            # Update route_state + store toast info for run_pod_tab to fire after rerun
-            pod_clusters = st.session_state.get(f"clusters_{pod_name}", [])
-            pod_tids_map = {}
-            for c in pod_clusters:
-                _tids = [str(t['id']).strip() for t in c.get('data', [])]
-                _hash = hashlib.md5("".join(sorted(_tids)).encode()).hexdigest()
-                for _tid in _tids:
-                    pod_tids_map[_tid] = _hash
-            for tid, info in sent_db.items():
-                if tid in pod_tids_map and info.get('status') in ('accepted', 'declined'):
-                    _chash = pod_tids_map[tid]
-                    st.session_state[f"route_state_{_chash}"] = info['status']
-                    st.session_state[f"reverted_{_chash}"] = False
-
             st.rerun(scope="app")
 
     except:
@@ -2744,6 +2730,13 @@ def run_pod_tab(pod_name):
     for _tid, _info in _ss_db.items():
         if _tid in sent_db and _info.get('status') != sent_db[_tid].get('status'):
             sent_db[_tid]['status'] = _info['status']
+            # Clear reverted flag so traffic cop picks up the new status
+            for _c in st.session_state.get(f"clusters_{pod_name}", []):
+                _c_tids = [str(t['id']).strip() for t in _c.get('data', [])]
+                if _tid in _c_tids:
+                    _c_hash = hashlib.md5("".join(sorted(_c_tids)).encode()).hexdigest()
+                    st.session_state[f"reverted_{_c_hash}"] = False
+                    break
 
     # 🌟 THE FIX: Omni-Ghost Sorter
     pod_ghosts, finalized_ghosts, sent_ghosts = [], [], []
@@ -2804,10 +2797,6 @@ def run_pod_tab(pod_name):
         # 🌟 THE FIX: If we just clicked Finalize, override the Google Sheet instantly!
         if route_state == "finalized":
             finalized.append(c)
-        elif route_state == "accepted" and not is_reverted:
-            accepted.append(c)
-        elif route_state == "declined" and not is_reverted:
-            declined.append(c)
         elif sheet_match and not is_reverted:
             raw_status = str(sheet_match.get('status', '')).lower()
             if raw_status == 'field_nation':
