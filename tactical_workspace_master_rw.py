@@ -1894,12 +1894,12 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         _dispatch_rows = []
         for addr, metrics in stop_metrics.items():
             pill_parts = []
-            if metrics['n_ad'] > 0: pill_parts.append(f"{metrics['n_ad']} New Ad")
-            if metrics['c_ad'] > 0: pill_parts.append(f"{metrics['c_ad']} Continuity")
-            if metrics['d_ad'] > 0: pill_parts.append(f"{metrics['d_ad']} Default")
+            if metrics['n_ad'] > 0: pill_parts.append(f"{metrics['n_ad']} 🆕 New Ad")
+            if metrics['c_ad'] > 0: pill_parts.append(f"{metrics['c_ad']} 🔄 Continuity")
+            if metrics['d_ad'] > 0: pill_parts.append(f"{metrics['d_ad']} ⚪ Default")
             if metrics['inst'] > 0: pill_parts.append(f"{metrics['inst']} 🛠️ Install")
             if metrics['remov'] > 0: pill_parts.append(f"{metrics['remov']} 🗑️ Removal")
-            for cn, cnt in metrics['custom'].items(): pill_parts.append(f"{cnt} {cn}")
+            for cn, cnt in metrics['custom'].items(): pill_parts.append(f"{cnt} 📋 {cn}")
             if metrics['digi_off'] > 0: pill_parts.append(f"{metrics['digi_off']} 📵 Offline")
             if metrics['digi_ins'] > 0: pill_parts.append(f"{metrics['digi_ins']} 🔧 Ins/Rem")
             if metrics['digi_srv'] > 0: pill_parts.append(f"{metrics['digi_srv']} ⚙️ Service")
