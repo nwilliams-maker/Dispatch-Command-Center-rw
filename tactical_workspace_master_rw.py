@@ -2838,15 +2838,30 @@ def run_pod_tab(pod_name):
                             _k_cnt = sum(1 for _tk in _loc_tasks if 'install' in str(_tk.get('task_type','')).lower())
                             _k_tag = f" <span style='color:#16a34a; font-weight:800; font-size:10px;'>🛠️ {_k_cnt}</span>" if _k_cnt > 0 else ""
                             _venue_prefix = f"<span style='color:#94a3b8; font-size:11px; font-weight:600;'>{_venue} — </span>" if _venue else ""
-                            _camp_html = "".join([f"<div style='font-size:10px; color:#64748b; padding-left:8px; margin-top:1px;'>• {cmp}</div>" for cmp in _campaigns if cmp])
+                            _camp_html = "".join([f"<div style='font-size:10px; color:#64748b; padding-left:4px; margin-top:2px;'>• {cmp}</div>" for cmp in _campaigns if cmp])
+                            _camp_block = f"<div style='padding:6px 8px; background:#f8fafc; border-radius:6px; margin-top:4px;'>{_camp_html}</div>" if _camp_html else ""
                             _fn_loc_rows.append(
-                                f"<div style='padding:5px 0; border-bottom:1px solid #f1f5f9;'>"
-                                f"{_venue_prefix}<span style='font-weight:700; font-size:12px; color:#0f172a;'>{_loc}</span>{_k_tag}"
-                                f"{_camp_html}</div>"
+                                f"<details class='fn-loc-row'>"
+                                f"<summary class='fn-loc-summary'>"
+                                f"{_venue_prefix}<span style='font-weight:700; color:#0f172a;'>{_loc}</span>{_k_tag}"
+                                f"<span class='fn-chevron'>›</span></summary>"
+                                f"{_camp_block}"
+                                f"</details>"
                             )
                         _fn_locs_html = "".join(_fn_loc_rows)
                         _fn_stops, _fn_tasks = len(_fn_u_locs), len(c['data'])
-                        st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;">
+                        st.markdown(f"""
+<style>
+.fn-loc-row {{border-bottom:1px solid #f1f5f9;}}
+.fn-loc-row:last-child {{border-bottom:none;}}
+.fn-loc-summary {{display:flex;align-items:center;justify-content:space-between;padding:7px 4px;font-size:12px;cursor:pointer;border-radius:6px;list-style:none;user-select:none;transition:background 0.15s ease;}}
+.fn-loc-summary::-webkit-details-marker {{display:none;}}
+.fn-loc-summary::marker {{display:none;}}
+.fn-loc-summary:hover {{background:#f8fafc;}}
+.fn-chevron {{font-size:16px;color:#94a3b8;font-weight:300;transition:transform 0.2s ease;flex-shrink:0;margin-left:8px;}}
+details[open] .fn-chevron {{transform:rotate(90deg);}}
+</style>
+<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;">
     <div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;">
         <span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span>
     </div>
@@ -2854,7 +2869,7 @@ def run_pod_tab(pod_name):
         <div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Stops / Tasks</div>
         <div style="font-size:14px; font-weight:800; color:#0f172a;">{_fn_stops} <span style="color:#94a3b8; font-size:11px; font-weight:500;">Stops / {_fn_tasks} Tasks</span></div></div>
         <div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Status</div>
-        <div style="font-size:13px; font-weight:700; color:#854d0e;">🌐 Field Nation</div></div>
+        <div style="font-size:13px; font-weight:700; color:#854d0e;">Field Nation</div></div>
     </div>
     <div style="padding:6px 12px 8px 12px;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:4px;">Venue Locations</div>{_fn_locs_html}</div>
 </div>""", unsafe_allow_html=True)
@@ -3164,7 +3179,7 @@ if "ic_df" not in st.session_state:
 st.markdown("<h1 style='color: #633094;'>Terraboost Media: Dispatch Command Center</h1>", unsafe_allow_html=True)
 
 # Updated Main Tabs
-tabs = st.tabs(["Global", "Blue Pod", "Green Pod", "Orange Pod", "Purple Pod", "Red Pod", "Digital", "🔍 Inspector"])
+tabs = st.tabs(["Global", "Blue Pod", "Green Pod", "Orange Pod", "Purple Pod", "Red Pod", "Digital"])
 # --- TAB 0: GLOBAL CONTROL ---
 with tabs[0]:
     # Check if ANY pod is loaded to toggle button state
@@ -3787,42 +3802,6 @@ with tabs[6]:
                                 _dgf_venues = f'''<div style="border-top:1px solid #e2e8f0; padding:10px 12px;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;">Venue Locations</div><ul style="margin:0; padding-left:14px; font-size:11px; color:#475569; line-height:1.4;">{_dgf_items}</ul></div>''' if u_locs else ""
                                 st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;"><div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;"><span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span></div><div style="padding:12px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Contractor</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{g_ic_name}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Stops / Tasks</div><div style="font-size:14px; font-weight:800; color:#0f172a;">{stops_cnt} <span style="color:#94a3b8; font-size:11px; font-weight:500;">Stops / {tasks_cnt} Tasks</span></div></div></div><div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9;"><div><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Due Date</div><div style="font-size:13px; font-weight:700; color:#0f172a;">{due}</div></div><div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Total Compensation</div><div style="font-size:18px; font-weight:900; color:#16a34a;">${comp}</div></div></div>{_dgf_venues}</div>""", unsafe_allow_html=True)
                         
-# --- TAB: INSPECTOR ---
-with tabs[7]:
-    st.markdown("<h3 style='color:#633094;'>🔍 Onfleet Task Inspector</h3>", unsafe_allow_html=True)
-    st.caption("Temporary tool to inspect raw task data from Onfleet. Shows every field on a sample task from any loaded pod cluster.")
-
-    # Pick a pod that has data
-    _insp_pod = st.selectbox("Select Pod", [p for p in ["Blue","Green","Orange","Purple","Red"] if f"clusters_{p}" in st.session_state] or ["None"], key="insp_pod")
-    if _insp_pod and _insp_pod != "None" and f"clusters_{_insp_pod}" in st.session_state:
-        _insp_cls = st.session_state[f"clusters_{_insp_pod}"]
-        if _insp_cls:
-            _insp_c_idx = st.selectbox("Select Route", range(len(_insp_cls)),
-                format_func=lambda x: f"{_insp_cls[x].get('city','?')}, {_insp_cls[x].get('state','?')} | {_insp_cls[x].get('stops',0)} Stops",
-                key="insp_cluster")
-            _insp_c = _insp_cls[_insp_c_idx]
-            _insp_t_idx = st.selectbox("Select Task", range(len(_insp_c['data'])),
-                format_func=lambda x: _insp_c['data'][x].get('full', f"Task {x}"),
-                key="insp_task")
-            _insp_t = _insp_c['data'][_insp_t_idx]
-
-            st.markdown("---")
-            st.markdown("#### All fields on this task:")
-
-            # Show every key/value cleanly
-            for k, v in sorted(_insp_t.items()):
-                col_k, col_v = st.columns([1, 3])
-                col_k.markdown(f"**`{k}`**")
-                col_v.markdown(f"`{v}`")
-
-            st.markdown("---")
-            st.markdown("#### Raw dict (copy-paste friendly):")
-            st.json(_insp_t)
-        else:
-            st.info("No clusters loaded for this pod yet.")
-    else:
-        st.info("Initialize a pod first, then come back here.")
-
 # --- FINAL FOOTER (End of File) ---
 st.markdown("---")
 st.markdown(
