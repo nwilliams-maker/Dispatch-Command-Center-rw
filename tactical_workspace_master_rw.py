@@ -1893,21 +1893,34 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
         # Build expandable stop rows with task pills in summary + campaign in expansion
         _dispatch_rows = []
         for addr, metrics in stop_metrics.items():
-            pill_parts = []
-            if metrics['n_ad'] > 0: pill_parts.append(f"{metrics['n_ad']} 🆕 New Ad")
-            if metrics['c_ad'] > 0: pill_parts.append(f"{metrics['c_ad']} 🔄 Continuity")
-            if metrics['d_ad'] > 0: pill_parts.append(f"{metrics['d_ad']} ⚪ Default")
-            if metrics['inst'] > 0: pill_parts.append(f"{metrics['inst']} 🛠️ Install")
-            if metrics['remov'] > 0: pill_parts.append(f"{metrics['remov']} 🗑️ Removal")
-            for cn, cnt in metrics['custom'].items(): pill_parts.append(f"{cnt} 📋 {cn}")
-            if metrics['digi_off'] > 0: pill_parts.append(f"{metrics['digi_off']} 📵 Offline")
-            if metrics['digi_ins'] > 0: pill_parts.append(f"{metrics['digi_ins']} 🔧 Ins/Rem")
-            if metrics['digi_srv'] > 0: pill_parts.append(f"{metrics['digi_srv']} ⚙️ Service")
-            pill_str = " | ".join(pill_parts)
+            # Icons only for address row summary
+            icon_parts = []
+            if metrics['n_ad'] > 0: icon_parts.append("🆕")
+            if metrics['c_ad'] > 0: icon_parts.append("🔄")
+            if metrics['d_ad'] > 0: icon_parts.append("⚪")
+            if metrics['inst'] > 0: icon_parts.append("🛠️")
+            if metrics['remov'] > 0: icon_parts.append("🗑️")
+            if metrics['custom']: icon_parts.append("📋")
+            if metrics['digi_off'] > 0: icon_parts.append("📵")
+            if metrics['digi_ins'] > 0: icon_parts.append("🔧")
+            if metrics['digi_srv'] > 0: icon_parts.append("⚙️")
+            pill_str = " ".join(icon_parts)
+            # Full icon+name for expansion
+            expand_parts = []
+            if metrics['n_ad'] > 0: expand_parts.append(f"🆕 {metrics['n_ad']} New Ad")
+            if metrics['c_ad'] > 0: expand_parts.append(f"🔄 {metrics['c_ad']} Continuity")
+            if metrics['d_ad'] > 0: expand_parts.append(f"⚪ {metrics['d_ad']} Default")
+            if metrics['inst'] > 0: expand_parts.append(f"🛠️ {metrics['inst']} Install")
+            if metrics['remov'] > 0: expand_parts.append(f"🗑️ {metrics['remov']} Removal")
+            for cn, cnt in metrics['custom'].items(): expand_parts.append(f"📋 {cnt} {cn}")
+            if metrics['digi_off'] > 0: expand_parts.append(f"📵 {metrics['digi_off']} Offline")
+            if metrics['digi_ins'] > 0: expand_parts.append(f"🔧 {metrics['digi_ins']} Ins/Rem")
+            if metrics['digi_srv'] > 0: expand_parts.append(f"⚙️ {metrics['digi_srv']} Service")
+            expand_str = " | ".join(expand_parts)
             esc_count_stop = sum(1 for t in cluster['data'] if t.get('full') == addr and t.get('escalated'))
             esc_inline = f" <span style='color:#dc2626;font-weight:900;font-size:10px;'>❗ {esc_count_stop}</span>" if esc_count_stop > 0 else ""
             display_addr = f"+ {addr}" if metrics.get('is_new') else addr
-            venue_prefix = f"<span style='color:#94a3b8;font-size:11px;font-weight:600;'>{metrics['venue_name']} — </span>" if metrics.get('venue_name') else ""
+            venue_prefix = f"<span style='color:#94a3b8;font-size:11px;font-weight:600;white-space:normal;'>{metrics['venue_name']} — </span>" if metrics.get('venue_name') else ""
             task_pill = f"<span style='color:#633094;background:#f3e8ff;padding:1px 5px;border-radius:8px;font-weight:800;font-size:10px;'>{metrics['t_count']} Tasks</span>"
             pill_html = f"<span style='font-size:11px;color:#94a3b8;'> — {pill_str}</span>" if pill_str else ""
             # Campaign expansion
@@ -1924,16 +1937,14 @@ def render_dispatch(i, cluster, pod_name, is_sent=False, is_declined=False):
                 elif 'boosted' in bs: badges += " 🔥"
                 row = f"<div style='font-size:10px;color:#64748b;padding-left:4px;margin-top:2px;'>• {cmp}{badges}</div>"
                 if row not in seen_c: seen_c.add(row); camp_rows.append(row)
-            camp_block = f"<div style='padding:6px 8px;background:#f8fafc;border-radius:6px;margin-top:4px;'>{''.join(camp_rows)}</div>" if camp_rows else ""
-            _venue_col = f"<div style='font-size:11px;font-weight:600;color:#94a3b8;min-width:80px;flex:0 0 80px;line-height:1.3;'>{metrics['venue_name'] + ' —' if metrics.get('venue_name') else ''}</div>" if metrics.get('venue_name') else "<div style='flex:0 0 0px;'></div>"
+            _task_line = f"<div style='font-size:10px;color:#94a3b8;padding-left:4px;margin-bottom:4px;'>{expand_str}</div>" if expand_str else ""
+            camp_block = f"<div style='padding:6px 8px;background:#f8fafc;border-radius:6px;margin-top:4px;'>{_task_line}{''.join(camp_rows)}</div>" if (_task_line or camp_rows) else ""
+            _icon_html = f"<span style='font-size:13px;margin-left:6px;'>{pill_str}</span>" if pill_str else ""
             _dispatch_rows.append(
                 f"<details class='fn-loc-row'>"
-                f"<summary class='fn-loc-summary' style='align-items:flex-start;gap:4px;'>"
-                f"<span class='fn-chevron' style='margin-top:2px;flex-shrink:0;'>›</span>"
-                f"{_venue_col}"
-                f"<div style='flex:1;min-width:0;font-weight:700;font-size:12px;color:#0f172a;line-height:1.3;'>{display_addr}{esc_inline}</div>"
-                f"<div style='flex-shrink:0;margin:0 6px;'>{task_pill}</div>"
-                f"<div style='flex:1.5;font-size:11px;color:#64748b;line-height:1.3;'>{pill_str}</div>"
+                f"<summary class='fn-loc-summary'>"
+                f"<span class='fn-chevron'>›</span>"
+                f"{venue_prefix}<span style='font-weight:700;color:#0f172a;'>{display_addr}</span>{esc_inline} &nbsp;{task_pill}{_icon_html}"
                 f"</summary>{camp_block}</details>"
             )
 
@@ -2479,7 +2490,7 @@ def make_venue_details_ghost(locs_list):
 VENUE_SECTION_CSS = """<style>
 .fn-loc-row{border-bottom:1px solid #f1f5f9;}
 .fn-loc-row:last-child{border-bottom:none;}
-.fn-loc-summary{display:flex;align-items:center;justify-content:flex-start;gap:6px;padding:7px 4px;font-size:12px;cursor:pointer;border-radius:6px;list-style:none;user-select:none;transition:background 0.15s ease;}
+.fn-loc-summary{display:flex;align-items:flex-start;justify-content:flex-start;gap:6px;padding:7px 4px;font-size:12px;cursor:pointer;border-radius:6px;list-style:none;user-select:none;transition:background 0.15s ease;flex-wrap:wrap;}
 .fn-loc-summary::-webkit-details-marker{display:none;}
 .fn-loc-summary::marker{display:none;}
 .fn-loc-summary:hover{background:#f8fafc;}
@@ -2916,64 +2927,9 @@ def run_pod_tab(pod_name):
                             st.session_state[f"route_state_{_fn_hash}"] = "field_nation"
 
                         # ── FN LOCATION SUMMARY CARD ──────────────────────────────
-                        _fn_u_locs = []
-                        for _tk in c['data']:
-                            if _tk['full'] not in _fn_u_locs:
-                                _fn_u_locs.append(_tk['full'])
-                        _fn_loc_rows = []
-                        for _loc in _fn_u_locs:
-                            _loc_tasks = [_tk for _tk in c['data'] if _tk['full'] == _loc]
-                            _venue = next((_tk.get('venue_name','') for _tk in _loc_tasks if _tk.get('venue_name')), '')
-                            _campaigns = list(dict.fromkeys(_tk.get('client_company','') for _tk in _loc_tasks if _tk.get('client_company')))
-                            _k_cnt = sum(1 for _tk in _loc_tasks if 'install' in str(_tk.get('task_type','')).lower())
-                            _k_tag = f" <span style='color:#16a34a; font-weight:800; font-size:10px;'>🛠️ {_k_cnt}</span>" if _k_cnt > 0 else ""
-                            _venue_prefix = f"<span style='color:#94a3b8; font-size:11px; font-weight:600;'>{_venue} — </span>" if _venue else ""
-                            _camp_rows = []
-                            for _tk in _loc_tasks:
-                                _cmp = _tk.get('client_company', '')
-                                if not _cmp: continue
-                                _badges = ""
-                                if _tk.get('escalated'): _badges += " ❗"
-                                _bs = str(_tk.get('boosted_standard', '')).lower()
-                                if 'local plus' in _bs: _badges += " ⭐"
-                                elif 'boosted' in _bs: _badges += " 🔥"
-                                _camp_rows.append(f"<div style='font-size:10px; color:#64748b; padding-left:4px; margin-top:2px;'>• {_cmp}{_badges}</div>")
-                            # Deduplicate while preserving badges
-                            _seen_camps = set()
-                            _uniq_camp_rows = []
-                            for _row in _camp_rows:
-                                if _row not in _seen_camps:
-                                    _seen_camps.add(_row)
-                                    _uniq_camp_rows.append(_row)
-                            _camp_html = "".join(_uniq_camp_rows)
-                            _camp_block = f"<div style='padding:6px 8px; background:#f8fafc; border-radius:6px; margin-top:4px;'>{_camp_html}</div>" if _camp_html else ""
-                            _esc_cnt = sum(1 for _tk in _loc_tasks if _tk.get('escalated'))
-                            _esc_inline = f" <span style='color:#dc2626;font-weight:900;font-size:10px;'>❗ {_esc_cnt}</span>" if _esc_cnt > 0 else ""
-                            _primary_camp = _campaigns[0] if _campaigns else ""
-                            _camp_label = f" <span style='font-size:10px;color:#64748b;font-style:italic;'>— {_primary_camp}</span>" if _primary_camp else ""
-                            _fn_loc_rows.append(
-                                f"<details class='fn-loc-row'>"
-                                f"<summary class='fn-loc-summary'>"
-                                f"<span class='fn-chevron'>›</span>"
-                                f"{_venue_prefix}<span style='font-weight:700; color:#0f172a;'>{_loc}</span>{_k_tag}{_esc_inline}"
-                                f"</summary>"
-                                f"{_camp_block}"
-                                f"</details>"
-                            )
-                        _fn_locs_html = "".join(_fn_loc_rows)
-                        _fn_stops, _fn_tasks = len(_fn_u_locs), len(c['data'])
-                        st.markdown(f"""
-<style>
-.fn-loc-row {{border-bottom:1px solid #f1f5f9;}}
-.fn-loc-row:last-child {{border-bottom:none;}}
-.fn-loc-summary {{display:flex;align-items:center;justify-content:flex-start;gap:6px;padding:7px 4px;font-size:12px;cursor:pointer;border-radius:6px;list-style:none;user-select:none;transition:background 0.15s ease;}}
-.fn-loc-summary::-webkit-details-marker {{display:none;}}
-.fn-loc-summary::marker {{display:none;}}
-.fn-loc-summary:hover {{background:#f8fafc;}}
-.fn-chevron {{font-size:13px;color:#94a3b8;font-weight:300;transition:transform 0.2s ease;flex-shrink:0;margin-right:4px;}}
-details[open] .fn-chevron {{transform:rotate(90deg);}}
-</style>
-<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;">
+                        _fn_stops, _fn_tasks = len(set(t['full'] for t in c['data'])), len(c['data'])
+                        _fn_venues = venue_section(make_venue_details(c['data']))
+                        st.markdown(f"""<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; margin-bottom:10px;">
     <div style="background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px;">
         <span style="font-size:9px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:0.1em;">Route Summary</span>
     </div>
@@ -2983,7 +2939,7 @@ details[open] .fn-chevron {{transform:rotate(90deg);}}
         <div style="text-align:right;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;">Status</div>
         <div style="font-size:13px; font-weight:700; color:#854d0e;">Field Nation</div></div>
     </div>
-    <div style="padding:6px 12px 8px 12px;"><div style="font-size:9px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:4px;">Venue Locations</div>{_fn_locs_html}</div>
+    {_fn_venues}
 </div>""", unsafe_allow_html=True)
 
                         render_dispatch(i+5000, c, pod_name)
