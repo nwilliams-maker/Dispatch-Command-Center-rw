@@ -1019,7 +1019,7 @@ def process_digital_pool(master_bar=None):
 .dcc-pill{{display:inline-block;font-size:13px;font-weight:700;color:#0f766e;background:#ccfbf1;border-radius:20px;padding:4px 14px;margin-top:12px;}}</style>
 <div class='dcc-card'><div class='dcc-spin'></div>
 <p style='font-size:16px;font-weight:800;color:#0f172a;margin:0 0 4px 0;'>Initializing Digital Pool</p>
-<div class='dcc-pill'>⏱ {{_m}}:{{_s:02d}}</div></div>""", unsafe_allow_html=True)
+<div class='dcc-pill'>⏱ {_m}:{_s:02d}</div></div>""", unsafe_allow_html=True)
     
     # 1. Fetch Onfleet (ONCE)
     APPROVED_TEAMS = ["a - escalation", "b - boosted campaigns", "b - local campaigns", "c - priority nationals", "cvs kiosk removal", "cvs kiosk removals", "d - digital routes", "n - national campaigns"]
@@ -1053,7 +1053,7 @@ def process_digital_pool(master_bar=None):
 .dcc-pill{{display:inline-block;font-size:13px;font-weight:700;color:#0f766e;background:#ccfbf1;border-radius:20px;padding:4px 14px;margin-top:12px;}}</style>
 <div class='dcc-card'><div class='dcc-spin'></div>
 <p style='font-size:16px;font-weight:800;color:#0f172a;margin:0 0 4px 0;'>Initializing Digital Pool</p>
-<div class='dcc-pill'>⏱ {{_m}}:{{_s:02d}}</div></div>""", unsafe_allow_html=True)
+<div class='dcc-pill'>⏱ {_m}:{_s:02d}</div></div>""", unsafe_allow_html=True)
     
     # 🌟 STRICT DIGITAL FILTER
     # --- 🌟 STRICT DIGITAL FILTER ---
@@ -1175,7 +1175,7 @@ def process_digital_pool(master_bar=None):
 .dcc-pill{{display:inline-block;font-size:13px;font-weight:700;color:#0f766e;background:#ccfbf1;border-radius:20px;padding:4px 14px;margin-top:12px;}}</style>
 <div class='dcc-card'><div class='dcc-spin'></div>
 <p style='font-size:16px;font-weight:800;color:#0f172a;margin:0 0 4px 0;'>Initializing Digital Pool</p>
-<div class='dcc-pill'>⏱ {{_m}}:{{_s:02d}}</div></div>""", unsafe_allow_html=True)
+<div class='dcc-pill'>⏱ {_m}:{_s:02d}</div></div>""", unsafe_allow_html=True)
     
     # 3. Route ONLY the Digital Tasks
     ic_df = st.session_state.get('ic_df', pd.DataFrame())
